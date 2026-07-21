@@ -28,12 +28,15 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   runtime from colored primitives** (`Graphics` → `generateTexture`) — no external
   image assets. Phaser is vendored locally, so the site is fully static and works
   offline.
-- **Annoyed Avians** — a placeholder; its button just pops a "coming soon!" modal.
+- **Annoyed Avians** (`src/annoyed-avians.js`) — an Angry-Birds-style slingshot
+  built on **Matter physics**: a random stack of crates on the right, a draggable
+  bird on the left (billiards-style aim + dotted predicted arc); release to launch.
 
 ```
-index.html            Fantasia selector menu + "coming soon" modal, page shell, mobile styles
-src/game.js           Flappy Bird logic + procedural textures; exposes window.launchFlappyBird()
-vendor/phaser.min.js  Phaser 4.1.0 (vendored)
+index.html             Fantasia selector menu, page shell, mobile styles
+src/game.js            Flappy Bird logic + procedural textures; window.launchFlappyBird()
+src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchAnnoyedAvians()
+vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
 
@@ -83,10 +86,16 @@ vendor/phaser.min.js  Phaser 4.1.0 (vendored)
 ## Game architecture notes
 
 - **The Fantasia menu is plain HTML/CSS** in `index.html` (not a Phaser scene), so
-  the decorative title/modal fonts render well; it is the first screen. `src/game.js`
-  no longer auto-boots — it defines `window.launchFlappyBird()`, which the menu's
-  Flappy Bird button calls to create the Phaser game (once) into `#game-container`.
-  The game's own BootScene then generates textures and starts GameScene.
+  the decorative title font renders well; it is the first screen. Neither game
+  auto-boots — `src/game.js` defines `window.launchFlappyBird()` and
+  `src/annoyed-avians.js` defines `window.launchAnnoyedAvians()`; the menu buttons
+  call these to create the chosen Phaser game (once) into `#game-container`, and
+  `window.returnToMenu()` tears the running game down to re-show the menu.
+- **Annoyed Avians uses Matter physics** (its own `Phaser.Game`, separate from
+  Flappy's Arcade one): a random crate stack, a slingshot bird you drag to aim
+  (pull-back vector, launched with `setVelocity`), all from runtime-generated
+  textures. Low `frictionAir` keeps the flight a clean parabola that matches the
+  drawn guide arc.
 - **The bird stays at a fixed x** (`GAME_WIDTH * 0.28`); the world scrolls left
   to fake forward flight. Scroll speed is `currentPipeSpeed()` =
   `PIPE_SPEED * speedScale`, where `speedScale` starts at 1 and permanently

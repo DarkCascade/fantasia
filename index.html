@@ -159,78 +159,10 @@
       transform: translateY(4px);
       box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 6px 14px rgba(0, 0, 0, 0.3);
     }
-
-    /* ----------------------------------------------------------------- */
-    /*  "Coming soon!" modal — deliberately styled like a 1990s          */
-    /*  Rareware game (chunky, outlined, playful).                       */
-    /* ----------------------------------------------------------------- */
-
-    #coming-soon-modal {
-      position: fixed;
-      inset: 0;
-      z-index: 30;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 5vw;
-      background: rgba(4, 2, 14, 0.68);
-    }
-
-    #coming-soon-modal.is-open {
-      display: flex;
-    }
-
-    .modal-card {
-      max-width: 88vw;
-      padding: clamp(26px, 6vw, 40px) clamp(28px, 7vw, 46px);
-      text-align: center;
-      border: 4px solid #ffd23f;
-      border-radius: 20px;
-      background: linear-gradient(180deg, #2c3170 0%, #14173a 100%);
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-    }
-
-    .modal-text {
-      font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE",
-        "Marker Felt", "Comic Neue", cursive;
-      font-weight: 700;
-      font-size: clamp(34px, 10vw, 60px);
-      line-height: 1.05;
-      color: #ffe23f;
-      -webkit-text-stroke: 1.5px #7a0a12;
-      text-shadow: 3px 3px 0 #b3121f, 5px 5px 0 rgba(0, 0, 0, 0.35);
-    }
-
-    .modal-sub {
-      margin-top: 12px;
-      font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", "Comic Neue", cursive;
-      font-size: clamp(14px, 4vw, 18px);
-      color: #cfe0ff;
-    }
-
-    .modal-close {
-      margin-top: clamp(18px, 3.5vh, 26px);
-      font-family: "Comic Sans MS", "Comic Sans", "Comic Neue", cursive;
-      font-weight: 700;
-      font-size: clamp(16px, 4.5vw, 19px);
-      padding: 11px 24px;
-      color: #fff;
-      border: none;
-      border-radius: 11px;
-      cursor: pointer;
-      background: #e23b47;
-      box-shadow: 0 4px 0 #8f1620;
-      transition: transform 0.06s ease, box-shadow 0.06s ease;
-    }
-
-    .modal-close:active {
-      transform: translateY(3px);
-      box-shadow: 0 1px 0 #8f1620;
-    }
   </style>
 </head>
 <body>
-  <!-- Phaser mounts the Flappy Bird canvas here once it's launched. -->
+  <!-- Phaser mounts the selected game's canvas here once it's launched. -->
   <div id="game-container"></div>
 
   <!-- Default screen: the Fantasia game selector. -->
@@ -251,48 +183,40 @@
     </div>
   </div>
 
-  <!-- "Coming soon!" modal for Annoyed Avians. -->
-  <div id="coming-soon-modal" role="dialog" aria-modal="true" aria-label="Coming soon">
-    <div class="modal-card">
-      <div class="modal-text">coming soon!</div>
-      <div class="modal-sub">Annoyed Avians is still hatching.</div>
-      <button id="modal-close" class="modal-close" type="button">OK</button>
-    </div>
-  </div>
-
-  <!-- Phaser 4, vendored locally so the game is fully self-contained and works offline. -->
+  <!-- Phaser 4, vendored locally so the games are fully self-contained and work offline. -->
   <script src="vendor/phaser.min.js"></script>
   <script src="src/game.js"></script>
+  <script src="src/annoyed-avians.js"></script>
   <script>
-    // Wire up the Fantasia selector. The Phaser game is only created when the
-    // player picks Flappy Bird, so the menu is guaranteed to be the first screen.
+    // Wire up the Fantasia selector. Each game's Phaser instance is created on
+    // demand when its button is pressed, so the menu is always shown first.
     (function () {
       var menu = document.getElementById("menu-screen");
-      var modal = document.getElementById("coming-soon-modal");
+
+      function hideMenu() {
+        menu.style.display = "none";
+      }
 
       document.getElementById("btn-flappy").addEventListener("click", function () {
-        menu.style.display = "none";
-        if (typeof window.launchFlappyBird === "function") {
-          window.launchFlappyBird();
-        }
+        hideMenu();
+        if (typeof window.launchFlappyBird === "function") window.launchFlappyBird();
       });
 
       document.getElementById("btn-avians").addEventListener("click", function () {
-        modal.classList.add("is-open");
+        hideMenu();
+        if (typeof window.launchAnnoyedAvians === "function") window.launchAnnoyedAvians();
       });
 
-      function closeModal() {
-        modal.classList.remove("is-open");
-      }
-
-      document.getElementById("modal-close").addEventListener("click", closeModal);
-      // Dismiss when tapping the dark backdrop, or pressing Escape.
-      modal.addEventListener("click", function (e) {
-        if (e.target === modal) closeModal();
-      });
-      document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape") closeModal();
-      });
+      // Return to the Fantasia menu from within a game: show the menu and tear
+      // down whichever Phaser game is running (next tick, to avoid destroying
+      // mid-callback).
+      window.returnToMenu = function () {
+        menu.style.display = "flex";
+        setTimeout(function () {
+          if (window.game) { try { window.game.destroy(true); } catch (e) {} window.game = null; }
+          if (window.aviansGame) { try { window.aviansGame.destroy(true); } catch (e) {} window.aviansGame = null; }
+        }, 0);
+      };
     })();
   </script>
 </body>

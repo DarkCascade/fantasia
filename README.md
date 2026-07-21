@@ -22,7 +22,10 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   hitting anything. Pipes alternate green/purple with an occasional **red** pipe
   worth double points, the world speeds up ~1% with every pipe you pass, and
   little procedural houses drift past in the background.
-- **Annoyed Avians** — *coming soon* (the button pops a placeholder modal).
+- **Annoyed Avians** — an Angry-Birds-style slingshot: drag the bird back
+  (billiards-style aim line + a dotted predicted arc) and release to fling it at
+  a random stack of crates that topple with Matter.js physics. **↺ Reset**
+  re-racks the stack; **≡ Menu** returns to the selector.
 
 ## Play
 
@@ -51,8 +54,10 @@ phone play — press it to flap.
 
 ## Features
 
-- 🎬 **Fantasia selector menu** — a title screen shown first; Flappy Bird boots
-  on demand, and Annoyed Avians shows a "coming soon!" modal.
+- 🎬 **Fantasia selector menu** — a title screen shown first; each game boots on
+  demand, with an on-screen **≡ Menu** button to hop back.
+- 🎯 **Annoyed Avians** — a Matter.js slingshot mini-game: drag-aim and fling a
+  bird at a random stack of crates that topple on impact.
 - 🐤 **Procedural art** — all textures drawn from primitives at boot, so the
   repo ships no binary image files.
 - 🔴 **Red bonus pipes & rising speed** — a random red pipe worth double points,
@@ -99,9 +104,10 @@ will deploy.
 ## Project structure
 
 ```
-index.html            Fantasia selector menu + "coming soon" modal, page shell, mobile styles
-src/game.js           Flappy Bird logic + procedural textures; exposes window.launchFlappyBird()
-vendor/phaser.min.js  Phaser 4.1.0 (vendored so the game works offline)
+index.html             Fantasia selector menu, page shell, mobile styles
+src/game.js            Flappy Bird logic + procedural textures; window.launchFlappyBird()
+src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchAnnoyedAvians()
+vendor/phaser.min.js   Phaser 4.1.0 (vendored so the games work offline)
 ```
 
 ## Tuning
