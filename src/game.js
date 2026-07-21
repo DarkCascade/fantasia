@@ -404,6 +404,19 @@ class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // Small subtitle on the title screen — a visible marker to demo the
+    // push → GitHub Pages round-trip.
+    const subtitle = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT * 0.24 + 34, "deploy round-trip demo ✔", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "16px",
+        color: "#fff8dc",
+        stroke: "#3a5a1b",
+        strokeThickness: 4,
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+
     const hint = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT * 0.6, "Tap, press SPACE,\nor use the JUMP button", {
         fontFamily: "Arial, sans-serif",
@@ -424,7 +437,7 @@ class GameScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    this.readyGroup.add([title, hint]);
+    this.readyGroup.add([title, subtitle, hint]);
   }
 
   startPlaying() {
