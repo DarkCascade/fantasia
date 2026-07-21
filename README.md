@@ -8,7 +8,7 @@ JUMP button — is **generated at runtime from colored primitives** (Phaser
 ### ▶️ [Play it live on GitHub Pages](https://darkcascade.github.io/fantasia/)
 
 The site is deployed automatically by GitHub Actions; the latest push to the
-game branch is live at **<https://darkcascade.github.io/fantasia/>**.
+`main` branch is live at **<https://darkcascade.github.io/fantasia/>**.
 
 ![Gameplay](docs/gameplay.png)
 
@@ -51,8 +51,9 @@ phone play — press it to flap.
 
 A workflow at `.github/workflows/deploy.yml` builds the site (assembles
 `index.html`, `src/`, and the vendored Phaser into a Pages artifact) and
-publishes it to GitHub Pages on every push to the game branch or `main`, and on
-manual dispatch. When a build completes, the game is served at:
+publishes it to GitHub Pages on every push to the **`main`** deploy branch, and
+on manual dispatch. Iterate on a feature branch, then merge into `main` to ship.
+When a build completes, the game is served at:
 
 ### 🌐 https://darkcascade.github.io/fantasia/
 

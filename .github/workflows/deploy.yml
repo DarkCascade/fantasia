@@ -7,12 +7,13 @@ name: Build and Deploy to GitHub Pages
 
 on:
   push:
-    # Deploy on a push to any branch. This is a single-contributor repo, so
-    # there's no need to gate publishing behind a PR/merge — pushing a working
-    # branch publishes it straight to the live Pages site for fast iteration.
-    # (Pages has one live site, so whichever branch pushed most recently wins.)
+    # `main` is the deploy branch for Pages: only pushes to main publish to the
+    # live site, so main is always the single source of truth for what's live.
+    # Iterate on a feature branch, then merge (or fast-forward) into main to
+    # ship. Pages has one live site, and gating on main keeps branches from
+    # clobbering each other.
     branches:
-      - '**'
+      - main
   # Allow running the deploy manually from the Actions tab.
   workflow_dispatch:
 
