@@ -1,0 +1,73 @@
+name: Build and Deploy to GitHub Pages
+
+# Builds the game into a Pages artifact and publishes it to GitHub Pages.
+# The game is static (HTML + vendored Phaser + procedurally generated assets),
+# so the "build" step assembles the files that make up the site; no bundler or
+# compiler is required.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/phaser-flappy-bird-game-9yq608
+  # Allow running the deploy manually from the Actions tab.
+  workflow_dispatch:
+
+# Grant the token the permissions Pages deployment needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only ever run one deployment at a time; cancel superseded runs in-progress
+# would interrupt a live deploy, so let running deploys finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assemble site
+        # Copy only the files the game needs into the publish directory.
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r src _site/
+          cp -r vendor _site/
+
+      - name: Verify required files exist
+        run: |
+          test -f _site/index.html
+          test -f _site/src/game.js
+          test -f _site/vendor/phaser.min.js
+          echo "Site assembled:"
+          find _site -type f | sort
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Attempt to enable Pages (source = GitHub Actions) automatically.
+          # If repo settings block this, enable Pages once in
+          # Settings → Pages → Source: "GitHub Actions".
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
