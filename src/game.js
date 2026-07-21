@@ -47,6 +47,17 @@ const PIPE_PALETTES = [
   },
 ];
 
+// A rarer red pipe that shows up at random, on top of the green/purple
+// alternation. RED_PIPE_CHANCE is the odds any given column comes out red.
+const RED_PIPE_PALETTE = {
+  key: "red",
+  base: 0xd0342c,
+  highlight: 0xef5b52,
+  shadow: 0x991f1a,
+  stroke: 0x6d1410,
+};
+const RED_PIPE_CHANCE = 0.2; // ~1 in 5 columns
+
 // Little background houses. Three colour variants are baked as textures; the
 // background layer cycles through them at random as houses scroll past.
 const HOUSE_KEYS = ["house-1", "house-2", "house-3"];
@@ -134,6 +145,8 @@ function generateTextures(scene) {
   for (const palette of PIPE_PALETTES) {
     buildPipeTextures(g, palette);
   }
+  // The random red variant needs its texture set baked too.
+  buildPipeTextures(g, RED_PIPE_PALETTE);
 
   // --- Little background houses (one texture per colour variant) ---
   HOUSE_PALETTES.forEach((palette, i) => buildHouse(g, HOUSE_KEYS[i], palette));
@@ -562,9 +575,16 @@ class GameScene extends Phaser.Scene {
     const topEnd = gapCenter - PIPE_GAP / 2;
     const bottomStart = gapCenter + PIPE_GAP / 2;
 
-    // Alternate palettes so every other column is purple.
-    const palette = PIPE_PALETTES[this.pipesSpawned % PIPE_PALETTES.length];
-    this.pipesSpawned += 1;
+    // Occasionally a whole column comes out red, at random. Otherwise fall
+    // back to the usual green/purple alternation (only advancing that counter
+    // for non-red columns, so the alternation stays intact between reds).
+    let palette;
+    if (Phaser.Math.FloatBetween(0, 1) < RED_PIPE_CHANCE) {
+      palette = RED_PIPE_PALETTE;
+    } else {
+      palette = PIPE_PALETTES[this.pipesSpawned % PIPE_PALETTES.length];
+      this.pipesSpawned += 1;
+    }
 
     const top = this.createPipe(x, topEnd, "up", palette.key);
     const bottom = this.createPipe(x, bottomStart, "down", palette.key);
