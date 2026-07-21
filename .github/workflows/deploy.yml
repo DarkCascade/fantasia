@@ -49,12 +49,10 @@ jobs:
           find _site -type f | sort
 
       - name: Setup Pages
+        # NOTE: Pages must be enabled once, manually, before this succeeds:
+        #   Settings → Pages → Build and deployment → Source: "GitHub Actions".
+        # The workflow token cannot create the Pages site on its own.
         uses: actions/configure-pages@v5
-        with:
-          # Attempt to enable Pages (source = GitHub Actions) automatically.
-          # If repo settings block this, enable Pages once in
-          # Settings → Pages → Source: "GitHub Actions".
-          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

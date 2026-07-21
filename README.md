@@ -42,6 +42,22 @@ phone play — press it to flap.
 - 🎞️ **Juice** — flap animation, bird rotation toward velocity, drifting
   parallax clouds, score pop, screen shake / flash on death.
 
+## Deploying to GitHub Pages
+
+A workflow at `.github/workflows/deploy.yml` builds the site (assembles
+`index.html`, `src/`, and the vendored Phaser into a Pages artifact) and
+publishes it to GitHub Pages on every push to the game branch or `main`, and on
+manual dispatch.
+
+**One-time setup** (the workflow token cannot do this itself): in the repo, go
+to **Settings → Pages → Build and deployment** and set **Source** to
+**"GitHub Actions"**. The next push (or a manual run from the **Actions** tab)
+will deploy, and the live URL appears in the workflow run's `deploy` job and
+under Settings → Pages.
+
+> GitHub Pages on a **private** repository requires a paid plan (Pro, Team, or
+> Enterprise). On a free plan, make the repository public first.
+
 ## Project structure
 
 ```
