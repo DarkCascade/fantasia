@@ -56,7 +56,8 @@ const RED_PIPE_PALETTE = {
   shadow: 0x991f1a,
   stroke: 0x6d1410,
 };
-const RED_PIPE_CHANCE = 0.2; // ~1 in 5 columns
+const RED_PIPE_CHANCE = 0.3; // ~3 in 10 columns
+const RED_PIPE_POINTS = 2; // red columns are worth double
 
 // Little background houses. Three colour variants are baked as textures; the
 // background layer cycles through them at random as houses scroll past.
@@ -585,12 +586,20 @@ class GameScene extends Phaser.Scene {
       palette = PIPE_PALETTES[this.pipesSpawned % PIPE_PALETTES.length];
       this.pipesSpawned += 1;
     }
+    const isRed = palette === RED_PIPE_PALETTE;
 
     const top = this.createPipe(x, topEnd, "up", palette.key);
     const bottom = this.createPipe(x, bottomStart, "down", palette.key);
 
     // Use one invisible scoring sensor per column, riding with the pipes.
-    const scorer = { x: x, scored: false, top: top, bottom: bottom };
+    // Red columns are worth double.
+    const scorer = {
+      x: x,
+      scored: false,
+      top: top,
+      bottom: bottom,
+      points: isRed ? RED_PIPE_POINTS : 1,
+    };
     this.pipeColumns.push(scorer);
   }
 
@@ -791,7 +800,7 @@ class GameScene extends Phaser.Scene {
 
         if (!col.scored && col.x < this.bird.x) {
           col.scored = true;
-          this.addScore();
+          this.addScore(col.points);
         }
 
         if (col.x < -PIPE_WIDTH * 2) {
@@ -817,13 +826,13 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  addScore() {
-    this.score += 1;
+  addScore(points = 1) {
+    this.score += points;
     this.scoreText.setText(String(this.score));
-    // Pop the score text.
+    // Pop the score text — a bigger pop when a red pipe scores double.
     this.tweens.add({
       targets: this.scoreText,
-      scale: 1.25,
+      scale: points > 1 ? 1.5 : 1.25,
       duration: 90,
       yoyo: true,
       ease: "Quad.easeOut",
