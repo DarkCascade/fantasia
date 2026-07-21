@@ -19,15 +19,20 @@ Guidance for Claude when working in this repository.
 
 ## What this project is
 
-A small, self-contained **Flappy Bird clone built with Phaser 4**. Every sprite
-(bird, pipes, ground, clouds, sky, houses, JUMP button) is **generated at
-runtime from colored primitives** (`Graphics` → `generateTexture`) — there are
-no external image assets, and Phaser is vendored locally, so the site is fully
-static and works offline.
+**Fantasia** is a small, self-contained **collection of browser games built with
+Phaser 4**. The site opens on the **Fantasia selector menu** (an HTML/CSS overlay
+in `index.html`, styled after a 1970s Disney title card); picking a game boots it.
+
+- **Flappy Bird** — a full Flappy Bird clone (all of `src/game.js`). Every sprite
+  (bird, pipes, ground, clouds, sky, houses, JUMP button) is **generated at
+  runtime from colored primitives** (`Graphics` → `generateTexture`) — no external
+  image assets. Phaser is vendored locally, so the site is fully static and works
+  offline.
+- **Annoyed Avians** — a placeholder; its button just pops a "coming soon!" modal.
 
 ```
-index.html            Page shell + mobile viewport/styles
-src/game.js           All game logic + procedural texture generation
+index.html            Fantasia selector menu + "coming soon" modal, page shell, mobile styles
+src/game.js           Flappy Bird logic + procedural textures; exposes window.launchFlappyBird()
 vendor/phaser.min.js  Phaser 4.1.0 (vendored)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
@@ -62,9 +67,11 @@ vendor/phaser.min.js  Phaser 4.1.0 (vendored)
     **not** run `playwright install`. Import the global module by absolute path
     (`/opt/node22/lib/node_modules/playwright/index.js`, CommonJS default
     export) if a local `node_modules` isn't present.
-  - `window.game` exposes the Phaser instance; get the scene with
-    `window.game.scene.getScene('GameScene')` for headless assertions (e.g.
-    inspecting `pipeColumns`, calling `spawnPipeColumn()`/`addScore()`).
+  - The Phaser game is created on demand: click **Flappy Bird** on the menu (or
+    call `window.launchFlappyBird()`) first, then `window.game` exposes the
+    instance. Get the scene with `window.game.scene.getScene('GameScene')` for
+    headless assertions (e.g. inspecting `pipeColumns`, calling
+    `spawnPipeColumn()`/`addScore()`).
 - **Branch deletion is not possible from this environment.** The git proxy
   silently ignores delete refspecs (`git push --delete` → "Everything
   up-to-date"), and there is no GitHub API tool for deleting a ref. Delete
@@ -75,6 +82,11 @@ vendor/phaser.min.js  Phaser 4.1.0 (vendored)
 
 ## Game architecture notes
 
+- **The Fantasia menu is plain HTML/CSS** in `index.html` (not a Phaser scene), so
+  the decorative title/modal fonts render well; it is the first screen. `src/game.js`
+  no longer auto-boots — it defines `window.launchFlappyBird()`, which the menu's
+  Flappy Bird button calls to create the Phaser game (once) into `#game-container`.
+  The game's own BootScene then generates textures and starts GameScene.
 - **The bird stays at a fixed x** (`GAME_WIDTH * 0.28`); the world scrolls left
   to fake forward flight. Scroll speed is `currentPipeSpeed()` =
   `PIPE_SPEED * speedScale`, where `speedScale` starts at 1 and permanently

@@ -1,9 +1,10 @@
-# Flappy Bird — Phaser 4 Clone
+# Fantasia
 
-A small, self-contained Flappy Bird clone built with [Phaser 4](https://phaser.io/).
-Every sprite in the game — the bird, pipes, ground, clouds, sky gradient and the
-JUMP button — is **generated at runtime from colored primitives** (Phaser
-`Graphics` → `generateTexture`). There are no external image assets.
+A small, self-contained collection of browser games built with
+[Phaser 4](https://phaser.io/). The site opens on the **Fantasia** selector menu;
+pick a game to play. Every sprite is **generated at runtime from colored
+primitives** (Phaser `Graphics` → `generateTexture`) — there are no external
+image assets.
 
 ### ▶️ [Play it live on GitHub Pages](https://darkcascade.github.io/fantasia/)
 
@@ -11,6 +12,17 @@ The site is deployed automatically by GitHub Actions; the latest push to the
 `main` branch is live at **<https://darkcascade.github.io/fantasia/>**.
 
 ![Gameplay](docs/gameplay.png)
+
+## Games
+
+Launching the site shows the **Fantasia** menu (a title screen styled after a
+1970s Disney title card). From there:
+
+- **Flappy Bird** — the full game: flap through the gaps between pipes without
+  hitting anything. Pipes alternate green/purple with an occasional **red** pipe
+  worth double points, the world speeds up ~1% with every pipe you pass, and
+  little procedural houses drift past in the background.
+- **Annoyed Avians** — *coming soon* (the button pops a placeholder modal).
 
 ## Play
 
@@ -29,6 +41,7 @@ python3 -m http.server 8000
 
 | Action | Input |
 | ------ | ----- |
+| Open a game | Pick **Flappy Bird** from the Fantasia menu |
 | Flap / jump | **Tap the screen**, click, press **Space** or **↑**, or use the on-screen **JUMP** button |
 | Start | Any flap input from the title screen |
 | Restart | Tap / Space on the Game Over screen |
@@ -38,8 +51,14 @@ phone play — press it to flap.
 
 ## Features
 
+- 🎬 **Fantasia selector menu** — a title screen shown first; Flappy Bird boots
+  on demand, and Annoyed Avians shows a "coming soon!" modal.
 - 🐤 **Procedural art** — all textures drawn from primitives at boot, so the
   repo ships no binary image files.
+- 🔴 **Red bonus pipes & rising speed** — a random red pipe worth double points,
+  and the world ratchets ~1% faster with every pipe passed.
+- 🏠 **Background houses** — recycled procedural houses scroll past behind the
+  pipes for parallax depth.
 - 📱 **Mobile-friendly** — dedicated on-screen JUMP button plus tap-anywhere
   input; the canvas scales to fit any screen.
 - 🏆 **Score & high score** — live score as you clear pipes, with the best
@@ -80,13 +99,13 @@ will deploy.
 ## Project structure
 
 ```
-index.html          Page shell + mobile-friendly viewport/styles
-src/game.js         All game logic and the procedural texture generation
+index.html            Fantasia selector menu + "coming soon" modal, page shell, mobile styles
+src/game.js           Flappy Bird logic + procedural textures; exposes window.launchFlappyBird()
 vendor/phaser.min.js  Phaser 4.1.0 (vendored so the game works offline)
 ```
 
 ## Tuning
 
 Gameplay constants live at the top of `src/game.js` — `FLAP_VELOCITY`,
-`GRAVITY`, `PIPE_SPEED`, `PIPE_GAP`, `PIPE_SPACING`, etc. Tweak them to make the
-game easier or harder.
+`GRAVITY`, `PIPE_SPEED`, `SPEED_INCREASE_PER_PIPE`, `PIPE_GAP`, `PIPE_SPACING`,
+`RED_PIPE_CHANCE`, etc. Tweak them to make the game easier or harder.
