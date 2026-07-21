@@ -76,9 +76,14 @@ vendor/phaser.min.js  Phaser 4.1.0 (vendored)
 ## Game architecture notes
 
 - **The bird stays at a fixed x** (`GAME_WIDTH * 0.28`); the world scrolls left
-  at `PIPE_SPEED` to fake forward flight. The ground (`tileSprite`), pipes
-  (`body.setVelocityX(-PIPE_SPEED)`), and background houses all move at
-  `PIPE_SPEED`. Clouds drift independently for parallax.
+  to fake forward flight. Scroll speed is `currentPipeSpeed()` =
+  `PIPE_SPEED * speedScale`, where `speedScale` starts at 1 and permanently
+  ratchets up by `SPEED_INCREASE_PER_PIPE` (+1%) each time a pipe is passed. The
+  ground (`tileSprite`), pipes (`body.setVelocityX(-currentPipeSpeed())`,
+  re-applied to already-spawned pipes via `updatePipeSpeeds()`), and background
+  houses all move at this scaled speed; the pipe-spawn cadence uses it too, so
+  on-screen spacing stays constant as the world speeds up. Clouds drift
+  independently for parallax.
 - **All textures are baked once** in `generateTextures()` at boot (BootScene),
   then reused. New art = add a `build*` helper + a `generateTexture(key, …)`.
 - **Pipes:** columns alternate green/purple (`PIPE_PALETTES`, indexed by
@@ -89,8 +94,9 @@ vendor/phaser.min.js  Phaser 4.1.0 (vendored)
 - **Background houses:** three recycled sprites on a layer behind the pipes
   (depth `-8`), resting on `FLOOR_Y`, scrolling at `PIPE_SPEED` and respawning
   off the left edge as a random variant.
-- **Tuning constants** live at the top of `src/game.js`
-  (`FLAP_VELOCITY`, `GRAVITY`, `PIPE_SPEED`, `PIPE_GAP`, `PIPE_SPACING`, …).
+- **Tuning constants** live at the top of `src/game.js` (`FLAP_VELOCITY`,
+  `GRAVITY`, `PIPE_SPEED`, `SPEED_INCREASE_PER_PIPE`, `PIPE_GAP`,
+  `PIPE_SPACING`, …).
 
 ## Before you push
 
