@@ -5,6 +5,11 @@ Every sprite in the game — the bird, pipes, ground, clouds, sky gradient and t
 JUMP button — is **generated at runtime from colored primitives** (Phaser
 `Graphics` → `generateTexture`). There are no external image assets.
 
+### ▶️ [Play it live on GitHub Pages](https://darkcascade.github.io/fantasia/)
+
+The site is deployed automatically by GitHub Actions; the latest push to the
+game branch is live at **<https://darkcascade.github.io/fantasia/>**.
+
 ![Gameplay](docs/gameplay.png)
 
 ## Play
@@ -47,13 +52,17 @@ phone play — press it to flap.
 A workflow at `.github/workflows/deploy.yml` builds the site (assembles
 `index.html`, `src/`, and the vendored Phaser into a Pages artifact) and
 publishes it to GitHub Pages on every push to the game branch or `main`, and on
-manual dispatch.
+manual dispatch. When a build completes, the game is served at:
+
+### 🌐 https://darkcascade.github.io/fantasia/
+
+The exact URL for each deploy is also printed in the workflow run's `deploy`
+job output and shown under **Settings → Pages**.
 
 **One-time setup** (the workflow token cannot do this itself): in the repo, go
 to **Settings → Pages → Build and deployment** and set **Source** to
 **"GitHub Actions"**. The next push (or a manual run from the **Actions** tab)
-will deploy, and the live URL appears in the workflow run's `deploy` job and
-under Settings → Pages.
+will deploy.
 
 > GitHub Pages on a **private** repository requires a paid plan (Pro, Team, or
 > Enterprise). On a free plan, make the repository public first.
