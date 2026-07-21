@@ -59,6 +59,13 @@ manual dispatch. When a build completes, the game is served at:
 The exact URL for each deploy is also printed in the workflow run's `deploy`
 job output and shown under **Settings → Pages**.
 
+**Confirming a change is live.** Every deploy stamps a
+[`version.json`](https://darkcascade.github.io/fantasia/version.json) at the
+site root with the deployed commit, branch and timestamp. After you push a
+change, a deploy typically finishes in ~1 minute; open that file (or the link
+in the run summary) and check `shortCommit` matches your latest commit to be
+sure you're looking at the new build and not a cached copy.
+
 **One-time setup** (the workflow token cannot do this itself): in the repo, go
 to **Settings → Pages → Build and deployment** and set **Source** to
 **"GitHub Actions"**. The next push (or a manual run from the **Actions** tab)
