@@ -42,9 +42,11 @@ vendor/phaser.min.js  Phaser 4.1.0 (vendored)
   to the "Assemble site" copy step **and** the "Verify required files" check.
 - **Verifying a deploy is live:** every deploy stamps
   [`/version.json`](https://darkcascade.github.io/fantasia/version.json) with
-  the commit, branch, and timestamp. After pushing, confirm `shortCommit`
-  matches your latest commit (defeats CDN caching doubt). The live URL and
-  deployed commit are also printed in the workflow run summary.
+  the commit, branch, timestamp, and a `note` describing what changed (the
+  latest commit's subject line, or a manual note typed into a
+  `workflow_dispatch` run). After pushing, confirm `shortCommit` matches your
+  latest commit (defeats CDN caching doubt). The live URL, deployed commit, and
+  note are also printed in the workflow run summary.
 - **One-time setup already done:** Pages source is "GitHub Actions"; the
   `github-pages` environment allows deploys from `main`.
 

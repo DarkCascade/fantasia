@@ -14,8 +14,14 @@ on:
     # clobbering each other.
     branches:
       - main
-  # Allow running the deploy manually from the Actions tab.
+  # Allow running the deploy manually from the Actions tab. An optional note
+  # lets you describe what changed for this deploy; it lands in version.json.
   workflow_dispatch:
+    inputs:
+      note:
+        description: "Optional note describing what changed (defaults to the latest commit message)"
+        required: false
+        default: ""
 
 # Grant the token the permissions Pages deployment needs.
 permissions:
@@ -46,18 +52,25 @@ jobs:
 
       - name: Stamp deploy version
         # Write a tiny version.json into the site so you can confirm the live
-        # site is serving your latest push (not a stale CDN copy). Check it at
+        # site is serving your latest push (not a stale CDN copy) and see, at a
+        # glance, what changed. Check it at
         # https://darkcascade.github.io/fantasia/version.json after a deploy.
+        # `note` is the manual workflow_dispatch input when given, otherwise the
+        # latest commit's subject line. jq builds the JSON so any quotes in the
+        # commit message are escaped safely.
+        env:
+          MANUAL_NOTE: ${{ github.event.inputs.note }}
         run: |
-          cat > _site/version.json <<EOF
-          {
-            "commit": "${GITHUB_SHA}",
-            "shortCommit": "$(echo "${GITHUB_SHA}" | cut -c1-7)",
-            "branch": "${GITHUB_REF_NAME}",
-            "deployedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "runNumber": "${GITHUB_RUN_NUMBER}"
-          }
-          EOF
+          NOTE="${MANUAL_NOTE:-$(git log -1 --pretty=%s)}"
+          jq -n \
+            --arg commit "${GITHUB_SHA}" \
+            --arg shortCommit "$(echo "${GITHUB_SHA}" | cut -c1-7)" \
+            --arg branch "${GITHUB_REF_NAME}" \
+            --arg deployedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg runNumber "${GITHUB_RUN_NUMBER}" \
+            --arg note "$NOTE" \
+            '{commit: $commit, shortCommit: $shortCommit, branch: $branch, deployedAt: $deployedAt, runNumber: $runNumber, note: $note}' \
+            > _site/version.json
           echo "Stamped version:"
           cat _site/version.json
 
@@ -93,11 +106,19 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Publish live link to run summary
+        env:
+          MANUAL_NOTE: ${{ github.event.inputs.note }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           URL="${{ steps.deployment.outputs.page_url }}"
+          # This job has no checkout, so derive the note from the event context:
+          # the manual input if given, else the head commit's first line.
+          NOTE="${MANUAL_NOTE:-$(printf '%s' "$COMMIT_MSG" | head -n1)}"
+          [ -n "$NOTE" ] || NOTE="$(echo "${GITHUB_SHA}" | cut -c1-7)"
           echo "## 🎮 Deployment complete" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "The game is live at: [${URL}](${URL})" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Deployed commit: \`$(echo "${GITHUB_SHA}" | cut -c1-7)\` from branch \`${GITHUB_REF_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- What changed: ${NOTE}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Confirm the live version: [${URL}version.json](${URL}version.json)" >> "$GITHUB_STEP_SUMMARY"

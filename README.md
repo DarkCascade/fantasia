@@ -62,10 +62,12 @@ job output and shown under **Settings → Pages**.
 
 **Confirming a change is live.** Every deploy stamps a
 [`version.json`](https://darkcascade.github.io/fantasia/version.json) at the
-site root with the deployed commit, branch and timestamp. After you push a
-change, a deploy typically finishes in ~1 minute; open that file (or the link
-in the run summary) and check `shortCommit` matches your latest commit to be
-sure you're looking at the new build and not a cached copy.
+site root with the deployed commit, branch, timestamp, and a `note` describing
+what changed (the latest commit's subject line, or a note you type into a manual
+**Run workflow** dispatch). After you push a change, a deploy typically finishes
+in ~1 minute; open that file (or the link in the run summary) and check
+`shortCommit` matches your latest commit to be sure you're looking at the new
+build and not a cached copy.
 
 **One-time setup** (the workflow token cannot do this itself): in the repo, go
 to **Settings → Pages → Build and deployment** and set **Source** to
