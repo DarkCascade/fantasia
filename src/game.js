@@ -889,7 +889,15 @@ const config = {
   scene: [BootScene, GameScene],
 };
 
-const game = new Phaser.Game(config);
+// The Phaser game is created on demand — the Fantasia selector menu
+// (see index.html) is the first screen, and picking "Flappy Bird" calls this
+// to boot the game into #game-container. Guarded so it only ever runs once.
+function launchFlappyBird() {
+  if (window.game) return window.game;
+  const game = new Phaser.Game(config);
+  // Expose for debugging / automated checks.
+  window.game = game;
+  return game;
+}
 
-// Expose for debugging / automated checks.
-window.game = game;
+window.launchFlappyBird = launchFlappyBird;

@@ -6,8 +6,8 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
   />
-  <meta name="theme-color" content="#4ec0ca" />
-  <title>Flappy Bird — Phaser Clone</title>
+  <meta name="theme-color" content="#140f33" />
+  <title>Fantasia</title>
   <style>
     * {
       margin: 0;
@@ -39,13 +39,261 @@
       display: block;
       touch-action: none;
     }
+
+    /* ----------------------------------------------------------------- */
+    /*  Fantasia game-selector menu (the first screen on load).          */
+    /* ----------------------------------------------------------------- */
+
+    #menu-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(24px, 6vh, 48px);
+      padding: 6vh 5vw;
+      text-align: center;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 50% 18%, rgba(126, 116, 224, 0.38), transparent 60%),
+        radial-gradient(ellipse at 50% 120%, rgba(15, 8, 32, 0.95), transparent 70%),
+        linear-gradient(180deg, #1b1440 0%, #0d0a24 55%, #05030f 100%);
+    }
+
+    /* A sparse dusting of stars for the "Fantasia" night-sky feel. */
+    #menu-screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.6;
+      background-image:
+        radial-gradient(1.6px 1.6px at 25% 15%, #fff, transparent),
+        radial-gradient(1px 1px at 70% 22%, #fff, transparent),
+        radial-gradient(1.6px 1.6px at 40% 58%, #fff, transparent),
+        radial-gradient(1px 1px at 85% 68%, #fff, transparent),
+        radial-gradient(1px 1px at 14% 78%, #fff, transparent),
+        radial-gradient(1.6px 1.6px at 60% 86%, #fff, transparent),
+        radial-gradient(1px 1px at 90% 42%, #fff, transparent),
+        radial-gradient(1px 1px at 50% 34%, #fff, transparent),
+        radial-gradient(1.4px 1.4px at 8% 40%, #fff, transparent),
+        radial-gradient(1px 1px at 33% 88%, #fff, transparent);
+    }
+
+    .menu-inner {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(20px, 5vh, 40px);
+    }
+
+    /* The title: a rich, rounded 1970s-Disney-style serif in warm gold. */
+    .menu-title {
+      font-family: "Cooper Black", "Bookman Old Style", "Palatino Linotype",
+        Palatino, Georgia, "Times New Roman", serif;
+      font-weight: 700;
+      font-size: clamp(58px, 19vw, 132px);
+      line-height: 0.95;
+      letter-spacing: 0.015em;
+      background: linear-gradient(180deg, #fff6d5 0%, #f6d879 34%, #e2a72f 68%, #a5610f 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      filter:
+        drop-shadow(0 2px 0 rgba(74, 38, 0, 0.55))
+        drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6));
+    }
+
+    .menu-tagline {
+      margin-top: clamp(6px, 1.4vh, 14px);
+      font-family: "Palatino Linotype", Palatino, Georgia, serif;
+      font-style: italic;
+      font-size: clamp(15px, 4.5vw, 22px);
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: #d8cdff;
+      opacity: 0.85;
+    }
+
+    .menu-buttons {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: clamp(14px, 2.6vh, 20px);
+      width: min(360px, 84vw);
+    }
+
+    .menu-btn {
+      font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
+      font-size: clamp(20px, 5.6vw, 27px);
+      padding: 16px 22px;
+      border-radius: 15px;
+      cursor: pointer;
+      transition: transform 0.06s ease, box-shadow 0.06s ease;
+    }
+
+    .menu-btn--primary {
+      color: #3a2500;
+      border: 2px solid #ffe9ad;
+      background: linear-gradient(180deg, #ffe7a3 0%, #f0b94a 100%);
+      box-shadow: 0 6px 0 #8a5a12, 0 12px 22px rgba(0, 0, 0, 0.45);
+    }
+
+    .menu-btn--primary:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #8a5a12, 0 6px 14px rgba(0, 0, 0, 0.4);
+    }
+
+    .menu-btn--secondary {
+      color: #ffe7a3;
+      border: 2px solid rgba(255, 224, 138, 0.7);
+      background: rgba(255, 255, 255, 0.06);
+      box-shadow: 0 6px 0 rgba(0, 0, 0, 0.35), 0 12px 22px rgba(0, 0, 0, 0.35);
+    }
+
+    .menu-btn--secondary:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 6px 14px rgba(0, 0, 0, 0.3);
+    }
+
+    /* ----------------------------------------------------------------- */
+    /*  "Coming soon!" modal — deliberately styled like a 1990s          */
+    /*  Rareware game (chunky, outlined, playful).                       */
+    /* ----------------------------------------------------------------- */
+
+    #coming-soon-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 5vw;
+      background: rgba(4, 2, 14, 0.68);
+    }
+
+    #coming-soon-modal.is-open {
+      display: flex;
+    }
+
+    .modal-card {
+      max-width: 88vw;
+      padding: clamp(26px, 6vw, 40px) clamp(28px, 7vw, 46px);
+      text-align: center;
+      border: 4px solid #ffd23f;
+      border-radius: 20px;
+      background: linear-gradient(180deg, #2c3170 0%, #14173a 100%);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-text {
+      font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE",
+        "Marker Felt", "Comic Neue", cursive;
+      font-weight: 700;
+      font-size: clamp(34px, 10vw, 60px);
+      line-height: 1.05;
+      color: #ffe23f;
+      -webkit-text-stroke: 1.5px #7a0a12;
+      text-shadow: 3px 3px 0 #b3121f, 5px 5px 0 rgba(0, 0, 0, 0.35);
+    }
+
+    .modal-sub {
+      margin-top: 12px;
+      font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", "Comic Neue", cursive;
+      font-size: clamp(14px, 4vw, 18px);
+      color: #cfe0ff;
+    }
+
+    .modal-close {
+      margin-top: clamp(18px, 3.5vh, 26px);
+      font-family: "Comic Sans MS", "Comic Sans", "Comic Neue", cursive;
+      font-weight: 700;
+      font-size: clamp(16px, 4.5vw, 19px);
+      padding: 11px 24px;
+      color: #fff;
+      border: none;
+      border-radius: 11px;
+      cursor: pointer;
+      background: #e23b47;
+      box-shadow: 0 4px 0 #8f1620;
+      transition: transform 0.06s ease, box-shadow 0.06s ease;
+    }
+
+    .modal-close:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #8f1620;
+    }
   </style>
 </head>
 <body>
+  <!-- Phaser mounts the Flappy Bird canvas here once it's launched. -->
   <div id="game-container"></div>
+
+  <!-- Default screen: the Fantasia game selector. -->
+  <div id="menu-screen">
+    <div class="menu-inner">
+      <div>
+        <h1 class="menu-title">Fantasia</h1>
+        <p class="menu-tagline">Select your adventure</p>
+      </div>
+      <div class="menu-buttons">
+        <button id="btn-flappy" class="menu-btn menu-btn--primary" type="button">
+          Flappy Bird
+        </button>
+        <button id="btn-avians" class="menu-btn menu-btn--secondary" type="button">
+          Annoyed Avians
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- "Coming soon!" modal for Annoyed Avians. -->
+  <div id="coming-soon-modal" role="dialog" aria-modal="true" aria-label="Coming soon">
+    <div class="modal-card">
+      <div class="modal-text">coming soon!</div>
+      <div class="modal-sub">Annoyed Avians is still hatching.</div>
+      <button id="modal-close" class="modal-close" type="button">OK</button>
+    </div>
+  </div>
 
   <!-- Phaser 4, vendored locally so the game is fully self-contained and works offline. -->
   <script src="vendor/phaser.min.js"></script>
   <script src="src/game.js"></script>
+  <script>
+    // Wire up the Fantasia selector. The Phaser game is only created when the
+    // player picks Flappy Bird, so the menu is guaranteed to be the first screen.
+    (function () {
+      var menu = document.getElementById("menu-screen");
+      var modal = document.getElementById("coming-soon-modal");
+
+      document.getElementById("btn-flappy").addEventListener("click", function () {
+        menu.style.display = "none";
+        if (typeof window.launchFlappyBird === "function") {
+          window.launchFlappyBird();
+        }
+      });
+
+      document.getElementById("btn-avians").addEventListener("click", function () {
+        modal.classList.add("is-open");
+      });
+
+      function closeModal() {
+        modal.classList.remove("is-open");
+      }
+
+      document.getElementById("modal-close").addEventListener("click", closeModal);
+      // Dismiss when tapping the dark backdrop, or pressing Escape.
+      modal.addEventListener("click", function (e) {
+        if (e.target === modal) closeModal();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeModal();
+      });
+    })();
+  </script>
 </body>
 </html>
