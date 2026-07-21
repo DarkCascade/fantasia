@@ -19,7 +19,7 @@ Guidance for Claude when working in this repository.
 
 ## What this project is
 
-A small, self-contained **Flappy Bird clone built with Phaser 3**. Every sprite
+A small, self-contained **Flappy Bird clone built with Phaser 4**. Every sprite
 (bird, pipes, ground, clouds, sky, houses, JUMP button) is **generated at
 runtime from colored primitives** (`Graphics` → `generateTexture`) — there are
 no external image assets, and Phaser is vendored locally, so the site is fully
@@ -28,7 +28,7 @@ static and works offline.
 ```
 index.html            Page shell + mobile viewport/styles
 src/game.js           All game logic + procedural texture generation
-vendor/phaser.min.js  Phaser 3.80.1 (vendored)
+vendor/phaser.min.js  Phaser 4.1.0 (vendored)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
 
