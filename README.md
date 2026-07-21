@@ -1,6 +1,6 @@
-# Flappy Bird — Phaser 3 Clone
+# Flappy Bird — Phaser 4 Clone
 
-A small, self-contained Flappy Bird clone built with [Phaser 3](https://phaser.io/).
+A small, self-contained Flappy Bird clone built with [Phaser 4](https://phaser.io/).
 Every sprite in the game — the bird, pipes, ground, clouds, sky gradient and the
 JUMP button — is **generated at runtime from colored primitives** (Phaser
 `Graphics` → `generateTexture`). There are no external image assets.
@@ -82,7 +82,7 @@ will deploy.
 ```
 index.html          Page shell + mobile-friendly viewport/styles
 src/game.js         All game logic and the procedural texture generation
-vendor/phaser.min.js  Phaser 3.80.1 (vendored so the game works offline)
+vendor/phaser.min.js  Phaser 4.1.0 (vendored so the game works offline)
 ```
 
 ## Tuning
