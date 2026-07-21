@@ -47,6 +47,18 @@ const PIPE_PALETTES = [
   },
 ];
 
+// Little background houses. Three colour variants are baked as textures; the
+// background layer cycles through them at random as houses scroll past.
+const HOUSE_KEYS = ["house-1", "house-2", "house-3"];
+const HOUSE_PALETTES = [
+  // Red roof, cream walls.
+  { wall: 0xf2e4c9, wallDark: 0xd8c6a2, roof: 0xc0392b, roofDark: 0x7d2419, door: 0x8a5a2b, window: 0x9fd3e0 },
+  // Blue roof, tan walls.
+  { wall: 0xe9dcc0, wallDark: 0xccbd98, roof: 0x2c6fa0, roofDark: 0x1c4a6e, door: 0x6b4423, window: 0xfff2b0 },
+  // Teal roof, warm-white walls.
+  { wall: 0xf5ead6, wallDark: 0xdccdb0, roof: 0x3f8f7a, roofDark: 0x276152, door: 0x7a4a2b, window: 0xbfe3ea },
+];
+
 /* ------------------------------------------------------------------ */
 /*  Boot scene: build all textures from primitives, then start play.   */
 /* ------------------------------------------------------------------ */
@@ -123,6 +135,9 @@ function generateTextures(scene) {
     buildPipeTextures(g, palette);
   }
 
+  // --- Little background houses (one texture per colour variant) ---
+  HOUSE_PALETTES.forEach((palette, i) => buildHouse(g, HOUSE_KEYS[i], palette));
+
   // --- Bird (three frames for a flap animation) ---
   buildBird(g, "bird-up", -8);
   buildBird(g, "bird-mid", 0);
@@ -175,6 +190,65 @@ function buildPipeTextures(g, palette) {
   g.lineStyle(2, palette.stroke, 1);
   g.strokeRoundedRect(1, 1, capW - 2, capH - 2, 6);
   g.generateTexture("pipe-cap-" + palette.key, capW, capH);
+}
+
+/**
+ * Bake one little house texture (walls + gabled roof + door + windows) for a
+ * single colour palette. Drawn with its base at the bottom edge so it can be
+ * placed origin-bottom, resting on the ground line.
+ */
+function buildHouse(g, key, c) {
+  const W = 84;
+  const roofH = 30; // triangular roof height
+  const wallH = 50; // wall block height
+  const H = roofH + wallH;
+  const eave = 6; // wall inset so the roof overhangs the walls
+
+  g.clear();
+
+  // Walls.
+  g.fillStyle(c.wall, 1);
+  g.fillRect(eave, roofH, W - eave * 2, wallH);
+  // Right-side shading.
+  g.fillStyle(c.wallDark, 1);
+  g.fillRect(W - eave - 12, roofH, 12, wallH);
+  g.lineStyle(2, c.roofDark, 1);
+  g.strokeRect(eave, roofH, W - eave * 2, wallH);
+
+  // Gabled roof (overhangs the walls on both sides).
+  g.fillStyle(c.roof, 1);
+  g.fillTriangle(0, roofH, W / 2, 0, W, roofH);
+  g.lineStyle(2, c.roofDark, 1);
+  g.strokeTriangle(0, roofH, W / 2, 0, W, roofH);
+  // Eave shadow line under the roof.
+  g.fillStyle(c.roofDark, 1);
+  g.fillRect(eave, roofH - 3, W - eave * 2, 3);
+
+  // Door, centered on the bottom edge.
+  const doorW = 16;
+  const doorH = 26;
+  g.fillStyle(c.door, 1);
+  g.fillRect(W / 2 - doorW / 2, H - doorH, doorW, doorH);
+  g.lineStyle(1.5, c.roofDark, 1);
+  g.strokeRect(W / 2 - doorW / 2, H - doorH, doorW, doorH);
+  g.fillStyle(0xffe08a, 1);
+  g.fillCircle(W / 2 + 4, H - doorH / 2, 1.8); // doorknob
+
+  // A window in each upper corner, with a little cross frame.
+  const win = 13;
+  const winY = roofH + 12;
+  const winL = eave + 8;
+  const winR = W - eave - 8 - win;
+  [winL, winR].forEach((wx) => {
+    g.fillStyle(c.window, 1);
+    g.fillRect(wx, winY, win, win);
+    g.lineStyle(1.5, c.roofDark, 1);
+    g.strokeRect(wx, winY, win, win);
+    g.lineBetween(wx + win / 2, winY, wx + win / 2, winY + win);
+    g.lineBetween(wx, winY + win / 2, wx + win, winY + win / 2);
+  });
+
+  g.generateTexture(key, W, H);
 }
 
 /**
@@ -233,6 +307,7 @@ class GameScene extends Phaser.Scene {
     this.highScore = this.loadHighScore();
 
     this.buildBackground();
+    this.buildHouses();
     this.buildBird();
     this.buildPipes();
     this.buildGround();
@@ -262,6 +337,26 @@ class GameScene extends Phaser.Scene {
         .setScale(Phaser.Math.FloatBetween(0.6, 1.1));
       c.driftSpeed = Phaser.Math.FloatBetween(8, 22);
       this.clouds.push(c);
+    }
+  }
+
+  buildHouses() {
+    // Three little houses on a background layer at the bottom of the play
+    // area. They sit behind the pipes (depth < pipe depth) so the bird flies
+    // past them, and scroll left at PIPE_SPEED while playing — the same speed
+    // the world moves under the bird — so it reads as flying past them.
+    // Each is a random variant at a random size/gap, and recycles off the
+    // left edge as a fresh random house, so houses keep appearing at random.
+    this.houses = [];
+    let x = Phaser.Math.Between(30, 120);
+    for (let i = 0; i < 3; i++) {
+      const h = this.add
+        .image(x, FLOOR_Y + 1, Phaser.Utils.Array.GetRandom(HOUSE_KEYS))
+        .setOrigin(0.5, 1)
+        .setDepth(-8)
+        .setScale(Phaser.Math.FloatBetween(0.8, 1.1));
+      this.houses.push(h);
+      x += Phaser.Math.Between(150, 250);
     }
   }
 
@@ -641,6 +736,22 @@ class GameScene extends Phaser.Scene {
     if (this.gameState === "playing") {
       // Scroll the ground.
       this.ground.tilePositionX += PIPE_SPEED * dt;
+
+      // Scroll the background houses left at the same speed the world moves
+      // under the bird, so it looks like we're flying past them. Recycle any
+      // house that leaves the left edge to the right of the rightmost one, as
+      // a fresh random variant with a random gap.
+      for (const h of this.houses) {
+        h.x -= PIPE_SPEED * dt;
+      }
+      for (const h of this.houses) {
+        if (h.x < -h.displayWidth) {
+          const rightmost = Math.max(...this.houses.map((o) => o.x));
+          h.setTexture(Phaser.Utils.Array.GetRandom(HOUSE_KEYS));
+          h.setScale(Phaser.Math.FloatBetween(0.8, 1.1));
+          h.x = rightmost + Phaser.Math.Between(150, 260);
+        }
+      }
 
       // Rotate the bird toward its velocity for that diving feel.
       const targetAngle = Phaser.Math.Clamp(this.bird.body.velocity.y * 0.08, -22, 90);
