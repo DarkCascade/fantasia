@@ -59,6 +59,10 @@ const RED_PIPE_PALETTE = {
 const RED_PIPE_CHANCE = 0.3; // ~3 in 10 columns
 const RED_PIPE_POINTS = 2; // red columns are worth double
 
+// Every pipe column the bird passes permanently speeds the whole world up by
+// this fraction — so the game gets relentlessly faster the further you get.
+const SPEED_INCREASE_PER_PIPE = 0.01; // +1% per pipe passed
+
 // Little background houses. Three colour variants are baked as textures; the
 // background layer cycles through them at random as houses scroll past.
 const HOUSE_KEYS = ["house-1", "house-2", "house-3"];
@@ -406,6 +410,9 @@ class GameScene extends Phaser.Scene {
     this.pipeColumns = []; // track scoring per column
     this.pipeTimer = 0;
     this.pipesSpawned = 0; // running count, used to alternate pipe colour
+    // Multiplies the world scroll speed; grows by SPEED_INCREASE_PER_PIPE
+    // each time a pipe is passed (see addScore path) and never resets.
+    this.speedScale = 1;
 
     this.physics.add.overlap(this.bird, this.pipes, this.hitObstacle, null, this);
   }
@@ -566,6 +573,18 @@ class GameScene extends Phaser.Scene {
 
   /* -------- pipes -------- */
 
+  // The world's current scroll speed, scaled up as pipes are passed.
+  currentPipeSpeed() {
+    return PIPE_SPEED * this.speedScale;
+  }
+
+  // Re-apply the current speed to every live pipe body, so already-spawned
+  // pipes accelerate along with the rest of the world.
+  updatePipeSpeeds() {
+    const v = -this.currentPipeSpeed();
+    this.pipes.getChildren().forEach((p) => p.body.setVelocityX(v));
+  }
+
   spawnPipeColumn() {
     const margin = 60;
     const minCenter = margin + PIPE_GAP / 2;
@@ -639,7 +658,7 @@ class GameScene extends Phaser.Scene {
     // The container's transform sits at (x, 0); offset the body to the
     // drawn region so collisions line up with what's on screen.
     container.body.setOffset(-PIPE_WIDTH / 2, bodyTop);
-    container.body.setVelocityX(-PIPE_SPEED);
+    container.body.setVelocityX(-this.currentPipeSpeed());
     return container;
   }
 
@@ -763,15 +782,17 @@ class GameScene extends Phaser.Scene {
     if (this.gameState === "ready") return;
 
     if (this.gameState === "playing") {
+      const speed = this.currentPipeSpeed();
+
       // Scroll the ground.
-      this.ground.tilePositionX += PIPE_SPEED * dt;
+      this.ground.tilePositionX += speed * dt;
 
       // Scroll the background houses left at the same speed the world moves
       // under the bird, so it looks like we're flying past them. Recycle any
       // house that leaves the left edge to the right of the rightmost one, as
       // a fresh random variant with a random gap.
       for (const h of this.houses) {
-        h.x -= PIPE_SPEED * dt;
+        h.x -= speed * dt;
       }
       for (const h of this.houses) {
         if (h.x < -h.displayWidth) {
@@ -786,8 +807,9 @@ class GameScene extends Phaser.Scene {
       const targetAngle = Phaser.Math.Clamp(this.bird.body.velocity.y * 0.08, -22, 90);
       this.bird.angle = Phaser.Math.Linear(this.bird.angle, targetAngle, 0.1);
 
-      // Spawn pipes on a fixed horizontal cadence.
-      this.pipeTimer += PIPE_SPEED * dt;
+      // Spawn pipes on a fixed horizontal cadence. Using the scaled speed here
+      // keeps the on-screen spacing constant even as the world speeds up.
+      this.pipeTimer += speed * dt;
       if (this.pipeColumns.length === 0 || this.pipeTimer >= PIPE_SPACING) {
         this.pipeTimer = 0;
         this.spawnPipeColumn();
@@ -796,11 +818,14 @@ class GameScene extends Phaser.Scene {
       // Move scorers with the pipes, tally passes, and clean up.
       for (let i = this.pipeColumns.length - 1; i >= 0; i--) {
         const col = this.pipeColumns[i];
-        col.x -= PIPE_SPEED * dt;
+        col.x -= speed * dt;
 
         if (!col.scored && col.x < this.bird.x) {
           col.scored = true;
           this.addScore(col.points);
+          // Passing a pipe permanently ratchets the world speed up.
+          this.speedScale *= 1 + SPEED_INCREASE_PER_PIPE;
+          this.updatePipeSpeeds();
         }
 
         if (col.x < -PIPE_WIDTH * 2) {
