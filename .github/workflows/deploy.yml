@@ -7,9 +7,12 @@ name: Build and Deploy to GitHub Pages
 
 on:
   push:
+    # Deploy on a push to any branch. This is a single-contributor repo, so
+    # there's no need to gate publishing behind a PR/merge — pushing a working
+    # branch publishes it straight to the live Pages site for fast iteration.
+    # (Pages has one live site, so whichever branch pushed most recently wins.)
     branches:
-      - main
-      - claude/phaser-flappy-bird-game-9yq608
+      - '**'
   # Allow running the deploy manually from the Actions tab.
   workflow_dispatch:
 
