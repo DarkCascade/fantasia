@@ -1,0 +1,12 @@
+# Node / tooling (the game itself needs no build step)
+node_modules/
+package.json
+package-lock.json
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
