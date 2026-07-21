@@ -179,6 +179,10 @@
         <button id="btn-avians" class="menu-btn menu-btn--secondary" type="button">
           Annoyed Avians
         </button>
+        <!-- DEV-ONLY prototype toggle — not part of any production build. -->
+        <label id="boom-toggle" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:2px;color:#ffe7a3;font-family:sans-serif;font-size:14px;cursor:pointer;">
+          <input type="checkbox" id="chk-boom" /> Boom mode?
+        </label>
       </div>
     </div>
   </div>
@@ -204,7 +208,8 @@
 
       document.getElementById("btn-avians").addEventListener("click", function () {
         hideMenu();
-        if (typeof window.launchAnnoyedAvians === "function") window.launchAnnoyedAvians();
+        var boom = document.getElementById("chk-boom").checked; // dev-only prototype
+        if (typeof window.launchAnnoyedAvians === "function") window.launchAnnoyedAvians({ boom: boom });
       });
 
       // Return to the Fantasia menu from within a game: show the menu and tear

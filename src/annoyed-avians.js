@@ -36,6 +36,14 @@
   // so the predicted path lines up with where the bird actually lands.
   const PREVIEW_G = 0.68;
 
+  // --- Boom-mode PROTOTYPE (dev-only; gated by the menu's "Boom mode?" box) ---
+  // When on, a crate the bird strikes explodes: it bursts into debris and
+  // shoves/chain-detonates nearby crates. Off by default; not for production.
+  let boomMode = false;
+  const EXPLODE_RADIUS = 88; // crates within this of a blast get caught
+  const BOOM_IMPULSE = 12; // outward launch speed given to caught crates
+  const CHAIN_DELAY = 70; // ms before a caught crate detonates in turn
+
   class AviansScene extends Phaser.Scene {
     constructor() {
       super("AviansScene");
@@ -44,6 +52,7 @@
     create() {
       this.launched = false;
       this.aiming = false;
+      this.boom = boomMode;
 
       this.buildTextures();
       this.buildWorld();
@@ -53,6 +62,8 @@
       this.aimGfx = this.add.graphics().setDepth(20);
       this.buildUI();
       this.bindInput();
+
+      if (this.boom) this.enableBoom();
     }
 
     /* ---------- procedural textures (generated once) ---------- */
@@ -128,6 +139,16 @@
         g.fillStyle(0xffb02e, 1);
         g.fillTriangle(cx + BIRD_R - 3, cy - 2, cx + BIRD_R + 7, cy + 2, cx + BIRD_R - 3, cy + 6);
         g.generateTexture("avian", d, d);
+      }
+
+      // Debris chip for the boom-mode explosion burst.
+      if (!this.textures.exists("av-chip")) {
+        g.clear();
+        g.fillStyle(0xb5772c, 1);
+        g.fillRect(0, 0, 7, 7);
+        g.fillStyle(0x7c4a17, 1);
+        g.fillRect(0, 0, 7, 2);
+        g.generateTexture("av-chip", 7, 7);
       }
 
       g.destroy();
@@ -258,6 +279,84 @@
       });
     }
 
+    /* ---------- boom mode (prototype) ---------- */
+
+    enableBoom() {
+      // Debris burst emitter (fires only on demand via explode()).
+      this.chips = this.add
+        .particles(0, 0, "av-chip", {
+          lifespan: 520,
+          speed: { min: 70, max: 240 },
+          angle: { min: 0, max: 360 },
+          rotate: { min: 0, max: 360 },
+          gravityY: 500,
+          scale: { start: 1, end: 0.2 },
+          emitting: false,
+        })
+        .setDepth(16);
+
+      this.add
+        .text(A_WIDTH / 2, 84, "💥 BOOM MODE", {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "13px",
+          color: "#ffd23f",
+          stroke: "#7c3a12",
+          strokeThickness: 3,
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5)
+        .setDepth(30);
+
+      // Detonate any crate the bird strikes.
+      this.matter.world.on("collisionstart", (event) => {
+        for (const pair of event.pairs) {
+          const a = pair.bodyA.gameObject;
+          const b = pair.bodyB.gameObject;
+          let box = null;
+          if (a === this.bird && this.boxes.includes(b)) box = b;
+          else if (b === this.bird && this.boxes.includes(a)) box = a;
+          if (box) this.time.delayedCall(0, () => this.explodeBox(box));
+        }
+      });
+    }
+
+    explodeBox(box) {
+      if (!box || box.exploded) return;
+      box.exploded = true;
+      const x = box.x;
+      const y = box.y;
+
+      const idx = this.boxes.indexOf(box);
+      if (idx >= 0) this.boxes.splice(idx, 1);
+      box.destroy();
+
+      // Debris burst + expanding shockwave ring.
+      if (this.chips) this.chips.explode(14, x, y);
+      const ring = this.add.circle(x, y, 30, 0xffd23f, 0.45).setDepth(15).setScale(0.2);
+      this.tweens.add({
+        targets: ring,
+        scale: 1.8,
+        alpha: 0,
+        duration: 300,
+        ease: "Quad.easeOut",
+        onComplete: () => ring.destroy(),
+      });
+
+      // Shove nearby crates outward and chain-detonate them.
+      this.boxes.slice().forEach((other) => {
+        if (other.exploded) return;
+        const dx = other.x - x;
+        const dy = other.y - y;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist < EXPLODE_RADIUS) {
+          const f = (1 - dist / EXPLODE_RADIUS) * BOOM_IMPULSE;
+          other.setStatic(false);
+          other.setVelocity((dx / dist) * f, (dy / dist) * f - 2);
+          this.time.delayedCall(CHAIN_DELAY, () => this.explodeBox(other));
+        }
+      });
+    }
+
     // Compute the current launch vector from a pointer position: pull the bird
     // back and it fires the opposite way, power scaling with pull distance.
     computeLaunch(p) {
@@ -332,7 +431,8 @@
     }
   }
 
-  function launchAnnoyedAvians() {
+  function launchAnnoyedAvians(opts) {
+    boomMode = !!(opts && opts.boom); // dev-only prototype toggle
     if (window.aviansGame) return window.aviansGame;
     const config = {
       type: Phaser.AUTO,
