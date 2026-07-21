@@ -28,6 +28,25 @@ const PIPE_WIDTH = 64;
 
 const HIGH_SCORE_KEY = "flappy-bird-highscore";
 
+// Pipe colour variants. The game cycles through these column by column, so
+// consecutive pipes alternate — every other pipe comes out purple.
+const PIPE_PALETTES = [
+  {
+    key: "green",
+    base: 0x5aa02c,
+    highlight: 0x74c945,
+    shadow: 0x3f7a1e,
+    stroke: 0x2f5f16,
+  },
+  {
+    key: "purple",
+    base: 0x8a2ca0,
+    highlight: 0xb45fd0,
+    shadow: 0x5e1c74,
+    stroke: 0x3d1050,
+  },
+];
+
 /* ------------------------------------------------------------------ */
 /*  Boot scene: build all textures from primitives, then start play.   */
 /* ------------------------------------------------------------------ */
@@ -97,33 +116,12 @@ function generateTextures(scene) {
   g.fillRect(12, 80, 5, 5);
   g.generateTexture("ground", gw, GROUND_HEIGHT);
 
-  // --- Pipe body (tileable vertically) + reusable via nineslice-ish draw ---
-  // We generate a tall pipe texture and a cap texture separately.
-  const pipeBodyH = 32;
-  g.clear();
-  g.fillStyle(0x5aa02c, 1); // base green
-  g.fillRect(0, 0, PIPE_WIDTH, pipeBodyH);
-  g.fillStyle(0x74c945, 1); // left highlight
-  g.fillRect(4, 0, 10, pipeBodyH);
-  g.fillStyle(0x3f7a1e, 1); // right shadow
-  g.fillRect(PIPE_WIDTH - 12, 0, 12, pipeBodyH);
-  g.lineStyle(2, 0x2f5f16, 1);
-  g.strokeRect(1, 0, PIPE_WIDTH - 2, pipeBodyH);
-  g.generateTexture("pipe-body", PIPE_WIDTH, pipeBodyH);
-
-  // --- Pipe cap (the lip at the mouth of each pipe) ---
-  const capW = PIPE_WIDTH + 10;
-  const capH = 26;
-  g.clear();
-  g.fillStyle(0x5aa02c, 1);
-  g.fillRoundedRect(0, 0, capW, capH, 6);
-  g.fillStyle(0x74c945, 1);
-  g.fillRoundedRect(5, 3, 12, capH - 6, 4);
-  g.fillStyle(0x3f7a1e, 1);
-  g.fillRect(capW - 14, 3, 10, capH - 6);
-  g.lineStyle(2, 0x2f5f16, 1);
-  g.strokeRoundedRect(1, 1, capW - 2, capH - 2, 6);
-  g.generateTexture("pipe-cap", capW, capH);
+  // --- Pipe body + cap textures, in each colour variant. ---
+  // The game alternates pipe colours column by column, so we bake a texture
+  // set (body + cap) for every palette in PIPE_PALETTES.
+  for (const palette of PIPE_PALETTES) {
+    buildPipeTextures(g, palette);
+  }
 
   // --- Bird (three frames for a flap animation) ---
   buildBird(g, "bird-up", -8);
@@ -144,6 +142,39 @@ function generateTextures(scene) {
   g.generateTexture("jump-btn", (btnR + 3) * 2, (btnR + 5) * 2);
 
   g.destroy();
+}
+
+/**
+ * Bake the body + cap textures for a single pipe colour palette.
+ * Produces keys like "pipe-body-green" / "pipe-cap-purple".
+ */
+function buildPipeTextures(g, palette) {
+  // --- Pipe body (tileable vertically). ---
+  const pipeBodyH = 32;
+  g.clear();
+  g.fillStyle(palette.base, 1); // base colour
+  g.fillRect(0, 0, PIPE_WIDTH, pipeBodyH);
+  g.fillStyle(palette.highlight, 1); // left highlight
+  g.fillRect(4, 0, 10, pipeBodyH);
+  g.fillStyle(palette.shadow, 1); // right shadow
+  g.fillRect(PIPE_WIDTH - 12, 0, 12, pipeBodyH);
+  g.lineStyle(2, palette.stroke, 1);
+  g.strokeRect(1, 0, PIPE_WIDTH - 2, pipeBodyH);
+  g.generateTexture("pipe-body-" + palette.key, PIPE_WIDTH, pipeBodyH);
+
+  // --- Pipe cap (the lip at the mouth of each pipe). ---
+  const capW = PIPE_WIDTH + 10;
+  const capH = 26;
+  g.clear();
+  g.fillStyle(palette.base, 1);
+  g.fillRoundedRect(0, 0, capW, capH, 6);
+  g.fillStyle(palette.highlight, 1);
+  g.fillRoundedRect(5, 3, 12, capH - 6, 4);
+  g.fillStyle(palette.shadow, 1);
+  g.fillRect(capW - 14, 3, 10, capH - 6);
+  g.lineStyle(2, palette.stroke, 1);
+  g.strokeRoundedRect(1, 1, capW - 2, capH - 2, 6);
+  g.generateTexture("pipe-cap-" + palette.key, capW, capH);
 }
 
 /**
@@ -265,6 +296,7 @@ class GameScene extends Phaser.Scene {
     this.pipes = this.physics.add.group({ allowGravity: false, immovable: true });
     this.pipeColumns = []; // track scoring per column
     this.pipeTimer = 0;
+    this.pipesSpawned = 0; // running count, used to alternate pipe colour
 
     this.physics.add.overlap(this.bird, this.pipes, this.hitObstacle, null, this);
   }
@@ -435,8 +467,12 @@ class GameScene extends Phaser.Scene {
     const topEnd = gapCenter - PIPE_GAP / 2;
     const bottomStart = gapCenter + PIPE_GAP / 2;
 
-    const top = this.createPipe(x, topEnd, "up");
-    const bottom = this.createPipe(x, bottomStart, "down");
+    // Alternate palettes so every other column is purple.
+    const palette = PIPE_PALETTES[this.pipesSpawned % PIPE_PALETTES.length];
+    this.pipesSpawned += 1;
+
+    const top = this.createPipe(x, topEnd, "up", palette.key);
+    const bottom = this.createPipe(x, bottomStart, "down", palette.key);
 
     // Use one invisible scoring sensor per column, riding with the pipes.
     const scorer = { x: x, scored: false, top: top, bottom: bottom };
@@ -450,7 +486,7 @@ class GameScene extends Phaser.Scene {
    * dir 'up'   -> pipe hangs from the top, mouth pointing DOWN at `edgeY`.
    * dir 'down' -> pipe rises from the bottom, mouth pointing UP at `edgeY`.
    */
-  createPipe(x, edgeY, dir) {
+  createPipe(x, edgeY, dir, colorKey) {
     const container = this.add.container(x, 0).setDepth(5);
 
     let bodyTop, bodyHeight;
@@ -463,10 +499,10 @@ class GameScene extends Phaser.Scene {
     }
 
     const body = this.add
-      .tileSprite(0, bodyTop, PIPE_WIDTH, Math.max(bodyHeight, 1), "pipe-body")
+      .tileSprite(0, bodyTop, PIPE_WIDTH, Math.max(bodyHeight, 1), "pipe-body-" + colorKey)
       .setOrigin(0.5, 0);
 
-    const cap = this.add.image(0, dir === "up" ? edgeY : edgeY, "pipe-cap");
+    const cap = this.add.image(0, dir === "up" ? edgeY : edgeY, "pipe-cap-" + colorKey);
     cap.setOrigin(0.5, dir === "up" ? 1 : 0);
 
     container.add([body, cap]);
