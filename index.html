@@ -179,6 +179,9 @@
         <button id="btn-avians" class="menu-btn menu-btn--secondary" type="button">
           Annoyed Avians
         </button>
+        <button id="btn-starcatcher" class="menu-btn menu-btn--secondary" type="button">
+          Star Catcher
+        </button>
         <!-- DEV-ONLY prototype toggle — not part of any production build. -->
         <label id="boom-toggle" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:2px;color:#ffe7a3;font-family:sans-serif;font-size:14px;cursor:pointer;">
           <input type="checkbox" id="chk-boom" /> Boom mode?
@@ -191,6 +194,7 @@
   <script src="vendor/phaser.min.js"></script>
   <script src="src/game.js"></script>
   <script src="src/annoyed-avians.js"></script>
+  <script src="src/star-catcher.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -212,6 +216,11 @@
         if (typeof window.launchAnnoyedAvians === "function") window.launchAnnoyedAvians({ boom: boom });
       });
 
+      document.getElementById("btn-starcatcher").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchStarCatcher === "function") window.launchStarCatcher();
+      });
+
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying
       // mid-callback).
@@ -220,6 +229,7 @@
         setTimeout(function () {
           if (window.game) { try { window.game.destroy(true); } catch (e) {} window.game = null; }
           if (window.aviansGame) { try { window.aviansGame.destroy(true); } catch (e) {} window.aviansGame = null; }
+          if (window.starCatcherGame) { try { window.starCatcherGame.destroy(true); } catch (e) {} window.starCatcherGame = null; }
         }, 0);
       };
     })();
