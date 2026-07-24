@@ -31,11 +31,22 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
 - **Annoyed Avians** (`src/annoyed-avians.js`) — an Angry-Birds-style slingshot
   built on **Matter physics**: a random stack of crates on the right, a draggable
   bird on the left (billiards-style aim + dotted predicted arc); release to launch.
+  (A dev-only `boom` prototype — exploding/chain-detonating crates — is still
+  reachable via `window.launchAnnoyedAvians({ boom: true })`; no menu toggle.)
+- **Star Catcher** (`src/star-catcher.js`) — slide a crescent scoop along the
+  bottom to catch falling stars for combo points while dodging meteors; three
+  lives, difficulty ramps with score. Mouse / touch / arrow keys.
+- **Arrow Rush** (`src/arrow-rush.js`) — a 20-second archery game: press-and-hold
+  to tighten an aim reticle (large/red → medium/yellow → small/green), release to
+  shoot targets before they expire. Score = 100 × duration multiplier
+  (3s→1.5×, 5s→0.75×) × consecutive-hit combo; high score in `localStorage`.
 
 ```
 index.html             Fantasia selector menu, page shell, mobile styles
 src/game.js            Flappy Bird logic + procedural textures; window.launchFlappyBird()
 src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchAnnoyedAvians()
+src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
+src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
@@ -75,6 +86,21 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
     instance. Get the scene with `window.game.scene.getScene('GameScene')` for
     headless assertions (e.g. inspecting `pipeColumns`, calling
     `spawnPipeColumn()`/`addScore()`).
+- **The working tree can change under you mid-session.** Parallel automation (or
+  a resync) may reset `HEAD`, switch branches, or land new commits (e.g. another
+  agent adding a game). Before editing, `git fetch origin main` and check
+  `git status`; if local `main` is behind, `git reset --hard origin/main` (your
+  untracked new files survive). Re-`Read` a file right before you `Edit` it rather
+  than trusting what you last wrote to disk — an `Edit` will fail loudly if the
+  content drifted.
+- **Don't `pkill` the local server from a Bash call** — pattern matches can kill
+  the tool's own shell (it returns exit 144 and any command chained after it never
+  runs). Leave `python3 -m http.server` running (it's session-scoped) or kill it
+  by explicit PID in its own step.
+- **Canvas-drawn (Phaser) buttons are not DOM**, so Playwright can't select them
+  by text — click them by game-space coordinate. And `mcp__github__actions_list`
+  output is large: past the token limit it is saved to a file, so parse that JSON
+  with python instead of reading it inline.
 - **Branch deletion is not possible from this environment.** The git proxy
   silently ignores delete refspecs (`git push --delete` → "Everything
   up-to-date"), and there is no GitHub API tool for deleting a ref. Delete
@@ -86,11 +112,18 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 ## Game architecture notes
 
 - **The Fantasia menu is plain HTML/CSS** in `index.html` (not a Phaser scene), so
-  the decorative title font renders well; it is the first screen. Neither game
-  auto-boots — `src/game.js` defines `window.launchFlappyBird()` and
-  `src/annoyed-avians.js` defines `window.launchAnnoyedAvians()`; the menu buttons
-  call these to create the chosen Phaser game (once) into `#game-container`, and
-  `window.returnToMenu()` tears the running game down to re-show the menu.
+  the decorative title font renders well; it is the first screen. No game
+  auto-boots — each game file defines a `window.launch<Game>()`
+  (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
+  `launchArrowRush`); the menu buttons call these to create the chosen Phaser game
+  (once) into `#game-container`, and `window.returnToMenu()` tears down whichever
+  game is running (`window.game` / `aviansGame` / `starCatcherGame` / `arrowGame`)
+  and re-shows the menu.
+- **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
+  and stores its instance on a `window.*Game` global, a menu button + click
+  handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
+  deploy copies `src/` wholesale (`cp -r src`), so new game files ship without
+  touching the workflow.
 - **Annoyed Avians uses Matter physics** (its own `Phaser.Game`, separate from
   Flappy's Arcade one): a random crate stack, a slingshot bird you drag to aim
   (pull-back vector, launched with `setVelocity`), all from runtime-generated

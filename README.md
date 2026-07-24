@@ -26,6 +26,13 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   (billiards-style aim line + a dotted predicted arc) and release to fling it at
   a random stack of crates that topple with Matter.js physics. **↺ Reset**
   re-racks the stack; **≡ Menu** returns to the selector.
+- **Star Catcher** — slide a glowing scoop along the bottom (mouse, touch, or
+  arrow keys) to catch falling stars and build a combo while dodging meteors.
+  Three lives; the sky speeds up the longer you last.
+- **Arrow Rush** — a 20-second archery challenge: targets pop up and last only
+  3–5 seconds. Press and hold to tighten your aim reticle (large red → medium
+  yellow → small green), then release to shoot. Score = 100 base × a duration
+  bonus × an escalating combo; a miss or an expired target resets the combo.
 
 ## Play
 
@@ -44,13 +51,16 @@ python3 -m http.server 8000
 
 | Action | Input |
 | ------ | ----- |
-| Open a game | Pick **Flappy Bird** from the Fantasia menu |
-| Flap / jump | **Tap the screen**, click, press **Space** or **↑**, or use the on-screen **JUMP** button |
+| Open a game | Pick any game from the Fantasia menu |
+| Flap / jump (Flappy Bird) | **Tap the screen**, click, press **Space** or **↑**, or use the on-screen **JUMP** button |
 | Start | Any flap input from the title screen |
 | Restart | Tap / Space on the Game Over screen |
 
 The large **JUMP** button pinned to the bottom center is sized for one-handed
-phone play — press it to flap.
+phone play — press it to flap. The other games use their own inputs —
+drag-and-release (Annoyed Avians), press-and-hold to aim (Arrow Rush), or slide
+left/right with mouse/touch/arrow keys (Star Catcher) — as described under
+**Games** above.
 
 ## Features
 
@@ -58,6 +68,10 @@ phone play — press it to flap.
   demand, with an on-screen **≡ Menu** button to hop back.
 - 🎯 **Annoyed Avians** — a Matter.js slingshot mini-game: drag-aim and fling a
   bird at a random stack of crates that topple on impact.
+- 🌠 **Star Catcher** — a catch-and-dodge arcade game: scoop falling stars,
+  avoid meteors, build a combo, three lives, ramping difficulty.
+- 🏹 **Arrow Rush** — a 20-second archery game: hold to tighten your aim
+  reticle, hit targets before they expire, with duration + combo multipliers.
 - 🐤 **Procedural art** — all textures drawn from primitives at boot, so the
   repo ships no binary image files.
 - 🔴 **Red bonus pipes & rising speed** — a random red pipe worth double points,
@@ -66,8 +80,9 @@ phone play — press it to flap.
   pipes for parallax depth.
 - 📱 **Mobile-friendly** — dedicated on-screen JUMP button plus tap-anywhere
   input; the canvas scales to fit any screen.
-- 🏆 **Score & high score** — live score as you clear pipes, with the best
-  score persisted to `localStorage` (`flappy-bird-highscore`) across sessions.
+- 🏆 **Scores & high scores** — live scoring across games, with best scores
+  persisted to `localStorage` (`flappy-bird-highscore`, `arrow-rush-highscore`)
+  across sessions.
 - 🎞️ **Juice** — flap animation, bird rotation toward velocity, drifting
   parallax clouds, score pop, screen shake / flash on death.
 
@@ -107,6 +122,8 @@ will deploy.
 index.html             Fantasia selector menu, page shell, mobile styles
 src/game.js            Flappy Bird logic + procedural textures; window.launchFlappyBird()
 src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchAnnoyedAvians()
+src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
+src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 vendor/phaser.min.js   Phaser 4.1.0 (vendored so the games work offline)
 ```
 
