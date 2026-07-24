@@ -182,10 +182,9 @@
         <button id="btn-starcatcher" class="menu-btn menu-btn--secondary" type="button">
           Star Catcher
         </button>
-        <!-- DEV-ONLY prototype toggle — not part of any production build. -->
-        <label id="boom-toggle" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:2px;color:#ffe7a3;font-family:sans-serif;font-size:14px;cursor:pointer;">
-          <input type="checkbox" id="chk-boom" /> Boom mode?
-        </label>
+        <button id="btn-arrow" class="menu-btn menu-btn--secondary" type="button">
+          Arrow Rush
+        </button>
       </div>
     </div>
   </div>
@@ -195,6 +194,7 @@
   <script src="src/game.js"></script>
   <script src="src/annoyed-avians.js"></script>
   <script src="src/star-catcher.js"></script>
+  <script src="src/arrow-rush.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -212,13 +212,17 @@
 
       document.getElementById("btn-avians").addEventListener("click", function () {
         hideMenu();
-        var boom = document.getElementById("chk-boom").checked; // dev-only prototype
-        if (typeof window.launchAnnoyedAvians === "function") window.launchAnnoyedAvians({ boom: boom });
+        if (typeof window.launchAnnoyedAvians === "function") window.launchAnnoyedAvians();
       });
 
       document.getElementById("btn-starcatcher").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchStarCatcher === "function") window.launchStarCatcher();
+      });
+
+      document.getElementById("btn-arrow").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchArrowRush === "function") window.launchArrowRush();
       });
 
       // Return to the Fantasia menu from within a game: show the menu and tear
@@ -230,6 +234,7 @@
           if (window.game) { try { window.game.destroy(true); } catch (e) {} window.game = null; }
           if (window.aviansGame) { try { window.aviansGame.destroy(true); } catch (e) {} window.aviansGame = null; }
           if (window.starCatcherGame) { try { window.starCatcherGame.destroy(true); } catch (e) {} window.starCatcherGame = null; }
+          if (window.arrowGame) { try { window.arrowGame.destroy(true); } catch (e) {} window.arrowGame = null; }
         }, 0);
       };
     })();
