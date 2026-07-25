@@ -185,6 +185,9 @@
         <button id="btn-arrow" class="menu-btn menu-btn--secondary" type="button">
           Arrow Rush
         </button>
+        <button id="btn-cosmicdash" class="menu-btn menu-btn--secondary" type="button">
+          Cosmic Dash
+        </button>
       </div>
     </div>
   </div>
@@ -195,6 +198,7 @@
   <script src="src/annoyed-avians.js"></script>
   <script src="src/star-catcher.js"></script>
   <script src="src/arrow-rush.js"></script>
+  <script src="src/cosmic-dash.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -225,6 +229,11 @@
         if (typeof window.launchArrowRush === "function") window.launchArrowRush();
       });
 
+      document.getElementById("btn-cosmicdash").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchCosmicDash === "function") window.launchCosmicDash();
+      });
+
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying
       // mid-callback).
@@ -235,6 +244,7 @@
           if (window.aviansGame) { try { window.aviansGame.destroy(true); } catch (e) {} window.aviansGame = null; }
           if (window.starCatcherGame) { try { window.starCatcherGame.destroy(true); } catch (e) {} window.starCatcherGame = null; }
           if (window.arrowGame) { try { window.arrowGame.destroy(true); } catch (e) {} window.arrowGame = null; }
+          if (window.cosmicDashGame) { try { window.cosmicDashGame.destroy(true); } catch (e) {} window.cosmicDashGame = null; }
         }, 0);
       };
     })();
