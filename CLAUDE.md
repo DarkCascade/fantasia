@@ -40,6 +40,15 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   to tighten an aim reticle (large/red → medium/yellow → small/green), release to
   shoot targets before they expire. Score = 100 × duration multiplier
   (3s→1.5×, 5s→0.75×) × consecutive-hit combo; high score in `localStorage`.
+- **Cosmic Dash** (`src/cosmic-dash.js`) — a minimalist endless runner: a gold
+  cube auto-runs; tap / click / Space / ↑ to jump (double-jump in mid-air) over
+  obstacles; the world speeds up and score is distance travelled; best run in
+  `localStorage`.
+- **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
+  (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
+  deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
+  games it ships large binary assets (`.wasm` / `.pck`), so it is the one
+  exception to the "all art generated at runtime / no external assets" rule.
 
 ```
 index.html             Fantasia selector menu, page shell, mobile styles
@@ -47,6 +56,8 @@ src/game.js            Flappy Bird logic + procedural textures; window.launchFla
 src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchAnnoyedAvians()
 src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
 src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
+src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
+museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
@@ -56,9 +67,11 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 - **`main` is the sole deploy branch.** `.github/workflows/deploy.yml` triggers
   only on `push` to `main` (plus manual `workflow_dispatch`). Feature branches
   do **not** auto-publish — merge into `main` to ship.
-- The "build" just assembles `index.html`, `src/`, and `vendor/` into `_site/`;
-  no bundler/compiler. If you add a new top-level asset the game needs, add it
-  to the "Assemble site" copy step **and** the "Verify required files" check.
+- The "build" just assembles `index.html`, `src/`, `vendor/`, and `museum/` into
+  `_site/`; no bundler/compiler. If you add a new top-level asset the site needs,
+  add it to the "Assemble site" copy step (e.g. the museum ships via
+  `cp -r museum _site/`) **and**, for core files, the "Verify required files"
+  check.
 - **Verifying a deploy is live:** every deploy stamps
   [`/version.json`](https://darkcascade.github.io/fantasia/version.json) with
   the commit, branch, timestamp, and a `note` describing what changed (the
@@ -115,10 +128,10 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
   the decorative title font renders well; it is the first screen. No game
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
-  `launchArrowRush`); the menu buttons call these to create the chosen Phaser game
-  (once) into `#game-container`, and `window.returnToMenu()` tears down whichever
-  game is running (`window.game` / `aviansGame` / `starCatcherGame` / `arrowGame`)
-  and re-shows the menu.
+  `launchArrowRush`, `launchCosmicDash`); the menu buttons call these to create the
+  chosen Phaser game (once) into `#game-container`, and `window.returnToMenu()`
+  tears down whichever game is running (`window.game` / `aviansGame` /
+  `starCatcherGame` / `arrowGame` / `cosmicDashGame`) and re-shows the menu.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The

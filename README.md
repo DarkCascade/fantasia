@@ -2,9 +2,10 @@
 
 A small, self-contained collection of browser games built with
 [Phaser 4](https://phaser.io/). The site opens on the **Fantasia** selector menu;
-pick a game to play. Every sprite is **generated at runtime from colored
-primitives** (Phaser `Graphics` → `generateTexture`) — there are no external
-image assets.
+pick a game to play. Every game's art is **generated at runtime from colored
+primitives** (Phaser `Graphics` → `generateTexture`) — the games ship no external
+image assets. (One bonus experience, the Ashen Spire museum, is a separate
+WebAssembly build — see below.)
 
 ### ▶️ [Play it live on GitHub Pages](https://darkcascade.github.io/fantasia/)
 
@@ -33,6 +34,14 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   3–5 seconds. Press and hold to tighten your aim reticle (large red → medium
   yellow → small green), then release to shoot. Score = 100 base × a duration
   bonus × an escalating combo; a miss or an expired target resets the combo.
+- **Cosmic Dash** — a minimalist endless runner: a gold cube auto-runs across a
+  starlit night. Tap / click / **Space** / **↑** to jump, press again in mid-air
+  to double-jump, and clear the obstacles scrolling in from the right. The world
+  speeds up the longer you last; your distance is the score.
+
+There's also a bonus **Ashen Spire** museum — a separate 3D/WebAssembly (Godot)
+experience that isn't in the menu, served directly at
+[`/museum/too-much-for-web.html`](https://darkcascade.github.io/fantasia/museum/too-much-for-web.html).
 
 ## Play
 
@@ -72,8 +81,10 @@ left/right with mouse/touch/arrow keys (Star Catcher) — as described under
   avoid meteors, build a combo, three lives, ramping difficulty.
 - 🏹 **Arrow Rush** — a 20-second archery game: hold to tighten your aim
   reticle, hit targets before they expire, with duration + combo multipliers.
-- 🐤 **Procedural art** — all textures drawn from primitives at boot, so the
-  repo ships no binary image files.
+- 🏃 **Cosmic Dash** — a minimalist auto-runner: jump and double-jump over
+  obstacles at escalating speed; distance travelled is the score.
+- 🐤 **Procedural art** — the games' textures are drawn from primitives at boot,
+  so they ship no binary image files (the bonus museum is the exception).
 - 🔴 **Red bonus pipes & rising speed** — a random red pipe worth double points,
   and the world ratchets ~1% faster with every pipe passed.
 - 🏠 **Background houses** — recycled procedural houses scroll past behind the
@@ -81,17 +92,18 @@ left/right with mouse/touch/arrow keys (Star Catcher) — as described under
 - 📱 **Mobile-friendly** — dedicated on-screen JUMP button plus tap-anywhere
   input; the canvas scales to fit any screen.
 - 🏆 **Scores & high scores** — live scoring across games, with best scores
-  persisted to `localStorage` (`flappy-bird-highscore`, `arrow-rush-highscore`)
-  across sessions.
+  persisted to `localStorage` (`flappy-bird-highscore`, `arrow-rush-highscore`,
+  `cosmic-dash-highscore`) across sessions.
 - 🎞️ **Juice** — flap animation, bird rotation toward velocity, drifting
   parallax clouds, score pop, screen shake / flash on death.
 
 ## Deploying to GitHub Pages
 
 A workflow at `.github/workflows/deploy.yml` builds the site (assembles
-`index.html`, `src/`, and the vendored Phaser into a Pages artifact) and
-publishes it to GitHub Pages on every push to the **`main`** deploy branch, and
-on manual dispatch. Iterate on a feature branch, then merge into `main` to ship.
+`index.html`, `src/`, the vendored Phaser, and the `museum/` build into a Pages
+artifact) and publishes it to GitHub Pages on every push to the **`main`** deploy
+branch, and on manual dispatch. Iterate on a feature branch, then merge into
+`main` to ship.
 When a build completes, the game is served at:
 
 ### 🌐 https://darkcascade.github.io/fantasia/
@@ -124,6 +136,8 @@ src/game.js            Flappy Bird logic + procedural textures; window.launchFla
 src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchAnnoyedAvians()
 src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
 src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
+src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
+museum/                Ashen Spire — a Godot/WebAssembly museum, served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored so the games work offline)
 ```
 
