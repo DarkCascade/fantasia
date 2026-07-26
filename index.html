@@ -119,12 +119,40 @@
       opacity: 0.85;
     }
 
-    .menu-buttons {
+    /* Two-page carousel of game buttons. Pages slide horizontally; the
+       off-screen page is clipped by #menu-screen's overflow:hidden. */
+    .menu-pages {
       position: relative;
+      width: min(360px, 84vw);
+    }
+
+    .menu-page {
       display: flex;
       flex-direction: column;
       gap: clamp(14px, 2.6vh, 20px);
-      width: min(360px, 84vw);
+      transition: transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Page 1 stays in flow (gives the carousel its height); page 2 overlays it. */
+    #page-1 {
+      position: relative;
+      transform: translateX(0);
+    }
+
+    #page-2 {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      transform: translateX(120%);
+    }
+
+    #menu-screen[data-page="2"] #page-1 {
+      transform: translateX(-120%);
+    }
+
+    #menu-screen[data-page="2"] #page-2 {
+      transform: translateX(0);
     }
 
     .menu-btn {
@@ -159,6 +187,101 @@
       transform: translateY(4px);
       box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 6px 14px rgba(0, 0, 0, 0.3);
     }
+
+    /* Blank placeholder buttons on page 2 (no text, no action). */
+    .menu-btn--blank {
+      cursor: default;
+    }
+
+    /* Bottom-corner page-navigation arrows. */
+    .menu-arrow {
+      position: absolute;
+      bottom: clamp(16px, 4vh, 34px);
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 224, 138, 0.8);
+      background: rgba(255, 255, 255, 0.06);
+      color: #ffe7a3;
+      font-size: 30px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 25;
+      transition: opacity 0.3s ease, transform 0.06s ease;
+    }
+
+    .menu-arrow--right { right: clamp(16px, 5vw, 30px); }
+    .menu-arrow--left { left: clamp(16px, 5vw, 30px); }
+    .menu-arrow:active { transform: scale(0.9); }
+
+    /* Show the right arrow on page 1, the left arrow on page 2. */
+    #menu-screen[data-page="2"] .menu-arrow--right,
+    #menu-screen:not([data-page="2"]) .menu-arrow--left {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* "Under construction" modal (Underfoot). */
+    #uc-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 6vw;
+      background: rgba(4, 2, 14, 0.7);
+    }
+
+    #uc-modal.is-open { display: flex; }
+
+    .uc-card {
+      max-width: 88vw;
+      padding: clamp(26px, 6vw, 42px) clamp(28px, 7vw, 48px);
+      text-align: center;
+      border: 3px solid #ffd23f;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #2c3170 0%, #14173a 100%);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .uc-text {
+      font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
+      font-size: clamp(28px, 8vw, 46px);
+      font-weight: 700;
+      color: #ffe7a3;
+      text-shadow: 0 2px 0 rgba(74, 38, 0, 0.5);
+    }
+
+    .uc-sub {
+      margin-top: 10px;
+      font-family: "Palatino Linotype", Palatino, Georgia, serif;
+      font-style: italic;
+      color: #cfe0ff;
+      font-size: clamp(14px, 4vw, 17px);
+    }
+
+    .uc-close {
+      margin-top: clamp(18px, 3.5vh, 26px);
+      font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
+      font-size: clamp(16px, 4.5vw, 20px);
+      color: #3a2500;
+      border: 2px solid #ffe9ad;
+      border-radius: 12px;
+      padding: 10px 24px;
+      cursor: pointer;
+      background: linear-gradient(180deg, #ffe7a3 0%, #f0b94a 100%);
+      box-shadow: 0 5px 0 #8a5a12;
+      transition: transform 0.06s ease, box-shadow 0.06s ease;
+    }
+
+    .uc-close:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #8a5a12;
+    }
   </style>
 </head>
 <body>
@@ -172,23 +295,47 @@
         <h1 class="menu-title">Fantasia</h1>
         <p class="menu-tagline">Select your adventure</p>
       </div>
-      <div class="menu-buttons">
-        <button id="btn-flappy" class="menu-btn menu-btn--primary" type="button">
-          Flappy Bird
-        </button>
-        <button id="btn-avians" class="menu-btn menu-btn--secondary" type="button">
-          Annoyed Avians
-        </button>
-        <button id="btn-starcatcher" class="menu-btn menu-btn--secondary" type="button">
-          Star Catcher
-        </button>
-        <button id="btn-arrow" class="menu-btn menu-btn--secondary" type="button">
-          Arrow Rush
-        </button>
-        <button id="btn-cosmicdash" class="menu-btn menu-btn--secondary" type="button">
-          Cosmic Dash
-        </button>
+      <div class="menu-pages">
+        <div class="menu-page" id="page-1">
+          <button id="btn-flappy" class="menu-btn menu-btn--primary" type="button">
+            Flappy Bird
+          </button>
+          <button id="btn-avians" class="menu-btn menu-btn--secondary" type="button">
+            Annoyed Avians
+          </button>
+          <button id="btn-starcatcher" class="menu-btn menu-btn--secondary" type="button">
+            Star Catcher
+          </button>
+          <button id="btn-arrow" class="menu-btn menu-btn--secondary" type="button">
+            Arrow Rush
+          </button>
+          <button id="btn-cosmicdash" class="menu-btn menu-btn--secondary" type="button">
+            Cosmic Dash
+          </button>
+        </div>
+        <div class="menu-page" id="page-2" aria-hidden="true">
+          <button id="btn-underfoot" class="menu-btn menu-btn--secondary" type="button">
+            Underfoot
+          </button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+        </div>
       </div>
+    </div>
+
+    <!-- Bottom-corner page navigation. -->
+    <button class="menu-arrow menu-arrow--left" id="page-prev" type="button" aria-label="Previous page">←</button>
+    <button class="menu-arrow menu-arrow--right" id="page-next" type="button" aria-label="Next page">→</button>
+  </div>
+
+  <!-- "Under construction" modal (Underfoot, page 2). -->
+  <div id="uc-modal" role="dialog" aria-modal="true" aria-label="Under construction">
+    <div class="uc-card">
+      <div class="uc-text">under construction</div>
+      <div class="uc-sub">Underfoot isn't ready to explore yet.</div>
+      <button id="uc-close" class="uc-close" type="button">OK</button>
     </div>
   </div>
 
@@ -232,6 +379,30 @@
       document.getElementById("btn-cosmicdash").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchCosmicDash === "function") window.launchCosmicDash();
+      });
+
+      // Page carousel: slide between the two pages of game buttons.
+      document.getElementById("page-next").addEventListener("click", function () {
+        menu.dataset.page = "2";
+      });
+      document.getElementById("page-prev").addEventListener("click", function () {
+        menu.dataset.page = "1";
+      });
+
+      // Underfoot (page 2) -> "under construction" modal.
+      var ucModal = document.getElementById("uc-modal");
+      document.getElementById("btn-underfoot").addEventListener("click", function () {
+        ucModal.classList.add("is-open");
+      });
+      function closeUc() {
+        ucModal.classList.remove("is-open");
+      }
+      document.getElementById("uc-close").addEventListener("click", closeUc);
+      ucModal.addEventListener("click", function (e) {
+        if (e.target === ucModal) closeUc();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeUc();
       });
 
       // Return to the Fantasia menu from within a game: show the menu and tear
