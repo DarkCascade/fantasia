@@ -57,6 +57,16 @@
   const NOVA_RADIUS = 2.4;
   const NOVA_DMG = [18, 26];
 
+  // Screen size of the blast. A circle of radius R in grid space projects to an
+  // ellipse with semi-axes R*TW/sqrt(2) and R*TH/sqrt(2) — the widest points
+  // are the diagonals (R/sqrt(2), -R/sqrt(2)) and (R/sqrt(2), R/sqrt(2)) — so
+  // the drawn ring covers exactly the tiles the blast damages.
+  const NOVA_RX = (NOVA_RADIUS * TW) / Math.SQRT2;
+  const NOVA_RY = (NOVA_RADIUS * TH) / Math.SQRT2;
+  const NOVA_FX_MS = 520;
+  const NOVA_SHARDS = 12;
+  const NOVA_FX_DEPTH = -10; // on the floor (tiles sit at -50), under every body
+
   const FLASK_CHANCE = 0.4;
   const FLASK_HEAL = 22;
 
@@ -835,26 +845,86 @@
       return best;
     }
 
+    /* ---------- nova shockwave ---------- */
+
+    // The blast is drawn as a stack of ground layers redrawn each frame from a
+    // single 0..1 progress value: a bloom of light under the exile, the
+    // shockwave ring itself (thick and white-hot at the start, a thin cyan
+    // thread by the end), a slower ring chasing it, and frost shards thrown
+    // out along the floor.
+    spawnNovaFx(cx, cy) {
+      const g = this.add.graphics().setDepth(NOVA_FX_DEPTH);
+      // Fixed shard angles per cast, so the burst doesn't crawl as it expands.
+      const shards = [];
+      for (let i = 0; i < NOVA_SHARDS; i++) {
+        shards.push(((i + Math.random() * 0.6) / NOVA_SHARDS) * Math.PI * 2);
+      }
+      const fx = { t: 0 };
+      this.tweens.add({
+        targets: fx,
+        t: 1,
+        duration: NOVA_FX_MS,
+        ease: "Linear", // the shaping is done per-curve in drawNovaFx
+        onUpdate: () => this.drawNovaFx(g, cx, cy, fx.t, shards),
+        onComplete: () => g.destroy(),
+      });
+    }
+
+    drawNovaFx(g, cx, cy, t, shards) {
+      g.clear();
+      // Radius and opacity ride separate curves: the wave springs out fast and
+      // is near full size early, while the light holds and only drops away at
+      // the end. Easing the tween itself would tie them together and blink the
+      // whole thing out in the first fifth of its life.
+      const grow = 1 - Math.pow(1 - t, 3);
+      const fade = 1 - Math.pow(t, 2.2);
+      const rx = NOVA_RX * grow;
+      const ry = NOVA_RY * grow;
+
+      // Bloom of light on the floor, gone well before the ring is.
+      const bloom = Math.max(0, 1 - t * 2.4);
+      if (bloom > 0) {
+        g.fillStyle(0x8fd8ff, 0.34 * bloom);
+        g.fillEllipse(cx, cy, rx * 2, ry * 2);
+      }
+
+      // Trailing ring, lagging a fifth of the way behind the leading edge.
+      const lagT = Math.max(0, (t - 0.2) / 0.8);
+      if (lagT > 0) {
+        const lag = 1 - Math.pow(1 - lagT, 3);
+        g.lineStyle(4 * (1 - lag) + 1.5, 0x4aa8e0, (1 - Math.pow(lagT, 2)) * 0.6);
+        g.strokeEllipse(cx, cy, NOVA_RX * lag * 2, NOVA_RY * lag * 2);
+      }
+
+      // Leading shockwave: fat at the start, a thread by the end.
+      const wide = 14 * (1 - grow) + 3;
+      g.lineStyle(wide, 0x9fe8ff, Math.min(1, fade * 1.4));
+      g.strokeEllipse(cx, cy, rx * 2, ry * 2);
+      // White-hot inner lip, just inside the wave.
+      g.lineStyle(Math.max(1.5, wide * 0.4), 0xffffff, fade * 0.9);
+      g.strokeEllipse(cx, cy, Math.max(0, rx * 2 - wide), Math.max(0, ry * 2 - wide * 0.5));
+
+      // Frost shards flung out ahead of the wave.
+      g.lineStyle(2.5, 0xdff4ff, fade);
+      const len = 13 * (1 - grow) + 5;
+      shards.forEach((a) => {
+        const px = cx + Math.cos(a) * rx * 1.06;
+        const py = cy + Math.sin(a) * ry * 1.06;
+        const dx = px - cx;
+        const dy = py - cy;
+        const l = Math.hypot(dx, dy) || 1;
+        g.lineBetween(px, py, px + (dx / l) * len, py + (dy / l) * len);
+      });
+    }
+
     /* ---------- combat ---------- */
 
     castNova() {
       if (this.over || this.time.now < this.novaReadyAt) return;
       this.novaReadyAt = this.time.now + NOVA_CD;
 
-      const cx = isoX(this.player.gx, this.player.gy);
-      const cy = isoY(this.player.gx, this.player.gy);
-      const ring = this.add
-        .ellipse(cx, cy, 10, 5, 0x000000, 0)
-        .setStrokeStyle(3, 0x8fd8ff, 1)
-        .setDepth(cy - 1);
-      this.tweens.add({
-        targets: ring,
-        width: NOVA_RADIUS * TW * 2,
-        height: NOVA_RADIUS * TH * 2,
-        alpha: 0,
-        duration: 340,
-        onComplete: () => ring.destroy(),
-      });
+      this.spawnNovaFx(isoX(this.player.gx, this.player.gy), isoY(this.player.gx, this.player.gy));
+      this.cameras.main.shake(140, 0.008);
 
       this.monsters.forEach((m) => {
         if (!m.alive) return;

@@ -53,7 +53,10 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   pressing **Space** / right-clicking — fully playable by touch. The life and
   nova orbs stack in the bottom-right so the stick owns the bottom-left; the
   scene adds two touch pointers so stick + nova work as two thumbs at once.
-  Walk orders that land off the floor are ignored rather than clamped. Three
+  Walk orders that land off the floor are ignored rather than clamped. The nova
+  draws a layered ground shockwave (bloom, thick white-hot wave, trailing ring,
+  frost shards) sized to the real blast radius — a grid circle of radius R
+  projects to semi-axes `R*TW/sqrt(2)` by `R*TH/sqrt(2)`. Three
   grunts and two brutes aggro, chase, and swing; kills sometimes drop a life
   flask. PoE-style life / skill orbs sit at the bottom.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
