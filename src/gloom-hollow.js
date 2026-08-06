@@ -2,9 +2,10 @@
  * Gloom Hollow — a small isometric action RPG in the Path of Exile mould.
  *
  * A square stone arena drawn on an isometric diamond grid. You are the exile:
- * left-click the ground to walk there, left-click a monster to chase and
- * auto-attack it, and press Space (or right-click) to unleash a frost nova
- * that damages everything around you once its cooldown is up. Five monsters
+ * tap/click the ground to walk there — hold to keep walking toward the finger
+ * or cursor — tap a monster to chase and auto-attack it, and unleash a frost
+ * nova by tapping the NOVA orb (or pressing Space / right-clicking) once its
+ * cooldown is up. Everything is reachable by touch alone. Five monsters
  * roam the hollow — three quick grunts and two heavy brutes; they aggro on
  * sight, chase, and swing when they reach you. Slain monsters sometimes leave
  * a life flask you can walk over to heal. Clear the room to win, hit 0 life
@@ -39,6 +40,7 @@
   /* ---------- tuning ---------- */
 
   const BODY_R = 0.34; // collision radius, in tiles
+  const MOVE_SLACK = 1.5; // how far off the floor a walk order may land, in tiles
   const SPREAD = 1.0; // how far apart monsters keep from each other, in tiles
   const PLAYER_SPREAD = 0.85; // ...and from the player, so nobody hides the exile
 
@@ -109,6 +111,14 @@
   // World objects are depth-sorted by their projected screen y (roughly
   // 150-450), so the HUD lives in a band comfortably above all of it.
   const UI_DEPTH = 1000;
+
+  // The two orbs at the bottom. The nova orb doubles as the skill button on
+  // touch, where there's no Space bar or right mouse button to cast with.
+  const ORB_R = 34;
+  const ORB_TAP_R = 46; // forgiving touch radius around the nova orb
+  const LIFE_ORB_X = 62;
+  const NOVA_ORB_X = W - 62;
+  const ORB_Y = H - 62;
 
   function dist(ax, ay, bx, by) {
     return Math.hypot(ax - bx, ay - by);
@@ -499,9 +509,10 @@
         .setDepth(UI_DEPTH);
 
       this.hintText = this.add
-        .text(W / 2, 54, "Click to move • click a monster to attack • Space = Nova", {
+        .text(W / 2, 58, "Tap or hold to move • tap a monster to attack\nTap the NOVA orb (or press Space) to blast", {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
+          lineSpacing: 2,
           color: "#b9c4e8",
           stroke: "#000000",
           strokeThickness: 3,
@@ -526,7 +537,7 @@
       this.lifeOrb = this.add.graphics().setDepth(UI_DEPTH);
       this.novaOrb = this.add.graphics().setDepth(UI_DEPTH);
       this.lifeText = this.add
-        .text(62, H - 62, "", {
+        .text(LIFE_ORB_X, ORB_Y, "", {
           fontFamily: "Arial, sans-serif",
           fontSize: "14px",
           color: "#ffffff",
@@ -537,7 +548,7 @@
         .setOrigin(0.5)
         .setDepth(UI_DEPTH + 1);
       this.novaText = this.add
-        .text(W - 62, H - 62, "NOVA", {
+        .text(NOVA_ORB_X, ORB_Y, "NOVA", {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
           color: "#ffffff",
@@ -549,9 +560,29 @@
         .setDepth(UI_DEPTH + 1);
       this.drawOrbs();
 
+      // The nova orb is the cast button on touch. An invisible circle over it
+      // takes the tap, sized generously so a fingertip doesn't have to be
+      // precise. Space and right-click still work for mouse and keyboard.
+      this.novaButton = this.add
+        .circle(NOVA_ORB_X, ORB_Y, ORB_TAP_R, 0x000000, 0)
+        .setDepth(UI_DEPTH + 2)
+        .setInteractive({ useHandCursor: true });
+      this.novaButton.on("pointerdown", (p, lx, ly, e) => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        this.castNova();
+      });
+
       this.makeButton(42, 26, "≡", 0x3a3358, () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       }, 18);
+    }
+
+    // True when a screen point lands on the HUD orbs, so a drag across them
+    // never doubles as a walk order.
+    overHud(px, py) {
+      return (
+        dist(px, py, NOVA_ORB_X, ORB_Y) <= ORB_TAP_R || dist(px, py, LIFE_ORB_X, ORB_Y) <= ORB_R + 6
+      );
     }
 
     // Fill a circular "globe" bottom-up by stacking chords of the circle.
@@ -566,24 +597,25 @@
     }
 
     drawOrbs() {
-      const r = 34;
+      const r = ORB_R;
       const lg = this.lifeOrb;
       lg.clear();
       lg.fillStyle(0x1a0d0d, 1);
-      lg.fillCircle(62, H - 62, r);
-      this.fillOrb(lg, 62, H - 62, r, this.player.hp / this.player.maxHp, 0xc42f36);
+      lg.fillCircle(LIFE_ORB_X, ORB_Y, r);
+      this.fillOrb(lg, LIFE_ORB_X, ORB_Y, r, this.player.hp / this.player.maxHp, 0xc42f36);
       lg.lineStyle(3, 0x6b5a2f, 1);
-      lg.strokeCircle(62, H - 62, r);
+      lg.strokeCircle(LIFE_ORB_X, ORB_Y, r);
       this.lifeText.setText(Math.max(0, Math.round(this.player.hp)) + "/" + this.player.maxHp);
 
       const charge = this.novaCharge();
       const ng = this.novaOrb;
       ng.clear();
       ng.fillStyle(0x0d1420, 1);
-      ng.fillCircle(W - 62, H - 62, r);
-      this.fillOrb(ng, W - 62, H - 62, r, charge, 0x2f7fc4);
+      ng.fillCircle(NOVA_ORB_X, ORB_Y, r);
+      this.fillOrb(ng, NOVA_ORB_X, ORB_Y, r, charge, 0x2f7fc4);
+      // A ready nova gets a gold rim; while charging it stays muted.
       ng.lineStyle(3, charge >= 1 ? 0xffd23f : 0x4a5570, 1);
-      ng.strokeCircle(W - 62, H - 62, r);
+      ng.strokeCircle(NOVA_ORB_X, ORB_Y, r);
       this.novaText.setText(charge >= 1 ? "NOVA" : Math.ceil(((this.novaReadyAt - this.time.now) / 1000) * 10) / 10 + "s");
 
       this.killText.setText("Slain " + this.kills + " / " + this.monsters.length);
@@ -608,6 +640,14 @@
         .setOrigin(0.5)
         .setDepth(UI_DEPTH + 10)
         .setInteractive({ useHandCursor: true });
+      // Grow the hit area past the text box so the buttons clear a fingertip
+      // once the canvas is scaled down on a phone.
+      try {
+        const pad = 12;
+        t.input.hitArea.setTo(-pad, -pad, t.width + pad * 2, t.height + pad * 2);
+      } catch (e) {
+        /* no hit area to widen — the default box still works */
+      }
       t.on("pointerdown", (p, lx, ly, e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         onClick();
@@ -624,29 +664,59 @@
         /* headless / touch — nothing to disable */
       }
 
-      this.input.on("pointerdown", (pointer) => {
+      this.holdMove = false;
+
+      this.input.on("pointerdown", (pointer, currentlyOver) => {
         if (this.over) return;
+        // A tap the HUD already claimed (nova orb, menu button) is not a
+        // walk order.
+        if (currentlyOver && currentlyOver.length) return;
+        if (this.overHud(pointer.x, pointer.y)) return;
+
         if (pointer.rightButtonDown && pointer.rightButtonDown()) {
           this.castNova();
           return;
         }
 
-        // Clicking near a living monster targets it; otherwise walk there.
+        // Tapping a living monster targets it; otherwise walk there, and keep
+        // walking toward the finger for as long as it stays down.
         const hit = this.monsterAtScreen(pointer.x, pointer.y);
         if (hit) {
           this.player.target = hit;
           this.player.moveTo = null;
+          this.holdMove = false;
           return;
         }
-        const g = screenToGrid(pointer.x, pointer.y);
-        const gx = Phaser.Math.Clamp(g.gx, BODY_R, GRID - BODY_R);
-        const gy = Phaser.Math.Clamp(g.gy, BODY_R, GRID - BODY_R);
-        if (!this.canStand(gx, gy, BODY_R)) return;
-        this.player.target = null;
-        this.player.moveTo = { gx: gx, gy: gy };
+        if (this.setMoveTarget(pointer.x, pointer.y)) this.holdMove = true;
+      });
+
+      this.input.on("pointerup", () => {
+        this.holdMove = false;
       });
 
       this.input.keyboard.on("keydown-SPACE", () => this.castNova());
+    }
+
+    // Order a walk to a screen point. Returns false if that point isn't
+    // somewhere the player could stand. A point just off the floor is pulled
+    // back onto it — that keeps dragging along the rim working — but a tap out
+    // in the backdrop is ignored rather than clamped all the way to a corner.
+    setMoveTarget(px, py) {
+      const g = screenToGrid(px, py);
+      if (
+        g.gx < -MOVE_SLACK ||
+        g.gy < -MOVE_SLACK ||
+        g.gx > GRID + MOVE_SLACK ||
+        g.gy > GRID + MOVE_SLACK
+      ) {
+        return false;
+      }
+      const gx = Phaser.Math.Clamp(g.gx, BODY_R, GRID - BODY_R);
+      const gy = Phaser.Math.Clamp(g.gy, BODY_R, GRID - BODY_R);
+      if (!this.canStand(gx, gy, BODY_R)) return false;
+      this.player.target = null;
+      this.player.moveTo = { gx: gx, gy: gy };
+      return true;
     }
 
     monsterAtScreen(px, py) {
@@ -876,6 +946,14 @@
       if (this.over) return;
       const dt = Math.min(delta, 50) / 1000;
       const p = this.player;
+
+      // Hold to keep walking toward the pointer — the main way to move on a
+      // touchscreen, where repeated taps are awkward.
+      if (this.holdMove) {
+        const ptr = this.input.activePointer;
+        if (!ptr.isDown) this.holdMove = false;
+        else if (!this.overHud(ptr.x, ptr.y)) this.setMoveTarget(ptr.x, ptr.y);
+      }
 
       // Player: chase-and-attack a target, or walk to the clicked point.
       if (p.target && !p.target.alive) p.target = null;

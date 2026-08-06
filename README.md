@@ -40,10 +40,11 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   speeds up the longer you last; your distance is the score.
 
 - **Gloom Hollow** — a small isometric action RPG in the Path of Exile mould.
-  Left-click the floor to walk your exile around a square stone arena,
-  left-click a monster to chase it down and auto-attack, and press **Space**
-  (or right-click) for a frost nova once its orb recharges. Three grunts and two
-  brutes hunt you; some drop a life flask you can walk over. Clear the room.
+  Tap or click the floor to walk your exile around a square stone arena — hold
+  to keep walking toward your finger — tap a monster to chase it down and
+  auto-attack, and cast a frost nova by tapping the **NOVA** orb (or pressing
+  **Space** / right-clicking) once it recharges. Three grunts and two brutes
+  hunt you; some drop a life flask you can walk over. Clear the room.
 
 There's also a bonus **Ashen Spire** museum — a separate 3D/WebAssembly (Godot)
 experience that isn't in the menu, served directly at
