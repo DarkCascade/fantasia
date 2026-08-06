@@ -2,17 +2,20 @@
  * Gloom Hollow — a small isometric action RPG in the Path of Exile mould.
  *
  * A square stone arena drawn on an isometric diamond grid. You are the exile.
- * Two ways to move: the virtual stick in the bottom-left drives you directly
- * (and swings at whatever you walk into, since it has no way to pick a target),
- * or tap/click the ground to walk there — holding keeps you walking toward the
- * finger or cursor — and tap a monster to chase and auto-attack it. The frost
- * nova goes off by tapping the NOVA orb (or pressing Space / right-clicking)
- * once its cooldown is up. Life and nova orbs stack in the bottom-right, clear
- * of the stick. Everything is reachable by touch alone. Five monsters
- * roam the hollow — three quick grunts and two heavy brutes; they aggro on
- * sight, chase, and swing when they reach you. Slain monsters sometimes leave
- * a life flask you can walk over to heal. Clear the room to win, hit 0 life
- * and the hollow claims you.
+ * Three ways to move: WASD or the arrow keys drive you directly in
+ * screen-space directions (and swing at whatever you walk into, since a key
+ * press has no way to pick a target) — hold two at once and they combine into
+ * a diagonal, no slower than a straight line; the virtual stick in the
+ * bottom-left does the same thing by touch; or tap/click the ground to walk
+ * there — holding keeps you walking toward the finger or cursor — and tap a
+ * monster to chase and auto-attack it. The frost nova goes off by tapping the
+ * NOVA orb (or pressing Space / right-clicking) once its cooldown is up. Life
+ * and nova orbs stack in the bottom-right, clear of the stick. Everything is
+ * reachable by touch alone, with the keyboard there for desktop. Five
+ * monsters roam the hollow — three quick grunts and two heavy brutes; they
+ * aggro on sight, chase, and swing when they reach you. Slain monsters
+ * sometimes leave a life flask you can walk over to heal. Clear the room to
+ * win, hit 0 life and the hollow claims you.
  *
  * All art is generated at runtime from primitives, like the rest of Fantasia.
  * Created on demand via window.launchGloomHollow() so the menu stays first.
@@ -134,8 +137,16 @@
 
   // Screen point -> grid coordinates (inverse of the projection above).
   function screenToGrid(px, py) {
-    const dx = px - OX;
-    const dy = py - OY;
+    return screenDirToGrid(px - OX, py - OY);
+  }
+
+  // Screen-space direction -> grid-space direction: the same inverse
+  // projection, minus the origin, since a direction has nothing to
+  // translate. This is what turns "up on the screen" into whatever grid
+  // heading that actually is on an isometric board — shared by the virtual
+  // stick and the keyboard, the two controls that drive the player straight
+  // from a screen-space vector instead of a clicked point.
+  function screenDirToGrid(dx, dy) {
     return {
       gx: (dx / (TW / 2) + dy / (TH / 2)) / 2,
       gy: (dy / (TH / 2) - dx / (TW / 2)) / 2,
@@ -545,7 +556,7 @@
 
     buildUI() {
       this.joy = { active: false, pointerId: -1, dx: 0, dy: 0, kx: JOY_X, ky: JOY_Y };
-      this.joyUsed = false;
+      this.directUsed = false;
 
       this.add
         .text(W / 2, 26, "GLOOM HOLLOW", {
@@ -560,7 +571,7 @@
         .setDepth(UI_DEPTH);
 
       this.hintText = this.add
-        .text(W / 2, 58, "Stick to walk • tap the floor to move, a monster to attack\nTap the NOVA orb (or press Space) to blast", {
+        .text(W / 2, 58, "WASD/arrows or stick to walk • tap floor to move, a monster to attack\nTap the NOVA orb (or press Space) to blast", {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
           lineSpacing: 2,
@@ -779,7 +790,7 @@
         if (!this.joy.active && dist(pointer.x, pointer.y, JOY_X, JOY_Y) <= JOY_GRAB_R) {
           this.joy.active = true;
           this.joy.pointerId = pointer.id;
-          this.joyUsed = true;
+          this.directUsed = true;
           this.player.target = null;
           this.player.moveTo = null;
           this.holdMove = false;
@@ -831,6 +842,29 @@
       this.input.on("pointerupoutside", endGesture);
 
       this.input.keyboard.on("keydown-SPACE", () => this.castNova());
+
+      // WASD and the arrow keys are read as held state every frame (see
+      // keysHeading()), not as discrete key events — movement needs to know
+      // what's down right now, the same way the stick reads a live position
+      // rather than a one-off gesture.
+      this.cursors = this.input.keyboard.createCursorKeys();
+      this.wasd = this.input.keyboard.addKeys("W,A,S,D");
+    }
+
+    // Screen-space direction implied by whichever movement keys are held
+    // right now, WASD and the arrow keys both working and freely mixable.
+    // Returns null with nothing held, so update() can fall through to
+    // click-to-move. Two keys on the same axis (e.g. A and D) cancel out
+    // rather than fight — a real hand can hold both by accident.
+    keysHeading() {
+      const up = this.wasd.W.isDown || this.cursors.up.isDown;
+      const down = this.wasd.S.isDown || this.cursors.down.isDown;
+      const left = this.wasd.A.isDown || this.cursors.left.isDown;
+      const right = this.wasd.D.isDown || this.cursors.right.isDown;
+      const dx = (right ? 1 : 0) - (left ? 1 : 0);
+      const dy = (down ? 1 : 0) - (up ? 1 : 0);
+      if (dx === 0 && dy === 0) return null;
+      return { dx: dx, dy: dy };
     }
 
     // Order a walk to a screen point. Returns false if that point isn't
@@ -1285,19 +1319,25 @@
       }
     }
 
-    // Push the player along the stick's heading. The throw is a screen-space
-    // vector, so it goes through the same inverse projection as a click — push
-    // up and the exile walks toward the top of the screen. A short throw walks
-    // slower than a full one.
-    driveWithStick(p, dt, throwLen) {
-      const gx = (this.joy.dx / (TW / 2) + this.joy.dy / (TH / 2)) / 2;
-      const gy = (this.joy.dy / (TH / 2) - this.joy.dx / (TW / 2)) / 2;
-      const len = Math.hypot(gx, gy);
+    // Walk the player along a screen-space direction (dx, dy) at up to
+    // `scale` (0..1) of full speed — shared by the stick (an analog throw,
+    // scale tracking how far it's pushed) and the keyboard (all-or-nothing,
+    // always scale 1). The direction goes through screenDirToGrid since a
+    // screen-space vector isn't a grid axis on an isometric board; aiming far
+    // past the player lets stepToward just walk the heading, keeping its
+    // wall-collision and detour handling.
+    driveHeading(p, dt, dx, dy, scale) {
+      const g = screenDirToGrid(dx, dy);
+      const len = Math.hypot(g.gx, g.gy);
       if (len < 0.0001) return;
+      this.stepToward(p, p.gx + (g.gx / len) * 10, p.gy + (g.gy / len) * 10, dt * scale);
+    }
+
+    // Push the player along the stick's heading. A short throw walks slower
+    // than a full one.
+    driveWithStick(p, dt, throwLen) {
       const scale = Math.min(1, (throwLen - JOY_DEAD) / (1 - JOY_DEAD));
-      // Aim far past the player so stepToward just walks the heading, keeping
-      // its wall-collision and detour handling.
-      this.stepToward(p, p.gx + (gx / len) * 10, p.gy + (gy / len) * 10, dt * scale);
+      this.driveHeading(p, dt, this.joy.dx, this.joy.dy, scale);
     }
 
     // Swing at the closest monster already within reach.
@@ -1334,20 +1374,30 @@
         }
       }
 
-      // The stick outranks any walk order while it's pushed.
+      // The stick outranks any walk order while it's pushed; the keyboard
+      // does the same whenever a movement key is down, deferring to the
+      // stick if — implausibly — both are active at once, since a real hand
+      // only drives one of them at a time.
       const throwLen = this.joy.active ? Math.hypot(this.joy.dx, this.joy.dy) : 0;
       const onStick = throwLen > JOY_DEAD;
+      const keysDir = onStick ? null : this.keysHeading();
+      const onKeys = !!keysDir;
       if (onStick) {
         p.target = null;
         p.moveTo = null;
         this.driveWithStick(p, dt, throwLen);
+      } else if (onKeys) {
+        p.target = null;
+        p.moveTo = null;
+        this.directUsed = true;
+        this.driveHeading(p, dt, keysDir.dx, keysDir.dy, 1);
       }
 
       // Player: chase-and-attack a target, or walk to the clicked point.
       if (p.target && !p.target.alive) p.target = null;
-      if (onStick) {
-        // Swing at whatever we've walked into — the stick has no way to pick
-        // a target by tapping it.
+      if (onStick || onKeys) {
+        // Swing at whatever we've walked into — direct-drive input has no
+        // way to pick a target the way a click can.
         this.autoAttack(time);
       } else if (p.target) {
         const d = dist(p.gx, p.gy, p.target.gx, p.target.gy);
@@ -1356,11 +1406,12 @@
         } else if (time >= p.nextAttack) {
           this.playerAttack(p.target);
         }
-      } else if (this.joyUsed) {
-        // Standing still with the stick released still fights back.
+      } else if (this.directUsed) {
+        // Standing still after driving directly (stick or keyboard) still
+        // fights back.
         this.autoAttack(time);
       }
-      if (!onStick && !p.target && p.moveTo) {
+      if (!onStick && !onKeys && !p.target && p.moveTo) {
         if (this.stepToward(p, p.moveTo.gx, p.moveTo.gy, dt)) p.moveTo = null;
       }
 
