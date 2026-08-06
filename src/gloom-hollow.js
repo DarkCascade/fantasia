@@ -11,11 +11,15 @@
  * monster to chase and auto-attack it. The frost nova goes off by tapping the
  * NOVA orb (or pressing Space / right-clicking) once its cooldown is up. Life
  * and nova orbs stack in the bottom-right, clear of the stick. Everything is
- * reachable by touch alone, with the keyboard there for desktop. Five
- * monsters roam the hollow — three quick grunts and two heavy brutes; they
- * aggro on sight, chase, and swing when they reach you. Slain monsters
- * sometimes leave a life flask you can walk over to heal. Clear the room to
- * win, hit 0 life and the hollow claims you.
+ * reachable by touch alone, with the keyboard there for desktop. Monsters —
+ * quick grunts and heavy brutes — roam the hollow in waves: aggro on sight,
+ * chase, swing when they reach you, and once the wave is wiped a short
+ * breather (with a small heal) signposts the next, larger wave before it
+ * lands. Slain monsters sometimes leave a life flask you can walk over to
+ * heal. There's no clearing your way out — the hollow only ever ends when
+ * you hit 0 life — so the run is how far the waves push you. Your best
+ * (wave reached, total kills) is kept in localStorage and shown on the HUD
+ * and the end screen.
  *
  * All art is generated at runtime from primitives, like the rest of Fantasia.
  * Created on demand via window.launchGloomHollow() so the menu stays first.
@@ -104,13 +108,45 @@
     },
   };
 
-  const SPAWNS = [
-    ["grunt", 1.5, 1.5],
-    ["grunt", 7.5, 1.5],
-    ["grunt", 1.5, 7.5],
-    ["brute", 7.5, 7.5],
-    ["brute", 4.5, 1.5],
-  ];
+  // ---------- waves ----------
+  // Clearing a wave doesn't end the run any more — it breathes, heals a
+  // little, signposts the next wave, and spawns it. Both axes of difficulty
+  // (how many monsters, how tough each one is) climb a fixed amount per
+  // wave rather than being hand-placed like the old SPAWNS list was, so the
+  // ramp is smooth by construction and there's no cliff waiting at wave 6.
+  // Growth is capped (WAVE_MAX_MONSTERS, WAVE_SCALE_CAP) so a long run gets
+  // brutal, not literally unbounded — and the monster cap doubles as the
+  // ceiling on how many bodies can ever be alive at once, which matters for
+  // keeping the scene's object count bounded.
+  const WAVE_BASE_MONSTERS = 3; // wave 1 — lighter than the old fixed 5, since a first wave now has ten more behind it
+  const WAVE_MAX_MONSTERS = 8;
+  const WAVE_COUNT_GROWTH_EVERY = 2; // waves per +1 monster
+  const WAVE_BRUTE_FRAC_BASE = 0.15; // share of the wave that's brutes, at wave 1...
+  const WAVE_BRUTE_FRAC_PER_WAVE = 0.05; // ...climbing this much per wave...
+  const WAVE_MAX_BRUTE_FRAC = 0.6; // ...until it caps here, so grunts never vanish entirely
+  const WAVE_HP_SCALE = 0.06; // +6% monster hp per wave (before the WAVE_SCALE_CAP clamp)
+  const WAVE_DMG_SCALE = 0.04; // dmg climbs slower than hp — more monsters already means more incoming hits
+  const WAVE_SCALE_CAP = 20; // wave the hp/dmg ramp stops climbing past
+  const WAVE_BREATHER_MS = 2600; // signposted pause between a wave dying and the next one landing
+  const WAVE_INTRO_MS = 1600; // shorter confirmation banner once a wave actually spawns — the breather already gave the warning, this is just "it's here"
+  const WAVE_CLEAR_HEAL = 14; // partial heal on clearing a wave — keeps a careful run alive without making flasks pointless
+
+  // A fresh wave's monsters are scattered rather than hand-placed, so the
+  // count can grow past the five fixed spots the old layout had. Every
+  // candidate still has to pass canStand — that's the actual "never in a
+  // wall or pillar" guarantee — the clearances below are just about not
+  // spawning a monster right on top of the player or its wave-mates, and
+  // degrade gracefully (see pickSpawnPoint) rather than ever being skipped.
+  const SPAWN_PLAYER_CLEARANCE = 2.2; // tiles a fresh spawn must clear from the player
+  const SPAWN_MONSTER_CLEARANCE = 0.9; // ...and from each other, so a wave doesn't land in one clump
+  const SPAWN_ATTEMPTS = 40; // random tries before pickSpawnPoint starts relaxing the clearances
+
+  // Same localStorage idiom src/arrow-rush.js and src/cosmic-dash.js use for
+  // their high score (a loadX/saveX pair, wrapped in try/catch since storage
+  // can be unavailable) — the "score" here just has two parts, since how
+  // far a run gets (the wave) is what actually mattered, and kills alone
+  // would let a long, wave-1-farming run outrank a real deep push.
+  const BEST_KEY = "gloom-hollow-best";
 
   // Monster blows are telegraphed rather than instant: a short wind-up with a
   // clear tell gives the player a real window to step out of range. The
@@ -180,6 +216,43 @@
     return Math.hypot(ax - bx, ay - by);
   }
 
+  // How many monsters a wave spawns, and what fraction are brutes. Kept as
+  // a pure function of the wave number (no state) so beginWave and any test
+  // driving waves directly agree on the same numbers.
+  function waveComposition(wave) {
+    const total = Math.min(
+      WAVE_MAX_MONSTERS,
+      WAVE_BASE_MONSTERS + Math.floor((wave - 1) / WAVE_COUNT_GROWTH_EVERY)
+    );
+    const frac = Math.min(WAVE_MAX_BRUTE_FRAC, WAVE_BRUTE_FRAC_BASE + wave * WAVE_BRUTE_FRAC_PER_WAVE);
+    let brutes = Math.round(total * frac);
+    // Keep at least one grunt once there's room for variety — an all-brute
+    // wave would just be the same monster over and over, not "tougher".
+    if (total > 1) brutes = Math.min(brutes, total - 1);
+    brutes = Phaser.Math.Clamp(brutes, 0, total);
+    return { grunts: total - brutes, brutes: brutes, total: total };
+  }
+
+  // Multiplier applied to a monster's hp/dmg for the wave it spawns in. The
+  // clamp at WAVE_SCALE_CAP is what keeps a very long run "brutal forever"
+  // rather than "impossible forever".
+  function waveStatScale(wave) {
+    const w = Math.min(wave, WAVE_SCALE_CAP);
+    return { hp: 1 + (w - 1) * WAVE_HP_SCALE, dmg: 1 + (w - 1) * WAVE_DMG_SCALE };
+  }
+
+  // Fisher-Yates, in place. Only used to mix grunts and brutes together so a
+  // wave doesn't visibly spawn as "all the grunts, then all the brutes".
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = arr[i];
+      arr[i] = arr[j];
+      arr[j] = t;
+    }
+    return arr;
+  }
+
   class HollowScene extends Phaser.Scene {
     constructor() {
       super("HollowScene");
@@ -187,7 +260,10 @@
 
     create() {
       this.over = false;
+      this.wave = 0; // beginWave(1) below sets this to 1 before the first frame ever renders
       this.kills = 0;
+      this.monsters = [];
+      this.flasks = [];
       this.blocked = Object.create(null);
       PILLARS.forEach((p) => {
         this.blocked[p[0] + "," + p[1]] = true;
@@ -196,10 +272,10 @@
       this.buildTextures();
       this.buildLevel();
       this.buildPlayer();
-      this.spawnMonsters();
-      this.flasks = [];
+      this.startBest = this.loadBest();
       this.buildUI();
       this.bindInput();
+      this.beginWave(1);
     }
 
     /* ---------- textures ---------- */
@@ -504,23 +580,73 @@
         .setVisible(false);
     }
 
-    spawnMonsters() {
+    // Random floor tile that isn't a wall/pillar (canStand — never relaxed)
+    // and, best-effort, isn't on top of the player or another monster from
+    // this same spawn (the two clearance constants — relaxed in stages if
+    // the board's too crowded to satisfy them, since with WAVE_MAX_MONSTERS
+    // capped well under the arena's ~77 open tiles that should be rare, but
+    // "rare" isn't "never" and a stuck loop would hang the wave forever).
+    pickSpawnPoint(placed) {
+      for (let relax = 0; relax < 2; relax++) {
+        for (let i = 0; i < SPAWN_ATTEMPTS; i++) {
+          const gx = BODY_R + Math.random() * (GRID - 2 * BODY_R);
+          const gy = BODY_R + Math.random() * (GRID - 2 * BODY_R);
+          if (!this.canStand(gx, gy, BODY_R)) continue;
+          if (dist(gx, gy, this.player.gx, this.player.gy) < SPAWN_PLAYER_CLEARANCE) continue;
+          if (relax === 0 && placed.some((p) => dist(gx, gy, p.gx, p.gy) < SPAWN_MONSTER_CLEARANCE)) continue;
+          return { gx: gx, gy: gy };
+        }
+      }
+      // Random sampling kept missing — sweep the grid methodically instead.
+      // Still never gives up the player clearance without cause: only the
+      // wall/pillar check (canStand) is load-bearing for correctness, so
+      // that's the last thing to go, checked in its own final pass below.
+      for (let j = 0; j < GRID; j++) {
+        for (let i = 0; i < GRID; i++) {
+          const gx = i + 0.5;
+          const gy = j + 0.5;
+          if (!this.canStand(gx, gy, BODY_R)) continue;
+          if (dist(gx, gy, this.player.gx, this.player.gy) < SPAWN_PLAYER_CLEARANCE) continue;
+          return { gx: gx, gy: gy };
+        }
+      }
+      for (let j = 0; j < GRID; j++) {
+        for (let i = 0; i < GRID; i++) {
+          const gx = i + 0.5;
+          const gy = j + 0.5;
+          if (this.canStand(gx, gy, BODY_R)) return { gx: gx, gy: gy };
+        }
+      }
+      return { gx: GRID / 2, gy: GRID / 2 }; // unreachable on this fixed 9x9 layout
+    }
+
+    spawnMonsters(wave) {
+      const comp = waveComposition(wave);
+      const scale = waveStatScale(wave);
+      const order = [];
+      for (let i = 0; i < comp.grunts; i++) order.push("grunt");
+      for (let i = 0; i < comp.brutes; i++) order.push("brute");
+      shuffle(order);
+
       this.monsters = [];
-      SPAWNS.forEach((s) => {
-        const def = MONSTERS[s[0]];
+      const placed = [];
+      order.forEach((type) => {
+        const def = MONSTERS[type];
+        const spot = this.pickSpawnPoint(placed);
         const spr = this.add.image(0, 0, def.key).setOrigin(0.5, 0.9);
+        const maxHp = Math.round(def.hp * scale.hp);
         const m = {
           def: def,
           sprite: spr,
-          gx: s[1],
-          gy: s[2],
-          hp: def.hp,
-          maxHp: def.hp,
+          gx: spot.gx,
+          gy: spot.gy,
+          hp: maxHp,
+          maxHp: maxHp,
           speed: def.speed,
           range: def.range,
           cd: def.cd,
           nextAttack: 0,
-          dmg: def.dmg,
+          dmg: [Math.round(def.dmg[0] * scale.dmg), Math.round(def.dmg[1] * scale.dmg)],
           alive: true,
           halfH: def.halfH,
           lunge: { x: 0, y: 0 },
@@ -531,6 +657,61 @@
         m.telegraphGfx = this.add.graphics();
         this.place(m);
         this.monsters.push(m);
+        placed.push({ gx: m.gx, gy: m.gy });
+      });
+    }
+
+    // Set the current wave, spawn it, and signpost it. Shared by create()
+    // (wave 1) and onWaveCleared() (every wave after), so there's exactly
+    // one place that decides what a wave looks like.
+    beginWave(wave) {
+      this.wave = wave;
+      this.spawnMonsters(wave);
+      this.banner("WAVE " + wave, WAVE_INTRO_MS);
+      this.drawOrbs();
+    }
+
+    // Big banner text, faded in/held/faded out over `ms`. One persistent
+    // Text object reused for every banner (see buildUI) rather than a new
+    // one each time, so a long run's worth of wave transitions don't add up
+    // to a pile of dead text objects sitting off-screen at alpha 0.
+    banner(text, ms) {
+      this.waveText.setText(text).setAlpha(0);
+      this.tweens.killTweensOf(this.waveText);
+      this.tweens.add({
+        targets: this.waveText,
+        alpha: 1,
+        duration: 220,
+        yoyo: true,
+        hold: Math.max(0, ms - 440),
+        ease: "Sine.easeInOut",
+      });
+    }
+
+    // Destroy any flasks left over from the wave that just ended. Without
+    // this, an unpicked-up flask — sprite plus its repeat: -1 bob tween —
+    // would sit there forever, and every wave that drops one and outlives
+    // it would leak another for the rest of the run.
+    clearFlasks() {
+      this.flasks.forEach((f) => {
+        this.tweens.killTweensOf(f.sprite);
+        f.sprite.destroy();
+      });
+      this.flasks = [];
+    }
+
+    // All monsters in the current wave are dead. Breathe, heal a little,
+    // signpost the next wave, then spawn it — the run's only exit is death
+    // (endGame), not this.
+    onWaveCleared() {
+      if (this.over) return;
+      this.clearFlasks();
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + WAVE_CLEAR_HEAL);
+      this.drawOrbs();
+      this.banner("WAVE " + (this.wave + 1) + " INCOMING", WAVE_BREATHER_MS);
+      this.time.delayedCall(WAVE_BREATHER_MS, () => {
+        if (this.over) return; // the player could still die to nothing here (no monsters exist mid-breather), but returning to the menu tears the whole scene down and this guard is cheap insurance either way
+        this.beginWave(this.wave + 1);
       });
     }
 
@@ -594,6 +775,32 @@
         })
         .setOrigin(1, 0.5)
         .setDepth(UI_DEPTH);
+
+      this.bestText = this.add
+        .text(W - 14, 104, "", {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "12px",
+          color: "#8fa0c8",
+          stroke: "#000000",
+          strokeThickness: 3,
+        })
+        .setOrigin(1, 0.5)
+        .setDepth(UI_DEPTH);
+
+      // One reusable banner for "WAVE n" / "WAVE n INCOMING" — see banner().
+      this.waveText = this.add
+        .text(W / 2, H * 0.42, "", {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "28px",
+          color: "#ffd23f",
+          stroke: "#000000",
+          strokeThickness: 6,
+          fontStyle: "bold",
+          align: "center",
+        })
+        .setOrigin(0.5)
+        .setDepth(UI_DEPTH + 5)
+        .setAlpha(0);
 
       // PoE-style orbs: life on the left, skill charge on the right.
       this.lifeOrb = this.add.graphics().setDepth(UI_DEPTH);
@@ -730,7 +937,8 @@
       ng.strokeCircle(NOVA_ORB_X, NOVA_ORB_Y, r);
       this.novaText.setText(charge >= 1 ? "NOVA" : Math.ceil(((this.novaReadyAt - this.time.now) / 1000) * 10) / 10 + "s");
 
-      this.killText.setText("Slain " + this.kills + " / " + this.monsters.length);
+      this.killText.setText("Wave " + this.wave + "   ·   Slain " + this.kills);
+      this.bestText.setText(this.startBest.wave > 0 ? "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")" : "Best: —");
     }
 
     novaCharge() {
@@ -1090,7 +1298,7 @@
       this.knockback(this.player, m);
       this.cameras.main.shake(90, 0.006);
       this.drawOrbs();
-      if (this.player.hp <= 0) this.endGame(false);
+      if (this.player.hp <= 0) this.endGame();
     }
 
     // Shove `entity` a short distance straight away from `attacker` on a
@@ -1176,17 +1384,27 @@
       this.cancelWindup(m);
       this.kills++;
       if (this.player.target === m) this.player.target = null;
+      // Fade the corpse out, then destroy it — waves used to be the last one
+      // ever spawned, so a fading-but-never-destroyed sprite (and its now
+      // permanently-blank bar/telegraph graphics) never mattered. With waves
+      // repeating indefinitely those three objects per kill would otherwise
+      // accumulate for as long as the run goes on.
       this.tweens.add({
         targets: m.sprite,
         alpha: 0,
         angle: 80,
         y: m.sprite.y + 6,
         duration: 320,
+        onComplete: () => {
+          m.sprite.destroy();
+          m.bar.destroy();
+          m.telegraphGfx.destroy();
+        },
       });
       if (Math.random() < FLASK_CHANCE) this.dropFlask(m.gx, m.gy);
       this.drawOrbs();
       if (this.monsters.every((e) => !e.alive)) {
-        this.time.delayedCall(500, () => this.endGame(true));
+        this.time.delayedCall(500, () => this.onWaveCleared());
       }
     }
 
@@ -1469,7 +1687,10 @@
 
     /* ---------- end ---------- */
 
-    endGame(won) {
+    // There is no clearing the hollow any more — this only fires on death.
+    // A run's "score" is how far the waves pushed you (wave reached) with
+    // total kills as the tiebreaker; see BEST_KEY / loadBest / saveBest.
+    endGame() {
       if (this.over) return;
       this.over = true;
       this.player.target = null;
@@ -1485,35 +1706,74 @@
       this.monsters.forEach((m) => {
         if (m.windingUp) this.cancelWindup(m);
       });
+      // Any flask still sitting on the floor (and its endless bob tween)
+      // would otherwise outlive the run, same as at a wave boundary.
+      this.clearFlasks();
+      // A wave/incoming banner mid-fade would otherwise keep animating
+      // behind the death screen — stop it and drop it out of sight.
+      this.tweens.killTweensOf(this.waveText);
+      this.waveText.setAlpha(0);
+
+      const isBest = this.wave > this.startBest.wave || (this.wave === this.startBest.wave && this.kills > this.startBest.kills);
+      this.saveBest();
 
       this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0, 0).setDepth(UI_DEPTH + 20);
       this.add
-        .text(W / 2, H * 0.3, won ? "HOLLOW CLEARED" : "YOU DIED", {
+        .text(W / 2, H * 0.26, "YOU DIED", {
           fontFamily: "Arial, sans-serif",
-          fontSize: won ? "36px" : "44px",
-          color: won ? "#ffd23f" : "#d43b3b",
+          fontSize: "40px",
+          color: "#d43b3b",
           stroke: "#000000",
           strokeThickness: 8,
           fontStyle: "bold",
         })
         .setOrigin(0.5)
         .setDepth(UI_DEPTH + 21);
+      const summary =
+        "Wave reached: " + this.wave + "\nMonsters slain: " + this.kills + "\n" +
+        (isBest ? "★ New Best!" : "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")");
       this.add
-        .text(W / 2, H * 0.3 + 44, "Monsters slain: " + this.kills, {
+        .text(W / 2, H * 0.26 + 40, summary, {
           fontFamily: "Arial, sans-serif",
-          fontSize: "16px",
+          fontSize: "15px",
+          lineSpacing: 4,
           color: "#e6ecff",
           stroke: "#000000",
           strokeThickness: 3,
+          align: "center",
         })
         .setOrigin(0.5)
         .setDepth(UI_DEPTH + 21);
 
-      // Above the dimming overlay, so the end-screen buttons stay crisp.
+      // Above the dimming overlay, so the end-screen buttons stay crisp. Kept
+      // at the same (W/2, H*0.5) / (+58) spot the old win/lose screen used —
+      // it's just muscle memory at this point for anything that clicks here.
       this.makeButton(W / 2, H * 0.5, "▸ Enter Again", 0x2f5a8a, () => this.scene.restart()).setDepth(UI_DEPTH + 22);
       this.makeButton(W / 2, H * 0.5 + 58, "≡ Menu", 0x3a3358, () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       }).setDepth(UI_DEPTH + 22);
+    }
+
+    // Persistent best run, same loadX/saveX-plus-try/catch idiom as
+    // src/arrow-rush.js and src/cosmic-dash.js use for their high score.
+    loadBest() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(BEST_KEY));
+        if (raw && Number.isFinite(raw.wave) && Number.isFinite(raw.kills)) return raw;
+      } catch (e) {
+        /* storage unavailable, or a value from before this shape existed; ignore */
+      }
+      return { wave: 0, kills: 0 };
+    }
+
+    saveBest() {
+      try {
+        if (this.wave > this.startBest.wave || (this.wave === this.startBest.wave && this.kills > this.startBest.kills)) {
+          localStorage.setItem(BEST_KEY, JSON.stringify({ wave: this.wave, kills: this.kills }));
+        }
+      } catch (e) {
+        /* storage may be unavailable; ignore */
+      }
     }
   }
 
