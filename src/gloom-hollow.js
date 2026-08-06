@@ -70,13 +70,19 @@
   const FLASK_CHANCE = 0.4;
   const FLASK_HEAL = 22;
 
+  // range is a notch wider than pre-wind-up tuning: PLAYER_SPREAD (0.85) is
+  // the distance separate() settles combat at, so a player who never reacts
+  // to a tell needs to sit inside range at all — a too-tight range would let
+  // "never move" escape hits it shouldn't. The wider range doesn't touch how
+  // often a *standing* player gets hit (still always, once in range), it
+  // only makes a *dodging* player cover more ground to clear it.
   const MONSTERS = {
     grunt: {
       key: "gh-grunt",
       name: "Grunt",
       hp: 30,
       speed: 2.0,
-      range: 0.9,
+      range: 1.0,
       cd: 1200,
       dmg: [4, 7],
       aggro: 5.0,
@@ -87,7 +93,7 @@
       name: "Brute",
       hp: 62,
       speed: 1.35,
-      range: 1.05,
+      range: 1.15,
       cd: 1800,
       dmg: [8, 12],
       aggro: 5.5,
@@ -112,7 +118,8 @@
   // dodge.
   const MONSTER_WINDUP_MS = 350;
   const MONSTER_WINDUP_SCALE = 1.16; // how much a winding-up monster visibly swells
-  const MONSTER_PULLBACK_PX = 5; // screen-px pull-back during the wind-up (vs. the 9px forward swing lunge)
+  const SWING_LUNGE_PX = 9; // forward lunge distance swing() uses for every attack, player or monster
+  const MONSTER_PULLBACK_PX = 5; // screen-px pull-back during the wind-up (smaller than SWING_LUNGE_PX's forward lunge)
   const MONSTER_TELL_COLOR = 0xff5a3c; // warning red — still lands if you're here when it resolves
   const MONSTER_TELL_SAFE_COLOR = 0x6fe08a; // green once you've stepped outside its range
   const KNOCKBACK_DIST = 0.4; // tiles the player is shoved back on a landed hit
@@ -961,8 +968,12 @@
     // A monster commits to a swing: it locks in place (see update()'s early
     // return for winding-up monsters — constraint is it can't also be closing
     // distance while it winds up) and telegraphs for MONSTER_WINDUP_MS before
-    // landMonsterAttack() decides whether the blow actually connects.
+    // landMonsterAttack() decides whether the blow actually connects. Guarded
+    // like castNova() — a wind-up started after the fight is already over
+    // would never get resolved, since update() (the only thing that calls
+    // landMonsterAttack) bails out the moment `over` is true.
     monsterAttack(m) {
+      if (this.over) return;
       m.windingUp = true;
       m.windupEndsAt = this.time.now + MONSTER_WINDUP_MS;
       m.nextAttack = this.time.now + m.cd;
@@ -997,6 +1008,10 @@
     // warning-red to safe-green the instant they step outside it. Redrawn
     // every frame so the beam — and the hit/miss read it gives — tracks the
     // player's live position even though the monster itself holds still.
+    // The typical fight distance (PLAYER_SPREAD) sits close to the ring, so
+    // there's a dark outline under the colored stroke — otherwise the ring
+    // gets lost right where it matters most: under the overlapping sprites
+    // at melee range.
     drawTelegraph(m) {
       const g = m.telegraphGfx;
       g.clear();
@@ -1010,9 +1025,11 @@
       const color = inRange ? MONSTER_TELL_COLOR : MONSTER_TELL_SAFE_COLOR;
 
       g.setDepth(my - 2);
-      g.lineStyle(1.5 + t * 2, color, 0.35 + t * 0.5);
+      g.lineStyle(4.5 + t * 3, 0x000000, 0.3 + t * 0.3);
       g.strokeEllipse(mx, my, rx * 2, ry * 2);
-      g.lineStyle(2 + t * 2, color, 0.4 + t * 0.5);
+      g.lineStyle(2.5 + t * 3, color, 0.55 + t * 0.45);
+      g.strokeEllipse(mx, my, rx * 2, ry * 2);
+      g.lineStyle(3 + t * 2, color, 0.55 + t * 0.45);
       g.lineBetween(mx, my, isoX(this.player.gx, this.player.gy), isoY(this.player.gx, this.player.gy));
     }
 
@@ -1049,9 +1066,24 @@
     knockback(entity, attacker) {
       const dx = entity.gx - attacker.gx;
       const dy = entity.gy - attacker.gy;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = Phaser.Math.Clamp(entity.gx + (dx / len) * KNOCKBACK_DIST, BODY_R, GRID - BODY_R);
-      const ny = Phaser.Math.Clamp(entity.gy + (dy / len) * KNOCKBACK_DIST, BODY_R, GRID - BODY_R);
+      const len = Math.hypot(dx, dy);
+      let ux, uy;
+      if (len > 0.0001) {
+        ux = dx / len;
+        uy = dy / len;
+      } else {
+        // (Near-)coincident with the attacker — no attacker-to-victim line
+        // to push along. Fall back to shoving away from the arena centre
+        // (and if even that's degenerate, an arbitrary fixed direction)
+        // rather than silently pushing nobody.
+        const cx = entity.gx - GRID / 2;
+        const cy = entity.gy - GRID / 2;
+        const clen = Math.hypot(cx, cy);
+        ux = clen > 0.0001 ? cx / clen : 1;
+        uy = clen > 0.0001 ? cy / clen : 0;
+      }
+      const nx = Phaser.Math.Clamp(entity.gx + ux * KNOCKBACK_DIST, BODY_R, GRID - BODY_R);
+      const ny = Phaser.Math.Clamp(entity.gy + uy * KNOCKBACK_DIST, BODY_R, GRID - BODY_R);
       if (this.canStand(nx, ny, BODY_R)) {
         entity.gx = nx;
         entity.gy = ny;
@@ -1070,8 +1102,8 @@
       attacker.lunge.y = 0;
       this.tweens.add({
         targets: attacker.lunge,
-        x: (dx / len) * 9,
-        y: (dy / len) * 9,
+        x: (dx / len) * SWING_LUNGE_PX,
+        y: (dy / len) * SWING_LUNGE_PX,
         duration: 90,
         yoyo: true,
       });
@@ -1088,16 +1120,26 @@
       this.drawBar(m);
     }
 
-    killMonster(m) {
-      m.alive = false;
-      m.bar.clear();
-      // A monster can die mid-wind-up (nova, or the player finishing it off
-      // first) — drop the tell and the swell so neither outlives the corpse.
+    // Drop a monster's wind-up (tell, swell, pull-back) without resolving it
+    // — for a monster that dies before its blow lands, or one left hanging
+    // when the fight itself ends. Both need identical cleanup, or the tell
+    // or the swelled scale outlives whatever stopped the swing.
+    cancelWindup(m) {
       m.windingUp = false;
       m.telegraphGfx.clear();
       this.tweens.killTweensOf(m.sprite);
       this.tweens.killTweensOf(m.lunge);
       m.sprite.setScale(1);
+      m.lunge.x = 0;
+      m.lunge.y = 0;
+    }
+
+    killMonster(m) {
+      m.alive = false;
+      m.bar.clear();
+      // A monster can die mid-wind-up (nova, or the player finishing it off
+      // first) — drop the tell and the swell so neither outlives the corpse.
+      this.cancelWindup(m);
       this.kills++;
       if (this.player.target === m) this.player.target = null;
       this.tweens.add({
@@ -1201,10 +1243,16 @@
     }
 
     // Separate a and b to `min` tiles apart. `aShare` is how much of the
-    // correction a takes (0 = b moves the whole way). A winding-up monster is
-    // exempt on whichever side it occupies — it committed to the swing and
-    // must hold its exact spot, or the spacing push could shove it out of its
-    // own range and manufacture a whiff the player didn't earn.
+    // correction a takes (0 = b moves the whole way). A winding-up entity
+    // holds its exact spot — it committed to the swing, and being shoved
+    // could push a monster out of its own range for a whiff the player
+    // didn't earn — but the *guarantee* (nobody ends up closer than `min`)
+    // must still hold, so its share is handed to the other side rather than
+    // just dropped: e.g. the player keeps their PLAYER_SPREAD clearance from
+    // a frozen monster by moving themself, since the monster can't. If both
+    // sides are winding up, neither moves — a rare, purely cosmetic
+    // monster-monster overlap, not a guarantee this function makes to begin
+    // with (only the player-facing spacing matters for readability).
     pushApart(a, b, min, aShare) {
       const dx = b.gx - a.gx;
       const dy = b.gy - a.gy;
@@ -1213,17 +1261,23 @@
       const gap = min - d;
       const ux = dx / d;
       const uy = dy / d;
-      if (aShare > 0 && !a.windingUp) {
-        const ax = a.gx - ux * gap * aShare;
-        const ay = a.gy - uy * gap * aShare;
+
+      let shareA = a.windingUp ? 0 : aShare;
+      let shareB = b.windingUp ? 0 : 1 - aShare;
+      if (a.windingUp && !b.windingUp) shareB = 1;
+      if (b.windingUp && !a.windingUp) shareA = 1;
+
+      if (shareA > 0) {
+        const ax = a.gx - ux * gap * shareA;
+        const ay = a.gy - uy * gap * shareA;
         if (this.canStand(ax, ay, BODY_R)) {
           a.gx = ax;
           a.gy = ay;
         }
       }
-      if (!b.windingUp) {
-        const bx = b.gx + ux * gap * (1 - aShare);
-        const by = b.gy + uy * gap * (1 - aShare);
+      if (shareB > 0) {
+        const bx = b.gx + ux * gap * shareB;
+        const by = b.gy + uy * gap * shareB;
         if (this.canStand(bx, by, BODY_R)) {
           b.gx = bx;
           b.gy = by;
@@ -1312,7 +1366,12 @@
 
       // Monsters: aggro, chase, swing.
       this.monsters.forEach((m) => {
-        if (!m.alive) return;
+        // A monster earlier in this same pass can land the killing blow and
+        // call endGame() mid-forEach — re-check here (update()'s own
+        // this.over guard only ran once, at the top of the frame) so a later
+        // monster can't start a fresh wind-up that no future frame will ever
+        // resolve (nothing runs update()'s monster loop again once over).
+        if (this.over || !m.alive) return;
         if (m.windingUp) {
           // Committed to the swing — it holds its ground instead of closing
           // distance (constraint 4), so the tell is the only thing moving.
@@ -1364,6 +1423,17 @@
       this.over = true;
       this.player.target = null;
       this.player.moveTo = null;
+      // update() bails out the instant `over` is true (its very first line),
+      // so a monster that was mid-wind-up — typically another monster's blow
+      // landing the killing hit while this one had already committed to its
+      // own swing — would otherwise be stuck: frozen scale, frozen pull-back,
+      // a telegraph ring stuck on its last frame, forever, with no tween left
+      // running to ever clear it. killMonster() only cleans up *its own*
+      // monster on death; this is the other half, for whichever monsters are
+      // still alive and winding up when the fight itself ends.
+      this.monsters.forEach((m) => {
+        if (m.windingUp) this.cancelWindup(m);
+      });
 
       this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0, 0).setDepth(UI_DEPTH + 20);
       this.add
