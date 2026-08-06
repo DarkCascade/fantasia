@@ -103,6 +103,20 @@
     ["brute", 4.5, 1.5],
   ];
 
+  // Monster blows are telegraphed rather than instant: a short wind-up with a
+  // clear tell gives the player a real window to step out of range. The
+  // attack cadence (nextAttack) still ticks from the moment the monster
+  // *decides* to swing, not from when the wind-up finishes, so a monster that
+  // keeps landing hits keeps exactly the rhythm it always had — the wind-up
+  // doesn't slow monsters down, it only gives a reactive player something to
+  // dodge.
+  const MONSTER_WINDUP_MS = 350;
+  const MONSTER_WINDUP_SCALE = 1.16; // how much a winding-up monster visibly swells
+  const MONSTER_PULLBACK_PX = 5; // screen-px pull-back during the wind-up (vs. the 9px forward swing lunge)
+  const MONSTER_TELL_COLOR = 0xff5a3c; // warning red — still lands if you're here when it resolves
+  const MONSTER_TELL_SAFE_COLOR = 0x6fe08a; // green once you've stepped outside its range
+  const KNOCKBACK_DIST = 0.4; // tiles the player is shoved back on a landed hit
+
   function isoX(gx, gy) {
     return OX + (gx - gy) * (TW / 2);
   }
@@ -492,8 +506,11 @@
           alive: true,
           halfH: def.halfH,
           lunge: { x: 0, y: 0 },
+          windingUp: false,
+          windupEndsAt: 0,
         };
         m.bar = this.add.graphics();
+        m.telegraphGfx = this.add.graphics();
         this.place(m);
         this.monsters.push(m);
       });
@@ -941,16 +958,104 @@
       this.hurtMonster(m, Phaser.Math.Between(PLAYER_DMG[0], PLAYER_DMG[1]), "#ffe7a3");
     }
 
+    // A monster commits to a swing: it locks in place (see update()'s early
+    // return for winding-up monsters — constraint is it can't also be closing
+    // distance while it winds up) and telegraphs for MONSTER_WINDUP_MS before
+    // landMonsterAttack() decides whether the blow actually connects.
     monsterAttack(m) {
+      m.windingUp = true;
+      m.windupEndsAt = this.time.now + MONSTER_WINDUP_MS;
       m.nextAttack = this.time.now + m.cd;
+
+      // Pull back away from the target and swell up — a tell big enough to
+      // read from across the room, against the dark floor.
+      this.tweens.killTweensOf(m.lunge);
+      m.lunge.x = 0;
+      m.lunge.y = 0;
+      const dx = isoX(this.player.gx, this.player.gy) - isoX(m.gx, m.gy);
+      const dy = isoY(this.player.gx, this.player.gy) - isoY(m.gx, m.gy);
+      const len = Math.hypot(dx, dy) || 1;
+      this.tweens.add({
+        targets: m.lunge,
+        x: (-dx / len) * MONSTER_PULLBACK_PX,
+        y: (-dy / len) * MONSTER_PULLBACK_PX,
+        duration: MONSTER_WINDUP_MS,
+        ease: "Sine.easeOut",
+      });
+      this.tweens.killTweensOf(m.sprite);
+      this.tweens.add({
+        targets: m.sprite,
+        scale: MONSTER_WINDUP_SCALE,
+        duration: MONSTER_WINDUP_MS,
+        ease: "Sine.easeOut",
+      });
+    }
+
+    // Ground tell for a wind-up in progress: a ring at the monster's actual
+    // reach (same circle-to-ellipse projection the nova ring uses, just
+    // per-monster radius) plus a beam toward the player that flips from
+    // warning-red to safe-green the instant they step outside it. Redrawn
+    // every frame so the beam — and the hit/miss read it gives — tracks the
+    // player's live position even though the monster itself holds still.
+    drawTelegraph(m) {
+      const g = m.telegraphGfx;
+      g.clear();
+      const started = m.windupEndsAt - MONSTER_WINDUP_MS;
+      const t = Phaser.Math.Clamp((this.time.now - started) / MONSTER_WINDUP_MS, 0, 1);
+      const mx = isoX(m.gx, m.gy);
+      const my = isoY(m.gx, m.gy);
+      const rx = (m.range * TW) / Math.SQRT2;
+      const ry = (m.range * TH) / Math.SQRT2;
+      const inRange = dist(m.gx, m.gy, this.player.gx, this.player.gy) <= m.range;
+      const color = inRange ? MONSTER_TELL_COLOR : MONSTER_TELL_SAFE_COLOR;
+
+      g.setDepth(my - 2);
+      g.lineStyle(1.5 + t * 2, color, 0.35 + t * 0.5);
+      g.strokeEllipse(mx, my, rx * 2, ry * 2);
+      g.lineStyle(2 + t * 2, color, 0.4 + t * 0.5);
+      g.lineBetween(mx, my, isoX(this.player.gx, this.player.gy), isoY(this.player.gx, this.player.gy));
+    }
+
+    // The wind-up is over. The blow only lands if the player is still inside
+    // range at this exact moment — otherwise it's a clean whiff, no damage.
+    // The monster follows through on the swing motion either way; only the
+    // outcome differs.
+    landMonsterAttack(m) {
+      m.windingUp = false;
+      m.telegraphGfx.clear();
+      this.tweens.killTweensOf(m.sprite);
+      this.tweens.add({ targets: m.sprite, scale: 1, duration: 90 });
       this.swing(m, this.player);
+
+      if (dist(m.gx, m.gy, this.player.gx, this.player.gy) > m.range) {
+        this.popNumber(this.player.sprite.x, this.player.sprite.y - this.player.halfH, "MISS", "#9fb4d8");
+        return;
+      }
+
       const dmg = Phaser.Math.Between(m.dmg[0], m.dmg[1]);
       this.player.hp = Math.max(0, this.player.hp - dmg);
       this.popNumber(this.player.sprite.x, this.player.sprite.y - this.player.halfH, dmg, "#ff6b6b");
       this.flash(this.player.sprite);
+      this.knockback(this.player, m);
       this.cameras.main.shake(90, 0.006);
       this.drawOrbs();
       if (this.player.hp <= 0) this.endGame(false);
+    }
+
+    // Shove `entity` a short distance straight away from `attacker` on a
+    // landed hit. Clamped through canStand exactly like pushApart — if the
+    // shove would land in a wall or pillar, it's dropped rather than clamped
+    // into the obstacle.
+    knockback(entity, attacker) {
+      const dx = entity.gx - attacker.gx;
+      const dy = entity.gy - attacker.gy;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = Phaser.Math.Clamp(entity.gx + (dx / len) * KNOCKBACK_DIST, BODY_R, GRID - BODY_R);
+      const ny = Phaser.Math.Clamp(entity.gy + (dy / len) * KNOCKBACK_DIST, BODY_R, GRID - BODY_R);
+      if (this.canStand(nx, ny, BODY_R)) {
+        entity.gx = nx;
+        entity.gy = ny;
+      }
     }
 
     // A short lunge toward the victim, standing in for a swing animation. The
@@ -986,6 +1091,13 @@
     killMonster(m) {
       m.alive = false;
       m.bar.clear();
+      // A monster can die mid-wind-up (nova, or the player finishing it off
+      // first) — drop the tell and the swell so neither outlives the corpse.
+      m.windingUp = false;
+      m.telegraphGfx.clear();
+      this.tweens.killTweensOf(m.sprite);
+      this.tweens.killTweensOf(m.lunge);
+      m.sprite.setScale(1);
       this.kills++;
       if (this.player.target === m) this.player.target = null;
       this.tweens.add({
@@ -1089,7 +1201,10 @@
     }
 
     // Separate a and b to `min` tiles apart. `aShare` is how much of the
-    // correction a takes (0 = b moves the whole way).
+    // correction a takes (0 = b moves the whole way). A winding-up monster is
+    // exempt on whichever side it occupies — it committed to the swing and
+    // must hold its exact spot, or the spacing push could shove it out of its
+    // own range and manufacture a whiff the player didn't earn.
     pushApart(a, b, min, aShare) {
       const dx = b.gx - a.gx;
       const dy = b.gy - a.gy;
@@ -1098,7 +1213,7 @@
       const gap = min - d;
       const ux = dx / d;
       const uy = dy / d;
-      if (aShare > 0) {
+      if (aShare > 0 && !a.windingUp) {
         const ax = a.gx - ux * gap * aShare;
         const ay = a.gy - uy * gap * aShare;
         if (this.canStand(ax, ay, BODY_R)) {
@@ -1106,11 +1221,13 @@
           a.gy = ay;
         }
       }
-      const bx = b.gx + ux * gap * (1 - aShare);
-      const by = b.gy + uy * gap * (1 - aShare);
-      if (this.canStand(bx, by, BODY_R)) {
-        b.gx = bx;
-        b.gy = by;
+      if (!b.windingUp) {
+        const bx = b.gx + ux * gap * (1 - aShare);
+        const by = b.gy + uy * gap * (1 - aShare);
+        if (this.canStand(bx, by, BODY_R)) {
+          b.gx = bx;
+          b.gy = by;
+        }
       }
     }
 
@@ -1196,6 +1313,13 @@
       // Monsters: aggro, chase, swing.
       this.monsters.forEach((m) => {
         if (!m.alive) return;
+        if (m.windingUp) {
+          // Committed to the swing — it holds its ground instead of closing
+          // distance (constraint 4), so the tell is the only thing moving.
+          this.drawTelegraph(m);
+          if (time >= m.windupEndsAt) this.landMonsterAttack(m);
+          return;
+        }
         const d = dist(m.gx, m.gy, p.gx, p.gy);
         if (d > m.def.aggro) return;
         if (d > m.range) {
