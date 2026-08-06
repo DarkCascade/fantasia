@@ -44,6 +44,12 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   cube auto-runs; tap / click / Space / ↑ to jump (double-jump in mid-air) over
   obstacles; the world speeds up and score is distance travelled; best run in
   `localStorage`.
+- **Gloom Hollow** (`src/gloom-hollow.js`) — a small isometric action RPG in the
+  Path of Exile mould: a square 9×9 diamond-grid arena with a wall ring and four
+  pillars. Left-click the floor to walk, left-click a monster to chase and
+  auto-attack it, **Space** / right-click for a frost nova on cooldown. Three
+  grunts and two brutes aggro, chase, and swing; kills sometimes drop a life
+  flask. PoE-style life / skill orbs sit at the bottom.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -57,6 +63,8 @@ src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchA
 src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
 src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
+src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
+src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
@@ -128,10 +136,11 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
   the decorative title font renders well; it is the first screen. No game
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
-  `launchArrowRush`, `launchCosmicDash`); the menu buttons call these to create the
+  `launchArrowRush`, `launchCosmicDash`, `launchCombatSim`, `launchGloomHollow`); the menu buttons call these to create the
   chosen Phaser game (once) into `#game-container`, and `window.returnToMenu()`
   tears down whichever game is running (`window.game` / `aviansGame` /
-  `starCatcherGame` / `arrowGame` / `cosmicDashGame`) and re-shows the menu.
+  `starCatcherGame` / `arrowGame` / `cosmicDashGame` / `combatGame` /
+  `gloomGame`) and re-shows the menu.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The

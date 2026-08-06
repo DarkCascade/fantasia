@@ -39,6 +39,12 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   to double-jump, and clear the obstacles scrolling in from the right. The world
   speeds up the longer you last; your distance is the score.
 
+- **Gloom Hollow** — a small isometric action RPG in the Path of Exile mould.
+  Left-click the floor to walk your exile around a square stone arena,
+  left-click a monster to chase it down and auto-attack, and press **Space**
+  (or right-click) for a frost nova once its orb recharges. Three grunts and two
+  brutes hunt you; some drop a life flask you can walk over. Clear the room.
+
 There's also a bonus **Ashen Spire** museum — a separate 3D/WebAssembly (Godot)
 experience that isn't in the menu, served directly at
 [`/museum/too-much-for-web.html`](https://darkcascade.github.io/fantasia/museum/too-much-for-web.html).
@@ -83,6 +89,8 @@ left/right with mouse/touch/arrow keys (Star Catcher) — as described under
   reticle, hit targets before they expire, with duration + combo multipliers.
 - 🏃 **Cosmic Dash** — a minimalist auto-runner: jump and double-jump over
   obstacles at escalating speed; distance travelled is the score.
+- ⚔️ **Gloom Hollow** — an isometric action RPG: click-to-move, click-to-attack,
+  a frost nova on cooldown, and five monsters to clear out of a stone arena.
 - 🐤 **Procedural art** — the games' textures are drawn from primitives at boot,
   so they ship no binary image files (the bonus museum is the exception).
 - 🔴 **Red bonus pipes & rising speed** — a random red pipe worth double points,
@@ -137,6 +145,8 @@ src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchA
 src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
 src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
+src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
+src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
 museum/                Ashen Spire — a Godot/WebAssembly museum, served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored so the games work offline)
 ```

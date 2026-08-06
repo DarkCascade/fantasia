@@ -317,7 +317,9 @@
           <button id="btn-underfoot" class="menu-btn menu-btn--secondary" type="button">
             Underfoot
           </button>
-          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button id="btn-gloom" class="menu-btn menu-btn--secondary" type="button">
+            Gloom Hollow
+          </button>
           <button id="btn-combat" class="menu-btn menu-btn--secondary" type="button">
             Combat Sim
           </button>
@@ -349,6 +351,7 @@
   <script src="src/arrow-rush.js"></script>
   <script src="src/cosmic-dash.js"></script>
   <script src="src/combat-sim.js"></script>
+  <script src="src/gloom-hollow.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -397,6 +400,11 @@
         if (typeof window.launchCombatSim === "function") window.launchCombatSim();
       });
 
+      document.getElementById("btn-gloom").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchGloomHollow === "function") window.launchGloomHollow();
+      });
+
       // Underfoot (page 2) -> "under construction" modal.
       var ucModal = document.getElementById("uc-modal");
       document.getElementById("btn-underfoot").addEventListener("click", function () {
@@ -425,6 +433,7 @@
           if (window.arrowGame) { try { window.arrowGame.destroy(true); } catch (e) {} window.arrowGame = null; }
           if (window.cosmicDashGame) { try { window.cosmicDashGame.destroy(true); } catch (e) {} window.cosmicDashGame = null; }
           if (window.combatGame) { try { window.combatGame.destroy(true); } catch (e) {} window.combatGame = null; }
+          if (window.gloomGame) { try { window.gloomGame.destroy(true); } catch (e) {} window.gloomGame = null; }
         }, 0);
       };
     })();
