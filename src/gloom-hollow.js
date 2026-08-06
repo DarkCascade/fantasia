@@ -1,11 +1,14 @@
 /*
  * Gloom Hollow — a small isometric action RPG in the Path of Exile mould.
  *
- * A square stone arena drawn on an isometric diamond grid. You are the exile:
- * tap/click the ground to walk there — hold to keep walking toward the finger
- * or cursor — tap a monster to chase and auto-attack it, and unleash a frost
- * nova by tapping the NOVA orb (or pressing Space / right-clicking) once its
- * cooldown is up. Everything is reachable by touch alone. Five monsters
+ * A square stone arena drawn on an isometric diamond grid. You are the exile.
+ * Two ways to move: the virtual stick in the bottom-left drives you directly
+ * (and swings at whatever you walk into, since it has no way to pick a target),
+ * or tap/click the ground to walk there — holding keeps you walking toward the
+ * finger or cursor — and tap a monster to chase and auto-attack it. The frost
+ * nova goes off by tapping the NOVA orb (or pressing Space / right-clicking)
+ * once its cooldown is up. Life and nova orbs stack in the bottom-right, clear
+ * of the stick. Everything is reachable by touch alone. Five monsters
  * roam the hollow — three quick grunts and two heavy brutes; they aggro on
  * sight, chase, and swing when they reach you. Slain monsters sometimes leave
  * a life flask you can walk over to heal. Clear the room to win, hit 0 life
@@ -112,13 +115,24 @@
   // 150-450), so the HUD lives in a band comfortably above all of it.
   const UI_DEPTH = 1000;
 
-  // The two orbs at the bottom. The nova orb doubles as the skill button on
-  // touch, where there's no Space bar or right mouse button to cast with.
+  // The two orbs stack in the bottom-right corner — life above nova — leaving
+  // the bottom-left free for the stick. The nova orb doubles as the skill
+  // button on touch, where there's no Space bar or right mouse button.
   const ORB_R = 34;
   const ORB_TAP_R = 46; // forgiving touch radius around the nova orb
-  const LIFE_ORB_X = 62;
   const NOVA_ORB_X = W - 62;
-  const ORB_Y = H - 62;
+  const NOVA_ORB_Y = H - 62;
+  const LIFE_ORB_X = W - 62;
+  const LIFE_ORB_Y = H - 140;
+
+  // Virtual stick, anchored bottom-left for a left thumb.
+  const JOY_X = 78;
+  const JOY_Y = H - 78;
+  const JOY_BASE_R = 52; // ring the knob travels inside
+  const JOY_KNOB_R = 22;
+  const JOY_THROW_R = 34; // how far the knob's centre travels = full deflection
+  const JOY_GRAB_R = 76; // press this close to the centre and the stick takes it
+  const JOY_DEAD = 0.25; // fraction of the throw treated as centred (~8px)
 
   function dist(ax, ay, bx, by) {
     return Math.hypot(ax - bx, ay - by);
@@ -496,6 +510,9 @@
     /* ---------- UI ---------- */
 
     buildUI() {
+      this.joy = { active: false, pointerId: -1, dx: 0, dy: 0, kx: JOY_X, ky: JOY_Y };
+      this.joyUsed = false;
+
       this.add
         .text(W / 2, 26, "GLOOM HOLLOW", {
           fontFamily: "Arial, sans-serif",
@@ -509,7 +526,7 @@
         .setDepth(UI_DEPTH);
 
       this.hintText = this.add
-        .text(W / 2, 58, "Tap or hold to move • tap a monster to attack\nTap the NOVA orb (or press Space) to blast", {
+        .text(W / 2, 58, "Stick to walk • tap the floor to move, a monster to attack\nTap the NOVA orb (or press Space) to blast", {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
           lineSpacing: 2,
@@ -537,7 +554,7 @@
       this.lifeOrb = this.add.graphics().setDepth(UI_DEPTH);
       this.novaOrb = this.add.graphics().setDepth(UI_DEPTH);
       this.lifeText = this.add
-        .text(LIFE_ORB_X, ORB_Y, "", {
+        .text(LIFE_ORB_X, LIFE_ORB_Y, "", {
           fontFamily: "Arial, sans-serif",
           fontSize: "14px",
           color: "#ffffff",
@@ -548,7 +565,7 @@
         .setOrigin(0.5)
         .setDepth(UI_DEPTH + 1);
       this.novaText = this.add
-        .text(NOVA_ORB_X, ORB_Y, "NOVA", {
+        .text(NOVA_ORB_X, NOVA_ORB_Y, "NOVA", {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
           color: "#ffffff",
@@ -564,7 +581,7 @@
       // takes the tap, sized generously so a fingertip doesn't have to be
       // precise. Space and right-click still work for mouse and keyboard.
       this.novaButton = this.add
-        .circle(NOVA_ORB_X, ORB_Y, ORB_TAP_R, 0x000000, 0)
+        .circle(NOVA_ORB_X, NOVA_ORB_Y, ORB_TAP_R, 0x000000, 0)
         .setDepth(UI_DEPTH + 2)
         .setInteractive({ useHandCursor: true });
       this.novaButton.on("pointerdown", (p, lx, ly, e) => {
@@ -572,16 +589,66 @@
         this.castNova();
       });
 
+      this.joyGfx = this.add.graphics().setDepth(UI_DEPTH);
+      this.drawJoystick();
+
       this.makeButton(42, 26, "≡", 0x3a3358, () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       }, 18);
     }
 
-    // True when a screen point lands on the HUD orbs, so a drag across them
-    // never doubles as a walk order.
+    /* ---------- virtual stick ---------- */
+
+    drawJoystick() {
+      const j = this.joy;
+      const g = this.joyGfx;
+      g.clear();
+      g.fillStyle(0x0d1020, j.active ? 0.6 : 0.4);
+      g.fillCircle(JOY_X, JOY_Y, JOY_BASE_R);
+      g.lineStyle(3, j.active ? 0xffd23f : 0x4a5570, 0.9);
+      g.strokeCircle(JOY_X, JOY_Y, JOY_BASE_R);
+      g.fillStyle(0x2f5fa8, j.active ? 1 : 0.75);
+      g.fillCircle(j.kx, j.ky, JOY_KNOB_R);
+      g.lineStyle(2, 0x9fd8ff, 0.9);
+      g.strokeCircle(j.kx, j.ky, JOY_KNOB_R);
+    }
+
+    // Move the knob to a touch point, clamped inside the base ring, and store
+    // the throw as a -1..1 screen-space vector.
+    updateJoystick(px, py) {
+      const j = this.joy;
+      let dx = px - JOY_X;
+      let dy = py - JOY_Y;
+      const len = Math.hypot(dx, dy);
+      if (len > JOY_THROW_R) {
+        dx = (dx / len) * JOY_THROW_R;
+        dy = (dy / len) * JOY_THROW_R;
+      }
+      j.kx = JOY_X + dx;
+      j.ky = JOY_Y + dy;
+      j.dx = dx / JOY_THROW_R;
+      j.dy = dy / JOY_THROW_R;
+      this.drawJoystick();
+    }
+
+    releaseJoystick() {
+      const j = this.joy;
+      j.active = false;
+      j.pointerId = -1;
+      j.dx = 0;
+      j.dy = 0;
+      j.kx = JOY_X;
+      j.ky = JOY_Y;
+      this.drawJoystick();
+    }
+
+    // True when a screen point lands on the HUD orbs or the stick, so a drag
+    // across them never doubles as a walk order.
     overHud(px, py) {
       return (
-        dist(px, py, NOVA_ORB_X, ORB_Y) <= ORB_TAP_R || dist(px, py, LIFE_ORB_X, ORB_Y) <= ORB_R + 6
+        dist(px, py, NOVA_ORB_X, NOVA_ORB_Y) <= ORB_TAP_R ||
+        dist(px, py, LIFE_ORB_X, LIFE_ORB_Y) <= ORB_R + 6 ||
+        dist(px, py, JOY_X, JOY_Y) <= JOY_GRAB_R
       );
     }
 
@@ -601,21 +668,21 @@
       const lg = this.lifeOrb;
       lg.clear();
       lg.fillStyle(0x1a0d0d, 1);
-      lg.fillCircle(LIFE_ORB_X, ORB_Y, r);
-      this.fillOrb(lg, LIFE_ORB_X, ORB_Y, r, this.player.hp / this.player.maxHp, 0xc42f36);
+      lg.fillCircle(LIFE_ORB_X, LIFE_ORB_Y, r);
+      this.fillOrb(lg, LIFE_ORB_X, LIFE_ORB_Y, r, this.player.hp / this.player.maxHp, 0xc42f36);
       lg.lineStyle(3, 0x6b5a2f, 1);
-      lg.strokeCircle(LIFE_ORB_X, ORB_Y, r);
+      lg.strokeCircle(LIFE_ORB_X, LIFE_ORB_Y, r);
       this.lifeText.setText(Math.max(0, Math.round(this.player.hp)) + "/" + this.player.maxHp);
 
       const charge = this.novaCharge();
       const ng = this.novaOrb;
       ng.clear();
       ng.fillStyle(0x0d1420, 1);
-      ng.fillCircle(NOVA_ORB_X, ORB_Y, r);
-      this.fillOrb(ng, NOVA_ORB_X, ORB_Y, r, charge, 0x2f7fc4);
+      ng.fillCircle(NOVA_ORB_X, NOVA_ORB_Y, r);
+      this.fillOrb(ng, NOVA_ORB_X, NOVA_ORB_Y, r, charge, 0x2f7fc4);
       // A ready nova gets a gold rim; while charging it stays muted.
       ng.lineStyle(3, charge >= 1 ? 0xffd23f : 0x4a5570, 1);
-      ng.strokeCircle(NOVA_ORB_X, ORB_Y, r);
+      ng.strokeCircle(NOVA_ORB_X, NOVA_ORB_Y, r);
       this.novaText.setText(charge >= 1 ? "NOVA" : Math.ceil(((this.novaReadyAt - this.time.now) / 1000) * 10) / 10 + "s");
 
       this.killText.setText("Slain " + this.kills + " / " + this.monsters.length);
@@ -665,9 +732,27 @@
       }
 
       this.holdMove = false;
+      this.holdPointerId = -1;
+
+      // Two extra touch pointers, so the stick and the nova orb can be worked
+      // by two thumbs at once — Phaser tracks only one touch by default.
+      this.input.addPointer(2);
 
       this.input.on("pointerdown", (pointer, currentlyOver) => {
         if (this.over) return;
+
+        // The stick claims presses near its base before anything else.
+        if (!this.joy.active && dist(pointer.x, pointer.y, JOY_X, JOY_Y) <= JOY_GRAB_R) {
+          this.joy.active = true;
+          this.joy.pointerId = pointer.id;
+          this.joyUsed = true;
+          this.player.target = null;
+          this.player.moveTo = null;
+          this.holdMove = false;
+          this.updateJoystick(pointer.x, pointer.y);
+          return;
+        }
+
         // A tap the HUD already claimed (nova orb, menu button) is not a
         // walk order.
         if (currentlyOver && currentlyOver.length) return;
@@ -687,12 +772,29 @@
           this.holdMove = false;
           return;
         }
-        if (this.setMoveTarget(pointer.x, pointer.y)) this.holdMove = true;
+        if (this.setMoveTarget(pointer.x, pointer.y)) {
+          this.holdMove = true;
+          this.holdPointerId = pointer.id;
+        }
       });
 
-      this.input.on("pointerup", () => {
-        this.holdMove = false;
+      this.input.on("pointermove", (pointer) => {
+        if (this.joy.active && pointer.id === this.joy.pointerId) {
+          this.updateJoystick(pointer.x, pointer.y);
+        }
       });
+
+      // Only the finger that started a gesture ends it — releasing the nova
+      // thumb must not drop the stick, or vice versa.
+      const endGesture = (pointer) => {
+        if (this.joy.active && pointer.id === this.joy.pointerId) this.releaseJoystick();
+        if (this.holdMove && pointer.id === this.holdPointerId) {
+          this.holdMove = false;
+          this.holdPointerId = -1;
+        }
+      };
+      this.input.on("pointerup", endGesture);
+      this.input.on("pointerupoutside", endGesture);
 
       this.input.keyboard.on("keydown-SPACE", () => this.castNova());
     }
@@ -942,6 +1044,38 @@
       }
     }
 
+    // Push the player along the stick's heading. The throw is a screen-space
+    // vector, so it goes through the same inverse projection as a click — push
+    // up and the exile walks toward the top of the screen. A short throw walks
+    // slower than a full one.
+    driveWithStick(p, dt, throwLen) {
+      const gx = (this.joy.dx / (TW / 2) + this.joy.dy / (TH / 2)) / 2;
+      const gy = (this.joy.dy / (TH / 2) - this.joy.dx / (TW / 2)) / 2;
+      const len = Math.hypot(gx, gy);
+      if (len < 0.0001) return;
+      const scale = Math.min(1, (throwLen - JOY_DEAD) / (1 - JOY_DEAD));
+      // Aim far past the player so stepToward just walks the heading, keeping
+      // its wall-collision and detour handling.
+      this.stepToward(p, p.gx + (gx / len) * 10, p.gy + (gy / len) * 10, dt * scale);
+    }
+
+    // Swing at the closest monster already within reach.
+    autoAttack(time) {
+      const p = this.player;
+      if (time < p.nextAttack) return;
+      let best = null;
+      let bestD = p.range;
+      this.monsters.forEach((m) => {
+        if (!m.alive) return;
+        const d = dist(m.gx, m.gy, p.gx, p.gy);
+        if (d <= bestD) {
+          bestD = d;
+          best = m;
+        }
+      });
+      if (best) this.playerAttack(best);
+    }
+
     update(time, delta) {
       if (this.over) return;
       const dt = Math.min(delta, 50) / 1000;
@@ -950,21 +1084,42 @@
       // Hold to keep walking toward the pointer — the main way to move on a
       // touchscreen, where repeated taps are awkward.
       if (this.holdMove) {
-        const ptr = this.input.activePointer;
-        if (!ptr.isDown) this.holdMove = false;
-        else if (!this.overHud(ptr.x, ptr.y)) this.setMoveTarget(ptr.x, ptr.y);
+        const ptr = this.input.manager.pointers[this.holdPointerId] || this.input.activePointer;
+        if (!ptr.isDown) {
+          this.holdMove = false;
+          this.holdPointerId = -1;
+        } else if (!this.overHud(ptr.x, ptr.y)) {
+          this.setMoveTarget(ptr.x, ptr.y);
+        }
+      }
+
+      // The stick outranks any walk order while it's pushed.
+      const throwLen = this.joy.active ? Math.hypot(this.joy.dx, this.joy.dy) : 0;
+      const onStick = throwLen > JOY_DEAD;
+      if (onStick) {
+        p.target = null;
+        p.moveTo = null;
+        this.driveWithStick(p, dt, throwLen);
       }
 
       // Player: chase-and-attack a target, or walk to the clicked point.
       if (p.target && !p.target.alive) p.target = null;
-      if (p.target) {
+      if (onStick) {
+        // Swing at whatever we've walked into — the stick has no way to pick
+        // a target by tapping it.
+        this.autoAttack(time);
+      } else if (p.target) {
         const d = dist(p.gx, p.gy, p.target.gx, p.target.gy);
         if (d > p.range) {
           this.stepToward(p, p.target.gx, p.target.gy, dt);
         } else if (time >= p.nextAttack) {
           this.playerAttack(p.target);
         }
-      } else if (p.moveTo) {
+      } else if (this.joyUsed) {
+        // Standing still with the stick released still fights back.
+        this.autoAttack(time);
+      }
+      if (!onStick && !p.target && p.moveTo) {
         if (this.stepToward(p, p.moveTo.gx, p.moveTo.gy, dt)) p.moveTo = null;
       }
 
