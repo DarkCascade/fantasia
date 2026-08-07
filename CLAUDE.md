@@ -46,10 +46,13 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   `localStorage`.
 - **Gloom Hollow** (`src/gloom-hollow.js`) — a small isometric action RPG in the
   Path of Exile mould: a square 9×9 diamond-grid arena with a wall ring and four
-  pillars. Two movement schemes: a **virtual stick** anchored bottom-left (drives
-  the player directly and auto-attacks whatever is in reach), or tap/click the
-  floor to walk (hold to keep walking toward the pointer) and tap a monster to
-  chase and auto-attack it. Cast the frost nova by tapping the NOVA orb or
+  pillars. The player never aims: an **auto-attack** on a 1.25s cooldown
+  (`PLAYER_CD`) flings a homing bolt at the nearest monster inside
+  `PLAYER_RANGE` (4.2 tiles), in every control scheme, so the only decision is
+  where to stand. Movement is a **virtual stick** anchored bottom-left / WASD
+  or arrows, or tap/click the floor to walk (hold to keep walking toward the
+  pointer) — tapping a monster is just a move order that closes until it's in
+  firing range. Cast the frost nova by tapping the NOVA orb or
   pressing **Space** / right-clicking — fully playable by touch. The life and
   nova orbs stack in the bottom-right so the stick owns the bottom-left; the
   scene adds two touch pointers so stick + nova work as two thumbs at once.

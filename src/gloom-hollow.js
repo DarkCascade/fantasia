@@ -2,15 +2,19 @@
  * Gloom Hollow — a small isometric action RPG in the Path of Exile mould.
  *
  * A square stone arena drawn on an isometric diamond grid. You are the exile.
+ * You never aim: an auto-attack fires on its own cooldown, flinging a homing
+ * bolt at the nearest monster in range, whatever you're doing — so the whole
+ * game is deciding where to stand.
+ *
  * Three ways to move: WASD or the arrow keys drive you directly in
- * screen-space directions (and swing at whatever you walk into, since a key
- * press has no way to pick a target) — hold two at once and they combine into
+ * screen-space directions — hold two at once and they combine into
  * a diagonal, no slower than a straight line; the virtual stick in the
  * bottom-left does the same thing by touch; or tap/click the ground to walk
  * there — holding keeps you walking toward the finger or cursor — and tap a
- * monster to chase and auto-attack it. The frost nova goes off by tapping the
- * NOVA orb (or pressing Space / right-clicking) once its cooldown is up. Life
- * and nova orbs stack in the bottom-right, clear of the stick. Everything is
+ * monster to close on it until it's inside firing range. The frost nova goes
+ * off by tapping the NOVA orb (or pressing Space / right-clicking) once its
+ * cooldown is up. Life and nova orbs stack in the bottom-right, clear of the
+ * stick. Everything is
  * reachable by touch alone, with the keyboard there for desktop. Monsters —
  * quick grunts and heavy brutes — roam the hollow in waves: aggro on sight,
  * chase, swing when they reach you, and once the wave is wiped a short
@@ -54,11 +58,24 @@
   const SPREAD = 1.0; // how far apart monsters keep from each other, in tiles
   const PLAYER_SPREAD = 0.85; // ...and from the player, so nobody hides the exile
 
+  // The exile fights at range: there is no swing and nothing to aim. Every
+  // PLAYER_CD the auto-attack picks the nearest living monster inside
+  // PLAYER_RANGE and flings a bolt at it, wherever the player happens to be
+  // walking. Range sits just inside a grunt's aggro (5.0), so opening fire
+  // reliably pulls what you shot at rather than letting you plink something
+  // that never notices. The slower cadence is paid for with a bigger hit —
+  // dps lands under the old melee rate, which is the trade for never having
+  // to stand in reach.
   const PLAYER_HP = 120;
   const PLAYER_SPEED = 3.4; // tiles / second
-  const PLAYER_RANGE = 0.95;
-  const PLAYER_CD = 500; // ms between swings
-  const PLAYER_DMG = [9, 15];
+  const PLAYER_RANGE = 4.2; // tiles the auto-attack reaches
+  const PLAYER_CD = 1250; // ms between auto-attacks
+  const PLAYER_DMG = [15, 22];
+
+  const BOLT_SPEED = 11; // tiles / second — crosses the full range in ~0.4s
+  const BOLT_HIT_R = 0.3; // tiles: close enough to the target to count as an impact
+  const BOLT_MAX_MS = 1600; // fuse, so a bolt can never outlive its flight
+  const BOLT_LIFT = 24; // screen px the bolt flies above the floor (roughly torso height)
 
   const NOVA_CD = 6000;
   const NOVA_RADIUS = 2.4;
@@ -264,6 +281,7 @@
       this.kills = 0;
       this.monsters = [];
       this.flasks = [];
+      this.bolts = [];
       this.blocked = Object.create(null);
       PILLARS.forEach((p) => {
         this.blocked[p[0] + "," + p[1]] = true;
@@ -470,6 +488,44 @@
         g.fillTriangle(20, 20, 23, 20, 21.5, 24);
         g.fillTriangle(27, 20, 30, 20, 28.5, 24);
         g.generateTexture("gh-brute", 50, 62);
+      }
+
+      // Auto-attack bolt: a pointed shard of the same cold light as the
+      // exile's blade. Drawn pointing right (+x) so the sprite's rotation can
+      // be set straight from the flight heading.
+      if (!this.textures.exists("gh-bolt")) {
+        g.clear();
+        g.fillStyle(0x2f5fa8, 0.55);
+        g.fillPoints(
+          [
+            { x: 0, y: 6 },
+            { x: 9, y: 0 },
+            { x: 24, y: 6 },
+            { x: 9, y: 12 },
+          ],
+          true
+        );
+        g.fillStyle(0xbfe6ff, 1);
+        g.fillPoints(
+          [
+            { x: 4, y: 6 },
+            { x: 11, y: 2.5 },
+            { x: 22, y: 6 },
+            { x: 11, y: 9.5 },
+          ],
+          true
+        );
+        g.fillStyle(0xffffff, 1);
+        g.fillPoints(
+          [
+            { x: 10, y: 6 },
+            { x: 14, y: 4.5 },
+            { x: 20, y: 6 },
+            { x: 14, y: 7.5 },
+          ],
+          true
+        );
+        g.generateTexture("gh-bolt", 24, 12);
       }
 
       // Life flask pickup.
@@ -737,7 +793,6 @@
 
     buildUI() {
       this.joy = { active: false, pointerId: -1, dx: 0, dy: 0, kx: JOY_X, ky: JOY_Y };
-      this.directUsed = false;
 
       this.add
         .text(W / 2, 26, "GLOOM HOLLOW", {
@@ -752,7 +807,7 @@
         .setDepth(UI_DEPTH);
 
       this.hintText = this.add
-        .text(W / 2, 58, "WASD/arrows or stick to walk • tap floor to move, a monster to attack\nTap the NOVA orb (or press Space) to blast", {
+        .text(W / 2, 58, "WASD/arrows or stick to walk • tap floor to move, a monster to close in\nYou auto-fire at the nearest foe • NOVA orb (or Space) to blast", {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
           lineSpacing: 2,
@@ -998,7 +1053,6 @@
         if (!this.joy.active && dist(pointer.x, pointer.y, JOY_X, JOY_Y) <= JOY_GRAB_R) {
           this.joy.active = true;
           this.joy.pointerId = pointer.id;
-          this.directUsed = true;
           this.player.target = null;
           this.player.moveTo = null;
           this.holdMove = false;
@@ -1201,10 +1255,113 @@
       this.drawOrbs();
     }
 
+    // One auto-attack: start the cooldown, throw the animation, and put a bolt
+    // in the air. The damage isn't dealt here any more — it lands in
+    // resolveBolt() when the shard actually arrives, so a monster killed by
+    // something else (or a nova) in the meantime never takes the hit.
     playerAttack(m) {
       this.player.nextAttack = this.time.now + this.player.cd;
       this.swing(this.player, m);
-      this.hurtMonster(m, Phaser.Math.Between(PLAYER_DMG[0], PLAYER_DMG[1]), "#ffe7a3");
+      this.fireBolt(m);
+    }
+
+    // Bolts home on their target for as long as it lives, so an auto-attack
+    // the player didn't aim can't be dodged by a monster wandering sideways
+    // mid-flight. The damage roll happens at launch (it's the shot that was
+    // fired, not the impact, that decides how hard it hits), and the target
+    // grid point is remembered every frame so a bolt whose target dies still
+    // has somewhere to fly to before it fizzles.
+    fireBolt(m) {
+      const p = this.player;
+      const b = {
+        sprite: this.add.image(0, 0, "gh-bolt").setOrigin(0.5),
+        gx: p.gx,
+        gy: p.gy,
+        target: m,
+        tx: m.gx,
+        ty: m.gy,
+        dmg: Phaser.Math.Between(PLAYER_DMG[0], PLAYER_DMG[1]),
+        expiresAt: this.time.now + BOLT_MAX_MS,
+      };
+      this.aimBolt(b, m.gx - p.gx, m.gy - p.gy);
+      this.placeBolt(b);
+      this.bolts.push(b);
+    }
+
+    // Point the sprite along a grid-space heading. A grid direction projects to
+    // screen the same way a position does, minus the origin — see isoX/isoY.
+    aimBolt(b, dgx, dgy) {
+      const sx = (dgx - dgy) * (TW / 2);
+      const sy = (dgx + dgy) * (TH / 2);
+      if (sx !== 0 || sy !== 0) b.sprite.setRotation(Math.atan2(sy, sx));
+    }
+
+    // Bolts fly BOLT_LIFT above the floor but sort by the tile they're over,
+    // like every other body, so one crossing the arena passes behind the
+    // monsters further down the screen instead of over all of them.
+    placeBolt(b) {
+      const y = isoY(b.gx, b.gy);
+      b.sprite.setPosition(isoX(b.gx, b.gy), y - BOLT_LIFT);
+      b.sprite.setDepth(y + 2);
+    }
+
+    updateBolts(time, dt) {
+      for (let i = this.bolts.length - 1; i >= 0; i--) {
+        const b = this.bolts[i];
+        if (b.target) {
+          if (b.target.alive) {
+            b.tx = b.target.gx;
+            b.ty = b.target.gy;
+          } else {
+            b.target = null; // died in flight — fly on to where it was and fizzle
+          }
+        }
+
+        const dx = b.tx - b.gx;
+        const dy = b.ty - b.gy;
+        const d = Math.hypot(dx, dy);
+        const step = BOLT_SPEED * dt;
+        if (d <= step + BOLT_HIT_R || time >= b.expiresAt) {
+          this.resolveBolt(b);
+          this.bolts.splice(i, 1);
+          continue;
+        }
+        this.aimBolt(b, dx, dy);
+        b.gx += (dx / d) * step;
+        b.gy += (dy / d) * step;
+        this.placeBolt(b);
+      }
+    }
+
+    // End of flight: a live target takes the hit, anything else is a fizzle.
+    // Either way the shard bursts and the object goes away.
+    resolveBolt(b) {
+      this.boltBurst(b.sprite.x, b.sprite.y, b.sprite.depth, !!(b.target && b.target.alive));
+      b.sprite.destroy();
+      if (b.target && b.target.alive) this.hurtMonster(b.target, b.dmg, "#ffe7a3");
+    }
+
+    // A quick spark where the shard came apart — bright and short for a hit,
+    // smaller and dimmer for a fizzle, so the two read differently at a glance.
+    boltBurst(x, y, depth, hit) {
+      const c = this.add
+        .circle(x, y, hit ? 5 : 3, 0xdff4ff, hit ? 0.95 : 0.55)
+        .setDepth(depth);
+      this.tweens.add({
+        targets: c,
+        scale: hit ? 2.6 : 1.7,
+        alpha: 0,
+        duration: hit ? 170 : 120,
+        onComplete: () => c.destroy(),
+      });
+    }
+
+    // Drop every bolt still in the air. update() stops running once the fight
+    // is over, so without this the last shots of a run would hang in mid-air
+    // under the death screen forever.
+    clearBolts() {
+      this.bolts.forEach((b) => b.sprite.destroy());
+      this.bolts = [];
     }
 
     // A monster commits to a swing: it locks in place (see update()'s early
@@ -1332,9 +1489,10 @@
       }
     }
 
-    // A short lunge toward the victim, standing in for a swing animation. The
-    // offset lives on the entity (not the sprite) so per-frame re-projection in
-    // place() and the tween never fight over the sprite's position.
+    // A short lunge toward the victim: a monster's swing, and the exile's
+    // throwing motion as a bolt leaves. The offset lives on the entity (not
+    // the sprite) so per-frame re-projection in place() and the tween never
+    // fight over the sprite's position.
     swing(attacker, victim) {
       const dx = isoX(victim.gx, victim.gy) - isoX(attacker.gx, attacker.gy);
       const dy = isoY(victim.gx, victim.gy) - isoY(attacker.gx, attacker.gy);
@@ -1558,7 +1716,10 @@
       this.driveHeading(p, dt, this.joy.dx, this.joy.dy, scale);
     }
 
-    // Swing at the closest monster already within reach.
+    // Fire at the closest monster within reach. This runs every frame in every
+    // control scheme — walking, standing, chasing a tapped monster — so the
+    // attack really is automatic: the only thing the player decides is where
+    // to stand, and "nearest" decides the rest.
     autoAttack(time) {
       const p = this.player;
       if (time < p.nextAttack) return;
@@ -1607,31 +1768,22 @@
       } else if (onKeys) {
         p.target = null;
         p.moveTo = null;
-        this.directUsed = true;
         this.driveHeading(p, dt, keysDir.dx, keysDir.dy, 1);
       }
 
-      // Player: chase-and-attack a target, or walk to the clicked point.
+      // Player movement. Tapping a monster is now purely a movement order —
+      // close until it's inside auto-attack range — since which monster gets
+      // shot is autoAttack's call, not the player's. Both branches below are
+      // dead while the stick or the keys are driving, which null them out.
       if (p.target && !p.target.alive) p.target = null;
-      if (onStick || onKeys) {
-        // Swing at whatever we've walked into — direct-drive input has no
-        // way to pick a target the way a click can.
-        this.autoAttack(time);
-      } else if (p.target) {
-        const d = dist(p.gx, p.gy, p.target.gx, p.target.gy);
-        if (d > p.range) {
+      if (p.target) {
+        if (dist(p.gx, p.gy, p.target.gx, p.target.gy) > p.range) {
           this.stepToward(p, p.target.gx, p.target.gy, dt);
-        } else if (time >= p.nextAttack) {
-          this.playerAttack(p.target);
         }
-      } else if (this.directUsed) {
-        // Standing still after driving directly (stick or keyboard) still
-        // fights back.
-        this.autoAttack(time);
-      }
-      if (!onStick && !onKeys && !p.target && p.moveTo) {
+      } else if (p.moveTo) {
         if (this.stepToward(p, p.moveTo.gx, p.moveTo.gy, dt)) p.moveTo = null;
       }
+      this.autoAttack(time);
 
       // Monsters: aggro, chase, swing.
       this.monsters.forEach((m) => {
@@ -1657,6 +1809,10 @@
         }
       });
       this.separate();
+
+      // Bolts move after everything else, so they home on where their target
+      // actually ended this frame rather than a stale position.
+      this.updateBolts(time, dt);
 
       // Flask pickups.
       for (let i = this.flasks.length - 1; i >= 0; i--) {
@@ -1707,8 +1863,10 @@
         if (m.windingUp) this.cancelWindup(m);
       });
       // Any flask still sitting on the floor (and its endless bob tween)
-      // would otherwise outlive the run, same as at a wave boundary.
+      // would otherwise outlive the run, same as at a wave boundary — and so
+      // would any bolt still in the air (see clearBolts).
       this.clearFlasks();
+      this.clearBolts();
       // A wave/incoming banner mid-fade would otherwise keep animating
       // behind the death screen — stop it and drop it out of sight.
       this.tweens.killTweensOf(this.waveText);
