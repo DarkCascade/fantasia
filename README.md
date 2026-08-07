@@ -51,8 +51,12 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   [three.js](https://threejs.org/): the arena is real geometry seen from an
   orthographic ARPG camera instead of a hand-projected diamond grid, lit by a
   low sun and four cold pillar braziers. Same controls, same waves, same
-  auto-attack and frost nova; its own best-run record. three.js is vendored
-  locally and imported on demand, so it costs nothing until you pick the game.
+  auto-attack and frost nova; its own best-run record. Slain monsters also
+  sometimes drop **gold** — usually none, occasionally up to three coins —
+  which you collect by walking near it (no need to stand right on top) and
+  which is tallied in the corner; coins you leave behind are gone when the
+  wave ends. three.js is vendored locally and imported on demand, so it costs
+  nothing until you pick the game.
 
 There's also a bonus **Ashen Spire** museum — a separate 3D/WebAssembly (Godot)
 experience that isn't in the menu, served directly at

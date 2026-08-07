@@ -78,6 +78,18 @@
   const FLASK_CHANCE = 0.4;
   const FLASK_HEAL = 22;
 
+  // ---------- gold ----------
+  // A kill drops 0-3 coins, weighted hard toward nothing: most monsters are
+  // worth killing for survival, not for loot, and a three-coin drop should
+  // feel like a small event. Index = number of pieces, value = relative
+  // weight, so the odds are 62% / 22% / 11% / 5% and the mean drop is ~0.59.
+  const GOLD_DROP_WEIGHTS = [62, 22, 11, 5];
+  const GOLD_SCATTER = 0.45; // tiles the pieces spread around the corpse
+  // Deliberately much looser than the flask's 0.55: walking near a coin should
+  // collect it, not walking exactly over it. That's most of a tile of slack on
+  // either side, so gold reads as "swept up in passing".
+  const GOLD_PICKUP_R = 0.95;
+
   const MONSTERS = {
     grunt: {
       key: "grunt",
@@ -196,6 +208,21 @@
     return { hp: 1 + (w - 1) * WAVE_HP_SCALE, dmg: 1 + (w - 1) * WAVE_DMG_SCALE };
   }
 
+  // How many coins a kill leaves behind. Weighted pick over GOLD_DROP_WEIGHTS,
+  // returning the index — i.e. the number of pieces.
+  function rollGoldDrop() {
+    let total = 0;
+    GOLD_DROP_WEIGHTS.forEach((w) => {
+      total += w;
+    });
+    let r = Math.random() * total;
+    for (let i = 0; i < GOLD_DROP_WEIGHTS.length; i++) {
+      r -= GOLD_DROP_WEIGHTS[i];
+      if (r < 0) return i;
+    }
+    return 0; // only reachable on a floating-point hair; no drop is the safe default
+  }
+
   // Fisher-Yates, in place — only used so a wave doesn't visibly spawn as "all
   // the grunts, then all the brutes".
   function shuffle(arr) {
@@ -227,6 +254,21 @@
 .gh3-stats{position:absolute;top:88px;right:14px;text-align:right;
   font-size:14px;font-weight:bold;color:#ffe7a3;text-shadow:0 1px 3px #000;}
 .gh3-stats small{display:block;margin-top:2px;font-size:12px;font-weight:normal;color:#8fa0c8;}
+/* Gold purse: the count with a little minted coin in front of it. */
+.gh3-gold{display:block;margin-top:3px;font-size:15px;color:#ffd23f;
+  text-shadow:0 1px 3px #000;transform-origin:100% 50%;}
+.gh3-gold::before{content:"";display:inline-block;width:11px;height:11px;margin-right:5px;
+  vertical-align:-1px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff3b0 0%,#ffd23f 45%,#a5610f 100%);
+  box-shadow:0 0 5px rgba(255,210,63,.6);}
+/* A one-shot pulse when the purse grows, so a pickup registers even if you
+   were looking at the other end of the arena. */
+.gh3-gold.is-bumped{animation:gh3-bump .32s ease-out;}
+@keyframes gh3-bump{
+  0%{transform:scale(1);}
+  35%{transform:scale(1.28);color:#fff3b0;}
+  100%{transform:scale(1);}
+}
 .gh3-menu{position:absolute;top:12px;left:12px;pointer-events:auto;cursor:pointer;
   font:bold 18px Arial,Helvetica,sans-serif;color:#fff;background:#3a3358;border:0;
   border-radius:9px;padding:8px 16px;box-shadow:0 3px 0 rgba(0,0,0,.5);}
@@ -282,7 +324,7 @@
 <div class="gh3-hud">
   <div class="gh3-title">GLOOM HOLLOW <span>3D</span></div>
   <div class="gh3-hint" data-gh3="hint">WASD/arrows or the stick to walk &bull; click the floor to move, a monster to close in<br>You auto-fire at the nearest foe &bull; NOVA orb (or Space) to blast</div>
-  <div class="gh3-stats"><span data-gh3="stats"></span><small data-gh3="best"></small></div>
+  <div class="gh3-stats"><span data-gh3="stats"></span><span class="gh3-gold" data-gh3="gold">0</span><small data-gh3="best"></small></div>
   <button class="gh3-menu" type="button" data-gh3="menu">&#8801;</button>
   <div class="gh3-banner" data-gh3="banner"></div>
   <div class="gh3-pops" data-gh3="pops"></div>
@@ -728,6 +770,19 @@
       return g;
     }
 
+    // A coin, stood on its edge so it catches the light and turns edge-on as it
+    // spins — a flat disc on the floor would be nearly invisible from this
+    // camera angle. Emissive, because most of the arena floor is very dark.
+    makeCoin() {
+      const g = new THREE.Group();
+      const face = this.cyl(0.145, 0.145, 0.045, 0xffcc44, { emissive: 0x6a4700 }, 16);
+      face.rotation.x = Math.PI / 2;
+      face.position.y = 0.19;
+      g.add(face);
+      this.castShadows(g);
+      return g;
+    }
+
     makeFlask() {
       const g = new THREE.Group();
       const glass = this.cyl(0.11, 0.13, 0.24, 0x8fd0e8, { emissive: 0x1a4a5c, transparent: true, opacity: 0.9 }, 10);
@@ -750,8 +805,10 @@
       this.now = performance.now();
       this.wave = 0; // beginWave(1) sets this before the first frame renders
       this.kills = 0;
+      this.gold = 0;
       this.monsters = [];
       this.flasks = [];
+      this.coins = [];
       this.bolts = [];
       this.fx = [];
       this.timers = [];
@@ -933,6 +990,7 @@
     onWaveCleared() {
       if (this.over) return;
       this.clearFlasks();
+      this.clearCoins();
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + WAVE_CLEAR_HEAL);
       this.refreshHud();
       this.banner("WAVE " + (this.wave + 1) + " INCOMING", WAVE_BREATHER_MS);
@@ -1005,8 +1063,19 @@
         charge >= 1 ? "NOVA" : Math.ceil(((this.novaReadyAt - this.now) / 1000) * 10) / 10 + "s";
 
       this.el.stats.textContent = "Wave " + this.wave + "  ·  Slain " + this.kills;
+      this.el.gold.textContent = this.gold;
       this.el.best.textContent =
         this.startBest.wave > 0 ? "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")" : "Best: —";
+    }
+
+    // Replay the purse's pulse. Removing the class and forcing a reflow before
+    // re-adding it is what makes the animation restart on back-to-back pickups
+    // — otherwise the second coin of a pair changes nothing the browser can see.
+    bumpGold() {
+      const el = this.el.gold;
+      el.classList.remove("is-bumped");
+      void el.offsetWidth;
+      el.classList.add("is-bumped");
     }
 
     novaCharge() {
@@ -1654,6 +1723,7 @@
         }
       );
       if (Math.random() < FLASK_CHANCE) this.dropFlask(m.gx, m.gz);
+      this.dropGold(m.gx, m.gz);
       this.refreshHud();
       if (this.monsters.every((e) => !e.alive)) {
         this.after(500, () => this.onWaveCleared());
@@ -1666,11 +1736,49 @@
       this.flasks.push({ model: model, gx: gx, gz: gz, born: this.now });
     }
 
+    // Scatter this kill's coins — usually none — around the corpse, keeping
+    // every piece on ground the player can actually walk onto. A corpse next
+    // to a pillar has most of its scatter arc inside the pillar, so several
+    // angles are tried before falling back to the corpse's own spot, which a
+    // monster standing there had to satisfy canStand to reach. The drop is
+    // never silently swallowed.
+    dropGold(gx, gz) {
+      const pieces = rollGoldDrop();
+      for (let i = 0; i < pieces; i++) {
+        let cx = gx;
+        let cz = gz;
+        for (let tries = 0; tries < 8; tries++) {
+          const a = Math.random() * Math.PI * 2;
+          const d = GOLD_SCATTER * (0.35 + Math.random() * 0.65);
+          const nx = gx + Math.cos(a) * d;
+          const nz = gz + Math.sin(a) * d;
+          if (this.canStand(nx, nz, BODY_R)) {
+            cx = nx;
+            cz = nz;
+            break;
+          }
+        }
+        const model = this.add(this.makeCoin());
+        model.position.set(cx, 0, cz);
+        model.rotation.y = Math.random() * Math.PI * 2;
+        this.coins.push({ model: model, gx: cx, gz: cz, born: this.now });
+      }
+    }
+
     // Destroy any flasks left over from the wave that just ended, so an
     // unclaimed one doesn't sit on the floor for the rest of the run.
     clearFlasks() {
       this.flasks.forEach((f) => this.drop(f.model));
       this.flasks = [];
+    }
+
+    // Coins are swept at a wave boundary for the same reason flasks are: waves
+    // repeat forever, so anything left on the floor accumulates for the length
+    // of the run. It also gives the loot a deadline — gold you don't walk over
+    // before the wave dies is gold you didn't earn.
+    clearCoins() {
+      this.coins.forEach((c) => this.drop(c.model));
+      this.coins = [];
     }
 
     /* ---------- movement ---------- */
@@ -1871,6 +1979,22 @@
         }
       }
 
+      // Gold, spinning on the spot. The pickup radius is wide on purpose (see
+      // GOLD_PICKUP_R) — brushing past a coin claims it.
+      for (let i = this.coins.length - 1; i >= 0; i--) {
+        const c = this.coins[i];
+        c.model.position.y = Math.sin((this.now - c.born) / 300) * 0.04;
+        c.model.rotation.y += dt * 2.6;
+        if (dist(c.gx, c.gz, p.gx, p.gz) < GOLD_PICKUP_R) {
+          this.gold++;
+          this.popNumber(c.gx, 0.85, c.gz, "+1", "#ffd23f");
+          this.drop(c.model);
+          this.coins.splice(i, 1);
+          this.bumpGold();
+          this.refreshHud();
+        }
+      }
+
       // Re-place every living body, and keep the health bars facing the camera.
       this.place(p);
       this.monsters.forEach((m) => {
@@ -1905,6 +2029,7 @@
         if (m.windingUp) this.cancelWindup(m);
       });
       this.clearFlasks();
+      this.clearCoins();
       this.clearBolts();
       if (this.bannerTimer) clearTimeout(this.bannerTimer);
       this.el.banner.style.opacity = "0";
@@ -1918,6 +2043,8 @@
         this.wave +
         "<br>Monsters slain: " +
         this.kills +
+        "<br>Gold collected: " +
+        this.gold +
         "<br>" +
         (isBest ? "★ New Best!" : "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")");
       this.el.death.classList.add("is-open");
@@ -1964,7 +2091,9 @@
       this.timers = [];
       this.bolts = [];
       this.flasks = [];
+      this.coins = [];
       this.monsters = [];
+      this.el.gold.classList.remove("is-bumped");
       this.camera.position.copy(this.camHome);
       // Everything a run creates lives under `world`, including effects still
       // mid-flight whose own cleanup will never run now.

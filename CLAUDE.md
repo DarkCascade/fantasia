@@ -68,8 +68,15 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   camera, so grid coords `(gx, gz)` *are* world coords (one tile = one unit)
   and every isometric projection helper the 2D file needs disappears; the depth
   buffer replaces `setDepth(screenY)`. All tuning constants, wave maths and
-  combat rules are copied verbatim from the 2D file — only the rendering and
-  input plumbing differ. Notable departures: the HUD (orbs, virtual stick,
+  combat rules are copied verbatim from the 2D file; the rendering and input
+  plumbing are rewritten, and **gold is the one gameplay addition** — a kill
+  drops 0–3 coins on a weighted roll (`GOLD_DROP_WEIGHTS = [62, 22, 11, 5]`,
+  so 62% drop nothing and the mean is ~0.59), scattered onto walkable ground
+  around the corpse, picked up by walking within a deliberately loose
+  `GOLD_PICKUP_R` (0.95 tiles, vs the flask's 0.55) and counted in the
+  top-right HUD. Uncollected coins are swept at a wave boundary exactly as
+  flasks are — waves repeat forever, so anything left on the floor would
+  accumulate for the length of the run. Notable departures: the HUD (orbs, virtual stick,
   banners, damage numbers, death screen) is a **DOM overlay** injected by the
   game file itself (styles included), not drawn objects; a tiny `addFx` /
   `after` pair stands in for Phaser tweens and `delayedCall`; everything a run
