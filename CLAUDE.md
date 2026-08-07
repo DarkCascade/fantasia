@@ -69,14 +69,27 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   and every isometric projection helper the 2D file needs disappears; the depth
   buffer replaces `setDepth(screenY)`. All tuning constants, wave maths and
   combat rules are copied verbatim from the 2D file; the rendering and input
-  plumbing are rewritten, and **gold is the one gameplay addition** — a kill
-  drops 0–3 coins on a weighted roll (`GOLD_DROP_WEIGHTS = [62, 22, 11, 5]`,
-  so 62% drop nothing and the mean is ~0.59), scattered onto walkable ground
-  around the corpse, picked up by walking within a deliberately loose
-  `GOLD_PICKUP_R` (0.95 tiles, vs the flask's 0.55) and counted in the
-  top-right HUD. Uncollected coins are swept at a wave boundary exactly as
-  flasks are — waves repeat forever, so anything left on the floor would
-  accumulate for the length of the run. Notable departures: the HUD (orbs, virtual stick,
+  plumbing are rewritten. Two **gameplay additions** the 2D game doesn't have:
+  - **Gold.** A kill drops 0–3 coins on a weighted roll
+    (`GOLD_DROP_WEIGHTS = [62, 22, 11, 5]`, so 62% drop nothing and the mean is
+    ~0.59), scattered onto walkable ground around the corpse, picked up by
+    walking within a deliberately loose `GOLD_PICKUP_R` (0.95 tiles, vs the
+    flask's 0.55) and counted in the top-right HUD. Uncollected coins are swept
+    at a wave boundary exactly as flasks are — waves repeat forever, so
+    anything left on the floor would accumulate for the length of the run.
+  - **Between-wave boons.** Clearing a wave opens a three-card picker (+1
+    Attack / +5% Attack Speed / +1 Defense) and **the next wave waits on the
+    pick, not on a timer** — `onWaveCleared` only opens the picker;
+    `chooseUpgrade` is what schedules `beginWave`. The offer is fixed, not
+    randomised, so a run is about committing to a build. Attack is flat on both
+    ends of the roll; haste is multiplicative and recomputed from a stack count
+    via `playerCooldown(stacks)` (never divided in place, floored at
+    `PLAYER_CD_FLOOR`); defense is flat off each blow with a `MIN_HIT` floor so
+    a deep defensive run stays killable. Cards click, 1/2/3 pick by keyboard,
+    and `choosing` guards against spending one wave's choice twice. The
+    top-right HUD grows a build line once any boon is taken.
+
+  Notable rendering/plumbing departures: the HUD (orbs, virtual stick,
   banners, damage numbers, death screen) is a **DOM overlay** injected by the
   game file itself (styles included), not drawn objects; a tiny `addFx` /
   `after` pair stands in for Phaser tweens and `delayedCall`; everything a run

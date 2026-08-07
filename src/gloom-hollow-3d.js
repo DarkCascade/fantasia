@@ -90,6 +90,40 @@
   // either side, so gold reads as "swept up in passing".
   const GOLD_PICKUP_R = 0.95;
 
+  // ---------- upgrades ----------
+  // Clearing a wave is a decision now, not just a breather: three fixed offers,
+  // one pick, then the next wave lands. Fixed rather than randomised so a run
+  // is about committing to a build — the tension is "more damage now vs. more
+  // damage forever vs. surviving to use either", not about what the roll gave
+  // you. The three axes are deliberately different shapes: attack is flat and
+  // linear, haste is multiplicative and compounds, defense is flat but scales
+  // with how *often* you're hit rather than how hard.
+  const UP_ATTACK = 1; // added to both ends of the damage roll
+  const UP_HASTE = 0.05; // 5% more attacks per second, i.e. cooldown / 1.05
+  const UP_DEFENSE = 1; // flat damage subtracted from every blow that lands
+  // A blow always lands for at least this much. Defense stacks for as long as a
+  // run does, and monster damage only climbs to WAVE_SCALE_CAP, so without a
+  // floor a deep defensive run would eventually be untouchable by grunts.
+  const MIN_HIT = 1;
+  // Haste compounds, so the cooldown approaches zero but never usefully gets
+  // there; this is where it stops, about 5x the starting attack rate.
+  const PLAYER_CD_FLOOR = 250;
+
+  // The offer, in the order the cards appear. `key` is the keyboard shortcut,
+  // `cls` the card's accent colour class.
+  const UPGRADES = [
+    { id: "attack", cls: "atk", name: "+1 Attack", key: "1" },
+    { id: "haste", cls: "spd", name: "+5% Attack Speed", key: "2" },
+    { id: "defense", cls: "def", name: "+1 Defense", key: "3" },
+  ];
+
+  // Cooldown after `stacks` haste picks. Recomputed from the count rather than
+  // divided in place each time, so the value never drifts and a reset is just
+  // stacks = 0.
+  function playerCooldown(stacks) {
+    return Math.max(PLAYER_CD_FLOOR, PLAYER_CD / Math.pow(1 + UP_HASTE, stacks));
+  }
+
   const MONSTERS = {
     grunt: {
       key: "grunt",
@@ -297,6 +331,40 @@
 .gh3-stick.is-active .gh3-knob{opacity:1;}
 .gh3-pop{position:absolute;left:0;top:0;font-size:16px;font-weight:bold;white-space:nowrap;
   text-shadow:0 2px 4px #000;transition:transform .62s ease-out,opacity .62s ease-out;}
+/* Build line under the purse — only shown once there's a build to show. */
+.gh3-build{display:none;margin-top:4px;font-size:11px;font-weight:normal;color:#c9d2ee;
+  text-shadow:0 1px 3px #000;}
+.gh3-build.is-shown{display:block;}
+/* Between-waves boon picker. */
+.gh3-upgrade{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+  justify-content:center;gap:8px;padding:16px;text-align:center;
+  background:rgba(4,3,12,.74);pointer-events:auto;}
+.gh3-upgrade.is-open{display:flex;}
+.gh3-upgrade h3{font-size:23px;color:#ffd23f;letter-spacing:.04em;text-shadow:0 3px 8px #000;}
+.gh3-upgrade-sub{margin-bottom:8px;font-size:13px;color:#b9c4e8;text-shadow:0 1px 3px #000;}
+.gh3-cards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+/* Wide enough that "+5% Attack Speed" stays on one line — a card whose title
+   wraps sits its note lower than its neighbours' and the row looks ragged. */
+.gh3-card{position:relative;overflow:hidden;width:178px;padding:17px 12px 14px;box-sizing:border-box;
+  font-family:inherit;color:#fff;text-align:center;cursor:pointer;
+  border:2px solid rgba(255,224,138,.32);border-radius:14px;
+  background:linear-gradient(180deg,rgba(38,34,72,.96) 0%,rgba(15,13,34,.96) 100%);
+  box-shadow:0 6px 18px rgba(0,0,0,.55);transition:transform .08s ease,border-color .15s ease;}
+/* Guarded, or a tap on a touchscreen leaves one card stuck in the hover look. */
+@media (hover:hover){.gh3-card:hover{border-color:#ffd23f;transform:translateY(-3px);}}
+.gh3-card:active{transform:translateY(1px);}
+/* A coloured tab along the top edge, so the three read apart at a glance. */
+.gh3-card::before{content:"";position:absolute;left:50%;top:0;width:58px;height:4px;
+  margin-left:-29px;border-radius:0 0 4px 4px;}
+.gh3-card--atk::before{background:#e2494c;}
+.gh3-card--spd::before{background:#57b0e6;}
+.gh3-card--def::before{background:#6fe08a;}
+.gh3-card-name{display:block;font-size:16px;font-weight:bold;}
+.gh3-card--atk .gh3-card-name{color:#ff9a8f;}
+.gh3-card--spd .gh3-card-name{color:#9fd8ff;}
+.gh3-card--def .gh3-card-name{color:#a8f0bd;}
+.gh3-card-note{display:block;margin-top:8px;font-size:12px;line-height:1.45;color:#c9d2ee;}
+.gh3-card-key{position:absolute;top:5px;right:9px;font-size:11px;color:#8fa0c8;}
 .gh3-death{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
   justify-content:center;gap:14px;background:rgba(0,0,0,.62);pointer-events:auto;text-align:center;}
 .gh3-death.is-open{display:flex;}
@@ -316,6 +384,12 @@
   .gh3-stats{top:118px;font-size:13px;}
   .gh3-orb{width:64px;height:64px;}
   .gh3-banner{font-size:24px;}
+  /* Three cards side by side don't fit a phone; stack them into rows big
+     enough to be a comfortable thumb target. */
+  .gh3-upgrade h3{font-size:19px;}
+  .gh3-cards{flex-direction:column;gap:10px;}
+  .gh3-card{width:min(320px,86vw);padding:12px;}
+  .gh3-card-key{display:none;}
 }
 `;
 
@@ -324,7 +398,7 @@
 <div class="gh3-hud">
   <div class="gh3-title">GLOOM HOLLOW <span>3D</span></div>
   <div class="gh3-hint" data-gh3="hint">WASD/arrows or the stick to walk &bull; click the floor to move, a monster to close in<br>You auto-fire at the nearest foe &bull; NOVA orb (or Space) to blast</div>
-  <div class="gh3-stats"><span data-gh3="stats"></span><span class="gh3-gold" data-gh3="gold">0</span><small data-gh3="best"></small></div>
+  <div class="gh3-stats"><span data-gh3="stats"></span><span class="gh3-gold" data-gh3="gold">0</span><span class="gh3-build" data-gh3="build"></span><small data-gh3="best"></small></div>
   <button class="gh3-menu" type="button" data-gh3="menu">&#8801;</button>
   <div class="gh3-banner" data-gh3="banner"></div>
   <div class="gh3-pops" data-gh3="pops"></div>
@@ -340,6 +414,27 @@
   </div>
   <div class="gh3-stickpad" data-gh3="stickPad">
     <div class="gh3-stick" data-gh3="stick"><div class="gh3-knob" data-gh3="knob"></div></div>
+  </div>
+  <div class="gh3-upgrade" data-gh3="upgrade">
+    <h3 data-gh3="upgradeTitle"></h3>
+    <div class="gh3-upgrade-sub">The hollow offers a boon — take one</div>
+    <div class="gh3-cards">
+      <button class="gh3-card gh3-card--atk" type="button" data-gh3="upAttack" data-up="attack">
+        <span class="gh3-card-key">1</span>
+        <span class="gh3-card-name">+1 Attack</span>
+        <span class="gh3-card-note" data-gh3="noteAttack"></span>
+      </button>
+      <button class="gh3-card gh3-card--spd" type="button" data-gh3="upHaste" data-up="haste">
+        <span class="gh3-card-key">2</span>
+        <span class="gh3-card-name">+5% Attack Speed</span>
+        <span class="gh3-card-note" data-gh3="noteHaste"></span>
+      </button>
+      <button class="gh3-card gh3-card--def" type="button" data-gh3="upDefense" data-up="defense">
+        <span class="gh3-card-key">3</span>
+        <span class="gh3-card-name">+1 Defense</span>
+        <span class="gh3-card-note" data-gh3="noteDefense"></span>
+      </button>
+    </div>
   </div>
   <div class="gh3-death" data-gh3="death">
     <h2>YOU DIED</h2>
@@ -830,6 +925,9 @@
       this.buildPlayer();
       this.startBest = this.loadBest();
       this.el.death.classList.remove("is-open");
+      // buildPlayer() makes a fresh player, so the boons reset with it; this is
+      // just the picker's own UI state, which outlives a run.
+      this.closeUpgrades();
       this.refreshHud();
       this.beginWave(1);
     }
@@ -846,7 +944,10 @@
         range: PLAYER_RANGE,
         cd: PLAYER_CD,
         nextAttack: 0,
-        dmg: PLAYER_DMG,
+        dmg: PLAYER_DMG, // base roll; the boons below ride on top of it
+        attack: 0, // flat damage added to every bolt
+        haste: 0, // number of attack-speed boons taken; drives `cd`
+        defense: 0, // flat damage subtracted from every blow that lands
         moveTo: null,
         target: null,
         barY: 1.45,
@@ -985,19 +1086,78 @@
       this.refreshHud();
     }
 
-    // All monsters in the current wave are dead. Breathe, heal a little,
-    // signpost the next wave, then spawn it — the run's only exit is death.
+    // All monsters in the current wave are dead. Breathe, heal a little, then
+    // hand the player a choice — the next wave doesn't land until they've taken
+    // a boon (see chooseUpgrade). The run's only exit is still death.
     onWaveCleared() {
       if (this.over) return;
       this.clearFlasks();
       this.clearCoins();
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + WAVE_CLEAR_HEAL);
       this.refreshHud();
+      this.offerUpgrades();
+    }
+
+    /* ---------- between-wave boons ---------- */
+
+    // How the current and the would-be-next value of each boon are spelled out
+    // on its card. Showing both is the whole point: "+5% attack speed" means
+    // nothing on its own, "1.25s → 1.19s between shots" means something.
+    upgradeNote(id, taken) {
+      const p = this.player;
+      if (id === "attack") {
+        const bonus = p.attack + (taken ? UP_ATTACK : 0);
+        return p.dmg[0] + bonus + "–" + (p.dmg[1] + bonus) + " damage";
+      }
+      if (id === "haste") {
+        return (playerCooldown(p.haste + (taken ? 1 : 0)) / 1000).toFixed(2) + "s between shots";
+      }
+      return (p.defense + (taken ? UP_DEFENSE : 0)) + " damage blocked per hit";
+    }
+
+    // Open the picker. Nothing schedules the next wave here — chooseUpgrade
+    // does, so the wave genuinely waits on the player rather than on a timer
+    // that happens to be longer than they took.
+    offerUpgrades() {
+      this.choosing = true;
+      this.el.upgradeTitle.textContent = "WAVE " + this.wave + " CLEARED";
+      UPGRADES.forEach((u) => {
+        const note = this.el["note" + u.id.charAt(0).toUpperCase() + u.id.slice(1)];
+        note.innerHTML = this.upgradeNote(u.id, false) + "<br>&#8595; " + this.upgradeNote(u.id, true);
+      });
+      this.el.upgrade.classList.add("is-open");
+    }
+
+    // Apply a boon and let the next wave come. Guarded on `choosing` so a
+    // double-tap (or a key and a click landing together) can't spend one wave's
+    // choice twice, and on `over` because the picker is torn down on death.
+    chooseUpgrade(id) {
+      if (!this.choosing || this.over) return;
+      const p = this.player;
+      if (id === "attack") {
+        p.attack += UP_ATTACK;
+      } else if (id === "haste") {
+        p.haste += 1;
+        p.cd = playerCooldown(p.haste);
+      } else if (id === "defense") {
+        p.defense += UP_DEFENSE;
+      } else {
+        return; // unknown id — leave the picker open rather than eating the choice
+      }
+      this.choosing = false;
+      this.el.upgrade.classList.remove("is-open");
+      this.refreshHud();
+
       this.banner("WAVE " + (this.wave + 1) + " INCOMING", WAVE_BREATHER_MS);
       this.after(WAVE_BREATHER_MS, () => {
         if (this.over) return;
         this.beginWave(this.wave + 1);
       });
+    }
+
+    closeUpgrades() {
+      this.choosing = false;
+      this.el.upgrade.classList.remove("is-open");
     }
 
     /* ---------- tiny tween / timer plumbing ---------- */
@@ -1064,6 +1224,15 @@
 
       this.el.stats.textContent = "Wave " + this.wave + "  ·  Slain " + this.kills;
       this.el.gold.textContent = this.gold;
+      // The build line stays hidden until there's a build — on wave 1 it would
+      // just be three zeroes taking up room on a phone.
+      const built = p.attack > 0 || p.haste > 0 || p.defense > 0;
+      this.el.build.classList.toggle("is-shown", built);
+      if (built) {
+        this.el.build.textContent =
+          "Atk " + (p.dmg[0] + p.attack) + "–" + (p.dmg[1] + p.attack) +
+          "  ·  " + (p.cd / 1000).toFixed(2) + "s  ·  Def " + p.defense;
+      }
       this.el.best.textContent =
         this.startBest.wave > 0 ? "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")" : "Best: —";
     }
@@ -1214,6 +1383,16 @@
 
       this.listen(window, "keydown", (e) => {
         this.keys[e.code] = true;
+        // 1/2/3 pick a boon while the picker is up — the cards are the touch
+        // path, these are the desktop one.
+        if (this.choosing) {
+          const pick = UPGRADES.find((u) => e.code === "Digit" + u.key || e.code === "Numpad" + u.key);
+          if (pick) {
+            e.preventDefault();
+            this.chooseUpgrade(pick.id);
+            return;
+          }
+        }
         if (e.code === "Space") {
           e.preventDefault();
           this.castNova();
@@ -1226,6 +1405,11 @@
       // forever and walk the exile into a wall on return.
       this.listen(window, "blur", () => {
         this.keys = Object.create(null);
+      });
+
+      UPGRADES.forEach((u) => {
+        const btn = this.el["up" + u.id.charAt(0).toUpperCase() + u.id.slice(1)];
+        this.listen(btn, "click", () => this.chooseUpgrade(u.id));
       });
 
       this.listen(this.el.menu, "click", () => this.toMenu());
@@ -1434,7 +1618,7 @@
         target: m,
         tx: m.gx,
         tz: m.gz,
-        dmg: randInt(PLAYER_DMG[0], PLAYER_DMG[1]),
+        dmg: randInt(p.dmg[0] + p.attack, p.dmg[1] + p.attack),
         expiresAt: this.now + BOLT_MAX_MS,
       };
       this.placeBolt(b, m.gx - p.gx, m.gz - p.gz);
@@ -1605,9 +1789,14 @@
         return;
       }
 
-      const dmg = randInt(m.dmg[0], m.dmg[1]);
+      // Defense comes off the roll, but a blow never lands for nothing —
+      // MIN_HIT is what keeps a deep defensive run in a fight it can still
+      // lose. A partly-blocked hit pops in a cooler colour, so the boon is
+      // visibly doing something on every swing that connects.
+      const roll = randInt(m.dmg[0], m.dmg[1]);
+      const dmg = Math.max(MIN_HIT, roll - this.player.defense);
       this.player.hp = Math.max(0, this.player.hp - dmg);
-      this.popNumber(this.player.gx, this.player.barY, this.player.gz, dmg, "#ff6b6b");
+      this.popNumber(this.player.gx, this.player.barY, this.player.gz, dmg, dmg < roll ? "#ffa48a" : "#ff6b6b");
       this.flash(this.player.model, 0x992222);
       this.knockback(this.player, m);
       this.shakeCamera(0.07, 120);
@@ -2031,6 +2220,10 @@
       this.clearFlasks();
       this.clearCoins();
       this.clearBolts();
+      // Dying with the picker open is possible in principle (a bolt still in
+      // the air can finish the last monster, and the wave-cleared delay runs
+      // either way) — the death screen wins.
+      this.closeUpgrades();
       if (this.bannerTimer) clearTimeout(this.bannerTimer);
       this.el.banner.style.opacity = "0";
 
@@ -2045,7 +2238,13 @@
         this.kills +
         "<br>Gold collected: " +
         this.gold +
-        "<br>" +
+        "<br>Boons: +" +
+        this.player.attack +
+        " atk · +" +
+        this.player.haste * 5 +
+        "% speed · +" +
+        this.player.defense +
+        " def<br>" +
         (isBest ? "★ New Best!" : "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")");
       this.el.death.classList.add("is-open");
     }
