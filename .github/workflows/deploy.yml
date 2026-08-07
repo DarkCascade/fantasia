@@ -80,6 +80,9 @@ jobs:
           test -f _site/index.html
           test -f _site/src/game.js
           test -f _site/vendor/phaser.min.js
+          # three.js is imported at runtime by src/gloom-hollow-3d.js, so a
+          # missing vendor copy would only show up as a broken game in the browser.
+          test -f _site/vendor/three.module.min.js
           test -f _site/version.json
           echo "Site assembled:"
           find _site -type f | sort

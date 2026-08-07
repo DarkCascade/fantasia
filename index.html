@@ -323,7 +323,9 @@
           <button id="btn-combat" class="menu-btn menu-btn--secondary" type="button">
             Combat Sim
           </button>
-          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button id="btn-gloom3d" class="menu-btn menu-btn--secondary" type="button">
+            Gloom Hollow 3D
+          </button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
         </div>
       </div>
@@ -352,6 +354,9 @@
   <script src="src/cosmic-dash.js"></script>
   <script src="src/combat-sim.js"></script>
   <script src="src/gloom-hollow.js"></script>
+  <!-- three.js is NOT loaded here: src/gloom-hollow-3d.js imports
+       vendor/three.module.min.js on demand, the first time that game is picked. -->
+  <script src="src/gloom-hollow-3d.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -405,6 +410,11 @@
         if (typeof window.launchGloomHollow === "function") window.launchGloomHollow();
       });
 
+      document.getElementById("btn-gloom3d").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchGloomHollow3D === "function") window.launchGloomHollow3D();
+      });
+
       // Underfoot (page 2) -> "under construction" modal.
       var ucModal = document.getElementById("uc-modal");
       document.getElementById("btn-underfoot").addEventListener("click", function () {
@@ -434,6 +444,9 @@
           if (window.cosmicDashGame) { try { window.cosmicDashGame.destroy(true); } catch (e) {} window.cosmicDashGame = null; }
           if (window.combatGame) { try { window.combatGame.destroy(true); } catch (e) {} window.combatGame = null; }
           if (window.gloomGame) { try { window.gloomGame.destroy(true); } catch (e) {} window.gloomGame = null; }
+          // Gloom Hollow 3D isn't a Phaser game: its handle owns a three.js
+          // renderer plus its own DOM overlay, and destroy() takes no arguments.
+          if (window.gloom3DGame) { try { window.gloom3DGame.destroy(); } catch (e) {} window.gloom3DGame = null; }
         }, 0);
       };
     })();

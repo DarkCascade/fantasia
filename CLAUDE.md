@@ -62,6 +62,28 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   projects to semi-axes `R*TW/sqrt(2)` by `R*TH/sqrt(2)`. Three
   grunts and two brutes aggro, chase, and swing; kills sometimes drop a life
   flask. PoE-style life / skill orbs sit at the bottom.
+- **Gloom Hollow 3D** (`src/gloom-hollow-3d.js`) — the same game rebuilt on
+  **three.js** instead of Phaser, on the second blank slot of menu page 2. The
+  arena is real geometry on a ground plane under an **orthographic** ARPG
+  camera, so grid coords `(gx, gz)` *are* world coords (one tile = one unit)
+  and every isometric projection helper the 2D file needs disappears; the depth
+  buffer replaces `setDepth(screenY)`. All tuning constants, wave maths and
+  combat rules are copied verbatim from the 2D file — only the rendering and
+  input plumbing differ. Notable departures: the HUD (orbs, virtual stick,
+  banners, damage numbers, death screen) is a **DOM overlay** injected by the
+  game file itself (styles included), not drawn objects; a tiny `addFx` /
+  `after` pair stands in for Phaser tweens and `delayedCall`; everything a run
+  creates lives under a single `world` group so a restart is one sweep; and the
+  camera **pitch adapts to the viewport aspect** (flatter on desktop, closer to
+  top-down on a portrait phone) because the arena's footprint is otherwise
+  twice as wide as it is tall and would shrink to a stamp. Its best run is a
+  separate `localStorage` key (`gloom-hollow-3d-best`). three.js is vendored at
+  `vendor/three.module.min.js` and **imported on demand** (`import()`, URL
+  resolved from `document.currentScript.src`) so the 670 KB module never loads
+  for people who don't pick this game. `window.gloom3DGame` is a small handle
+  object with `destroy()` (no arguments — unlike the Phaser games'
+  `destroy(true)`), and it exists from the moment the button is pressed so
+  returning to the menu mid-load cancels the boot.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -77,8 +99,10 @@ src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
 src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
+src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
+vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
 
@@ -130,6 +154,16 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
   the tool's own shell (it returns exit 144 and any command chained after it never
   runs). Leave `python3 -m http.server` running (it's session-scoped) or kill it
   by explicit PID in its own step.
+- **Vendoring a new library:** CDNs (unpkg, jsdelivr) are blocked by the sandbox's
+  proxy (`CONNECT tunnel failed, response 403`), but `registry.npmjs.org` is on
+  the no-proxy list and works — `curl -O https://registry.npmjs.org/<pkg>/-/<pkg>-<ver>.tgz`
+  then untar the build file you want. That's how `vendor/three.module.min.js` got here.
+- **WebGL in headless Chromium** needs explicit flags, or three.js fails to make a
+  context: launch Playwright with
+  `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`.
+  Gloom Hollow 3D's HUD *is* DOM, so unlike the Phaser games its buttons can be
+  clicked by selector (`[data-gh3="menu"]`), and `window.gloom3DGame.game` exposes
+  the scene object for headless assertions.
 - **Canvas-drawn (Phaser) buttons are not DOM**, so Playwright can't select them
   by text — click them by game-space coordinate. And `mcp__github__actions_list`
   output is large: past the token limit it is saved to a file, so parse that JSON
@@ -148,11 +182,14 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
   the decorative title font renders well; it is the first screen. No game
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
-  `launchArrowRush`, `launchCosmicDash`, `launchCombatSim`, `launchGloomHollow`); the menu buttons call these to create the
-  chosen Phaser game (once) into `#game-container`, and `window.returnToMenu()`
+  `launchArrowRush`, `launchCosmicDash`, `launchCombatSim`, `launchGloomHollow`,
+  `launchGloomHollow3D`); the menu buttons call these to create the
+  chosen game (once) into `#game-container`, and `window.returnToMenu()`
   tears down whichever game is running (`window.game` / `aviansGame` /
   `starCatcherGame` / `arrowGame` / `cosmicDashGame` / `combatGame` /
-  `gloomGame`) and re-shows the menu.
+  `gloomGame` / `gloom3DGame`) and re-shows the menu. All of those are Phaser
+  instances torn down with `destroy(true)` except `gloom3DGame`, whose handle
+  takes a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The

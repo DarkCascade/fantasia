@@ -47,6 +47,13 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   grunts and two brutes hunt you; some drop a life flask you can walk over.
   Clear the room.
 
+- **Gloom Hollow 3D** (page 2) — the same hollow, rebuilt in
+  [three.js](https://threejs.org/): the arena is real geometry seen from an
+  orthographic ARPG camera instead of a hand-projected diamond grid, lit by a
+  low sun and four cold pillar braziers. Same controls, same waves, same
+  auto-attack and frost nova; its own best-run record. three.js is vendored
+  locally and imported on demand, so it costs nothing until you pick the game.
+
 There's also a bonus **Ashen Spire** museum — a separate 3D/WebAssembly (Godot)
 experience that isn't in the menu, served directly at
 [`/museum/too-much-for-web.html`](https://darkcascade.github.io/fantasia/museum/too-much-for-web.html).
@@ -149,8 +156,10 @@ src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
 src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
+src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 museum/                Ashen Spire — a Godot/WebAssembly museum, served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored so the games work offline)
+vendor/three.module.min.js  three.js r160 (vendored; imported on demand by Gloom Hollow 3D)
 ```
 
 ## Tuning
