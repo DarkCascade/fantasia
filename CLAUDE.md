@@ -77,17 +77,29 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     flask's 0.55) and counted in the top-right HUD. Uncollected coins are swept
     at a wave boundary exactly as flasks are — waves repeat forever, so
     anything left on the floor would accumulate for the length of the run.
-  - **Between-wave boons.** Clearing a wave opens a three-card picker (+1
-    Attack / +5% Attack Speed / +1 Defense) and **the next wave waits on the
-    pick, not on a timer** — `onWaveCleared` only opens the picker;
-    `chooseUpgrade` is what schedules `beginWave`. The offer is fixed, not
-    randomised, so a run is about committing to a build. Attack is flat on both
-    ends of the roll; haste is multiplicative and recomputed from a stack count
-    via `playerCooldown(stacks)` (never divided in place, floored at
-    `PLAYER_CD_FLOOR`); defense is flat off each blow with a `MIN_HIT` floor so
-    a deep defensive run stays killable. Cards click, 1/2/3 pick by keyboard,
-    and `choosing` guards against spending one wave's choice twice. The
-    top-right HUD grows a build line once any boon is taken.
+  - **Between-wave boons.** Clearing a wave opens a picker of `OFFER_SIZE` (3)
+    cards **drawn at random from `BOON_POOL`** (9 entries: attack, attack
+    speed, defense, max life, move speed, attack range, nova cooldown, nova
+    damage, life-per-kill), and **the next wave waits on the pick, not on a
+    timer** — `onWaveCleared` only opens the picker; `chooseUpgrade` is what
+    schedules `beginWave`. Each pool entry carries its own `apply(player)`,
+    a `show(player, n)` that renders the stat as it stands / as it would stand
+    (cards print "1.25s → 1.19s", never a bare percentage), a `cls` accent
+    (`atk`/`spd`/`def`/`arc`) and an optional `avail(player)` — maxed boons drop
+    out of the draw so they can't crowd a slot. Counts live in
+    `player.stacks[id]`, which drives the HUD build line, the death summary
+    (`boonSummary`) and the multiplicative boons: haste, move speed and nova
+    cooldown are recomputed from their stack count (`playerCooldown` /
+    `playerSpeed` / `novaCooldown`) rather than scaled in place, so they never
+    drift. Three caps matter and are load-bearing, not cosmetic:
+    `PLAYER_CD_FLOOR` / `NOVA_CD_FLOOR` (compounding cooldowns), `UP_MOVE_MAX`
+    (`stepToward` only tests a step's *destination*, so a long enough step
+    could hop a pillar) and `UP_RANGE_MAX` (monsters aggro on distance alone —
+    being shot doesn't provoke them — so reach must stay ≤ the grunt's 5.0
+    aggro or you'd kill things that never wake up). The picker's three card
+    slots are fixed DOM filled per draw, so handlers pick by **slot index**;
+    1/2/3 do the same, and `choosing` guards against spending one wave's
+    choice twice.
 
   Notable rendering/plumbing departures: the HUD (orbs, virtual stick,
   banners, damage numbers, death screen) is a **DOM overlay** injected by the

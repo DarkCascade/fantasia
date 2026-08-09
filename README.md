@@ -55,11 +55,12 @@ Launching the site shows the **Fantasia** menu (a title screen styled after a
   sometimes drop **gold** — usually none, occasionally up to three coins —
   which you collect by walking near it (no need to stand right on top) and
   which is tallied in the corner; coins you leave behind are gone when the
-  wave ends. Clear a wave and the hollow offers you a **boon** — +1 Attack,
-  +5% Attack Speed or +1 Defense — and the next wave holds off until you've
-  chosen, so a long run is a build you commit to rather than a flat grind.
-  three.js is vendored locally and imported on demand, so it costs nothing
-  until you pick the game.
+  wave ends. Clear a wave and the hollow deals you three **boons** drawn from a
+  pool of nine — attack, attack speed, defense, max life, move speed, attack
+  range, nova cooldown, nova damage, life per kill — and the next wave holds
+  off until you've chosen, so every run builds into something a little
+  different. three.js is vendored locally and imported on demand, so it costs
+  nothing until you pick the game.
 
 There's also a bonus **Ashen Spire** museum — a separate 3D/WebAssembly (Godot)
 experience that isn't in the menu, served directly at

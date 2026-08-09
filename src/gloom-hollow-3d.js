@@ -90,17 +90,23 @@
   // either side, so gold reads as "swept up in passing".
   const GOLD_PICKUP_R = 0.95;
 
-  // ---------- upgrades ----------
-  // Clearing a wave is a decision now, not just a breather: three fixed offers,
-  // one pick, then the next wave lands. Fixed rather than randomised so a run
-  // is about committing to a build — the tension is "more damage now vs. more
-  // damage forever vs. surviving to use either", not about what the roll gave
-  // you. The three axes are deliberately different shapes: attack is flat and
-  // linear, haste is multiplicative and compounds, defense is flat but scales
-  // with how *often* you're hit rather than how hard.
+  // ---------- boons ----------
+  // Clearing a wave is a decision, not just a breather: OFFER_SIZE cards drawn
+  // from BOON_POOL, one pick, then the next wave lands. Drawing rather than
+  // offering the whole pool is what makes two runs differ — you play the build
+  // the hollow keeps handing you, not the one you'd always pick.
+  const OFFER_SIZE = 3;
+
   const UP_ATTACK = 1; // added to both ends of the damage roll
   const UP_HASTE = 0.05; // 5% more attacks per second, i.e. cooldown / 1.05
   const UP_DEFENSE = 1; // flat damage subtracted from every blow that lands
+  const UP_LIFE = 15; // added to max life — and healed on the spot, so it's never a dead pick
+  const UP_MOVE = 0.08; // 8% faster on foot, multiplicative
+  const UP_RANGE = 0.4; // tiles added to the auto-attack's reach
+  const UP_NOVA_CD = 0.12; // 12% off the nova's cooldown, multiplicative
+  const UP_NOVA_DMG = 6; // added to both ends of the nova roll
+  const UP_LEECH = 2; // life clawed back per kill
+
   // A blow always lands for at least this much. Defense stacks for as long as a
   // run does, and monster damage only climbs to WAVE_SCALE_CAP, so without a
   // floor a deep defensive run would eventually be untouchable by grunts.
@@ -108,21 +114,129 @@
   // Haste compounds, so the cooldown approaches zero but never usefully gets
   // there; this is where it stops, about 5x the starting attack rate.
   const PLAYER_CD_FLOOR = 250;
+  const NOVA_CD_FLOOR = 1800; // as above, for the nova
+  // Move speed is capped because stepToward only tests the *destination* of a
+  // step: make the steps long enough and a body could hop clean over a pillar.
+  // Six stacks is ~1.59x, which at the 50ms frame clamp is a 0.28-tile step —
+  // nowhere near the ~1.7 tiles it would take to skip a blocked tile.
+  const UP_MOVE_MAX = 6;
+  // Range is capped just at the grunt's aggro radius (5.0). Monsters aggro on
+  // distance alone — being shot doesn't provoke them — so a reach longer than
+  // their notice range would mean killing things that never wake up.
+  const UP_RANGE_MAX = 2;
 
-  // The offer, in the order the cards appear. `key` is the keyboard shortcut,
-  // `cls` the card's accent colour class.
-  const UPGRADES = [
-    { id: "attack", cls: "atk", name: "+1 Attack", key: "1" },
-    { id: "haste", cls: "spd", name: "+5% Attack Speed", key: "2" },
-    { id: "defense", cls: "def", name: "+1 Defense", key: "3" },
-  ];
-
-  // Cooldown after `stacks` haste picks. Recomputed from the count rather than
+  // Cooldowns after `stacks` picks. Recomputed from the count rather than
   // divided in place each time, so the value never drifts and a reset is just
   // stacks = 0.
   function playerCooldown(stacks) {
     return Math.max(PLAYER_CD_FLOOR, PLAYER_CD / Math.pow(1 + UP_HASTE, stacks));
   }
+
+  function novaCooldown(stacks) {
+    return Math.max(NOVA_CD_FLOOR, NOVA_CD * Math.pow(1 - UP_NOVA_CD, stacks));
+  }
+
+  function playerSpeed(stacks) {
+    return PLAYER_SPEED * Math.pow(1 + UP_MOVE, stacks);
+  }
+
+  // The pool the offer is drawn from. Each boon knows how to apply itself, how
+  // to describe the value it changes (so a card can show "1.25s → 1.19s" rather
+  // than an abstract percentage), and — where it has a ceiling — when it should
+  // stop being offered, so a maxed boon doesn't crowd out a useful one.
+  //   cls  = accent colour: atk offense, spd speed, def survival, arc the nova
+  //   show = the stat as it stands, or as it would stand with `n` more stacks
+  const BOON_POOL = [
+    {
+      id: "attack",
+      cls: "atk",
+      name: "+1 Attack",
+      show: (p, n) => p.dmg[0] + p.attack + n * UP_ATTACK + "–" + (p.dmg[1] + p.attack + n * UP_ATTACK) + " damage",
+      apply: (p) => {
+        p.attack += UP_ATTACK;
+      },
+    },
+    {
+      id: "haste",
+      cls: "spd",
+      name: "+5% Attack Speed",
+      show: (p, n) => (playerCooldown(p.stacks.haste + n) / 1000).toFixed(2) + "s between shots",
+      avail: (p) => p.cd > PLAYER_CD_FLOOR,
+      apply: (p) => {
+        p.cd = playerCooldown(p.stacks.haste + 1);
+      },
+    },
+    {
+      id: "defense",
+      cls: "def",
+      name: "+1 Defense",
+      show: (p, n) => p.defense + n * UP_DEFENSE + " damage blocked",
+      apply: (p) => {
+        p.defense += UP_DEFENSE;
+      },
+    },
+    {
+      id: "life",
+      cls: "def",
+      name: "+15 Max Life",
+      show: (p, n) => p.maxHp + n * UP_LIFE + " max life",
+      apply: (p) => {
+        // Heal by the same amount, so taking it mid-run is worth something
+        // immediately rather than only widening an empty globe.
+        p.maxHp += UP_LIFE;
+        p.hp = Math.min(p.maxHp, p.hp + UP_LIFE);
+      },
+    },
+    {
+      id: "move",
+      cls: "spd",
+      name: "+8% Move Speed",
+      show: (p, n) => playerSpeed(p.stacks.move + n).toFixed(2) + " tiles/sec",
+      avail: (p) => p.stacks.move < UP_MOVE_MAX,
+      apply: (p) => {
+        p.speed = playerSpeed(p.stacks.move + 1);
+      },
+    },
+    {
+      id: "range",
+      cls: "atk",
+      name: "+0.4 Attack Range",
+      show: (p, n) => (p.range + n * UP_RANGE).toFixed(1) + " tiles of reach",
+      avail: (p) => p.stacks.range < UP_RANGE_MAX,
+      apply: (p) => {
+        p.range += UP_RANGE;
+      },
+    },
+    {
+      id: "novacd",
+      cls: "arc",
+      name: "-12% Nova Cooldown",
+      show: (p, n) => (novaCooldown(p.stacks.novacd + n) / 1000).toFixed(1) + "s nova cooldown",
+      avail: (p) => p.novaCd > NOVA_CD_FLOOR,
+      apply: (p) => {
+        p.novaCd = novaCooldown(p.stacks.novacd + 1);
+      },
+    },
+    {
+      id: "novadmg",
+      cls: "arc",
+      name: "+6 Nova Damage",
+      show: (p, n) =>
+        NOVA_DMG[0] + p.novaDmg + n * UP_NOVA_DMG + "–" + (NOVA_DMG[1] + p.novaDmg + n * UP_NOVA_DMG) + " nova damage",
+      apply: (p) => {
+        p.novaDmg += UP_NOVA_DMG;
+      },
+    },
+    {
+      id: "leech",
+      cls: "def",
+      name: "+2 Life per Kill",
+      show: (p, n) => p.leech + n * UP_LEECH + " life per kill",
+      apply: (p) => {
+        p.leech += UP_LEECH;
+      },
+    },
+  ];
 
   const MONSTERS = {
     grunt: {
@@ -343,9 +457,10 @@
 .gh3-upgrade h3{font-size:23px;color:#ffd23f;letter-spacing:.04em;text-shadow:0 3px 8px #000;}
 .gh3-upgrade-sub{margin-bottom:8px;font-size:13px;color:#b9c4e8;text-shadow:0 1px 3px #000;}
 .gh3-cards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
-/* Wide enough that "+5% Attack Speed" stays on one line — a card whose title
-   wraps sits its note lower than its neighbours' and the row looks ragged. */
-.gh3-card{position:relative;overflow:hidden;width:178px;padding:17px 12px 14px;box-sizing:border-box;
+/* Wide enough for the longest name in the pool ("-12% Nova Cooldown") to stay
+   on one line — a card whose title wraps sits its note lower than its
+   neighbours' and the row looks ragged. */
+.gh3-card{position:relative;overflow:hidden;width:196px;padding:17px 12px 14px;box-sizing:border-box;
   font-family:inherit;color:#fff;text-align:center;cursor:pointer;
   border:2px solid rgba(255,224,138,.32);border-radius:14px;
   background:linear-gradient(180deg,rgba(38,34,72,.96) 0%,rgba(15,13,34,.96) 100%);
@@ -359,17 +474,21 @@
 .gh3-card--atk::before{background:#e2494c;}
 .gh3-card--spd::before{background:#57b0e6;}
 .gh3-card--def::before{background:#6fe08a;}
+.gh3-card--arc::before{background:#b98cf0;}
 .gh3-card-name{display:block;font-size:16px;font-weight:bold;}
 .gh3-card--atk .gh3-card-name{color:#ff9a8f;}
 .gh3-card--spd .gh3-card-name{color:#9fd8ff;}
 .gh3-card--def .gh3-card-name{color:#a8f0bd;}
+.gh3-card--arc .gh3-card-name{color:#dcc4ff;}
 .gh3-card-note{display:block;margin-top:8px;font-size:12px;line-height:1.45;color:#c9d2ee;}
 .gh3-card-key{position:absolute;top:5px;right:9px;font-size:11px;color:#8fa0c8;}
 .gh3-death{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
   justify-content:center;gap:14px;background:rgba(0,0,0,.62);pointer-events:auto;text-align:center;}
 .gh3-death.is-open{display:flex;}
 .gh3-death h2{font-size:40px;color:#d43b3b;text-shadow:0 3px 8px #000;letter-spacing:.04em;}
-.gh3-death p{font-size:15px;line-height:1.7;color:#e6ecff;text-shadow:0 1px 3px #000;}
+/* The boon list can run long on a deep run, so give it room to wrap. */
+.gh3-death p{max-width:min(560px,88vw);font-size:15px;line-height:1.7;color:#e6ecff;
+  text-shadow:0 1px 3px #000;}
 .gh3-btn{font:bold 18px Arial,Helvetica,sans-serif;color:#fff;border:0;border-radius:11px;
   padding:12px 26px;cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.5);}
 .gh3-btn--again{background:#2f5a8a;}
@@ -418,21 +537,22 @@
   <div class="gh3-upgrade" data-gh3="upgrade">
     <h3 data-gh3="upgradeTitle"></h3>
     <div class="gh3-upgrade-sub">The hollow offers a boon — take one</div>
+    <!-- Filled in from the draw each time the picker opens; see offerUpgrades. -->
     <div class="gh3-cards">
-      <button class="gh3-card gh3-card--atk" type="button" data-gh3="upAttack" data-up="attack">
+      <button class="gh3-card" type="button" data-gh3="card0">
         <span class="gh3-card-key">1</span>
-        <span class="gh3-card-name">+1 Attack</span>
-        <span class="gh3-card-note" data-gh3="noteAttack"></span>
+        <span class="gh3-card-name" data-gh3="name0"></span>
+        <span class="gh3-card-note" data-gh3="note0"></span>
       </button>
-      <button class="gh3-card gh3-card--spd" type="button" data-gh3="upHaste" data-up="haste">
+      <button class="gh3-card" type="button" data-gh3="card1">
         <span class="gh3-card-key">2</span>
-        <span class="gh3-card-name">+5% Attack Speed</span>
-        <span class="gh3-card-note" data-gh3="noteHaste"></span>
+        <span class="gh3-card-name" data-gh3="name1"></span>
+        <span class="gh3-card-note" data-gh3="note1"></span>
       </button>
-      <button class="gh3-card gh3-card--def" type="button" data-gh3="upDefense" data-up="defense">
+      <button class="gh3-card" type="button" data-gh3="card2">
         <span class="gh3-card-key">3</span>
-        <span class="gh3-card-name">+1 Defense</span>
-        <span class="gh3-card-note" data-gh3="noteDefense"></span>
+        <span class="gh3-card-name" data-gh3="name2"></span>
+        <span class="gh3-card-note" data-gh3="note2"></span>
       </button>
     </div>
   </div>
@@ -946,8 +1066,17 @@
         nextAttack: 0,
         dmg: PLAYER_DMG, // base roll; the boons below ride on top of it
         attack: 0, // flat damage added to every bolt
-        haste: 0, // number of attack-speed boons taken; drives `cd`
         defense: 0, // flat damage subtracted from every blow that lands
+        novaCd: NOVA_CD,
+        novaDmg: 0, // flat damage added to both ends of the nova roll
+        leech: 0, // life clawed back per kill
+        // How many times each boon has been taken. The multiplicative ones
+        // (haste, move) are recomputed from their count rather than scaled in
+        // place, and the whole map drives the build line and the end summary.
+        stacks: BOON_POOL.reduce((acc, b) => {
+          acc[b.id] = 0;
+          return acc;
+        }, {}),
         moveTo: null,
         target: null,
         barY: 1.45,
@@ -1100,54 +1229,73 @@
 
     /* ---------- between-wave boons ---------- */
 
-    // How the current and the would-be-next value of each boon are spelled out
-    // on its card. Showing both is the whole point: "+5% attack speed" means
-    // nothing on its own, "1.25s → 1.19s between shots" means something.
-    upgradeNote(id, taken) {
-      const p = this.player;
-      if (id === "attack") {
-        const bonus = p.attack + (taken ? UP_ATTACK : 0);
-        return p.dmg[0] + bonus + "–" + (p.dmg[1] + bonus) + " damage";
-      }
-      if (id === "haste") {
-        return (playerCooldown(p.haste + (taken ? 1 : 0)) / 1000).toFixed(2) + "s between shots";
-      }
-      return (p.defense + (taken ? UP_DEFENSE : 0)) + " damage blocked per hit";
+    // Draw the offer: OFFER_SIZE distinct boons, uniformly at random from
+    // whichever ones still have something to give. Filtering on `avail` first
+    // is what keeps a maxed-out boon (haste at its floor, range at its cap)
+    // from taking one of the three slots and quietly shrinking the real choice
+    // to two.
+    drawOffer() {
+      return shuffle(BOON_POOL.filter((b) => !b.avail || b.avail(this.player))).slice(0, OFFER_SIZE);
     }
 
     // Open the picker. Nothing schedules the next wave here — chooseUpgrade
     // does, so the wave genuinely waits on the player rather than on a timer
     // that happens to be longer than they took.
     offerUpgrades() {
+      this.offer = this.drawOffer();
+      // Every boon capped out at once can't happen with this pool (four of the
+      // nine have no ceiling at all), but an empty offer would strand the run
+      // behind a picker with nothing to pick, so fall through to the wave.
+      if (!this.offer.length) {
+        this.nextWaveAfterChoice();
+        return;
+      }
+
       this.choosing = true;
+      // A wave cleared fast enough can still have its own "WAVE n" banner
+      // fading in the middle of the screen — right where the picker's heading
+      // goes. Drop it rather than letting the two overlap.
+      if (this.bannerTimer) clearTimeout(this.bannerTimer);
+      this.el.banner.style.opacity = "0";
       this.el.upgradeTitle.textContent = "WAVE " + this.wave + " CLEARED";
-      UPGRADES.forEach((u) => {
-        const note = this.el["note" + u.id.charAt(0).toUpperCase() + u.id.slice(1)];
-        note.innerHTML = this.upgradeNote(u.id, false) + "<br>&#8595; " + this.upgradeNote(u.id, true);
-      });
+      for (let i = 0; i < 3; i++) {
+        const card = this.el["card" + i];
+        const boon = this.offer[i];
+        if (!boon) {
+          card.style.display = "none";
+          continue;
+        }
+        card.style.display = "";
+        // Rebuild the class list rather than toggling: which accent a slot
+        // wears changes every draw.
+        card.className = "gh3-card gh3-card--" + boon.cls;
+        this.el["name" + i].textContent = boon.name;
+        // Both the current value and what it becomes. Showing only one is the
+        // trap: "+8% move speed" says nothing on its own, "3.40 → 3.67
+        // tiles/sec" says what you're buying.
+        this.el["note" + i].innerHTML =
+          boon.show(this.player, 0) + "<br>&#8595; " + boon.show(this.player, 1);
+      }
       this.el.upgrade.classList.add("is-open");
     }
 
-    // Apply a boon and let the next wave come. Guarded on `choosing` so a
-    // double-tap (or a key and a click landing together) can't spend one wave's
-    // choice twice, and on `over` because the picker is torn down on death.
-    chooseUpgrade(id) {
+    // Take the boon in slot `index` and let the next wave come. Guarded on
+    // `choosing` so a double-tap (or a key and a click landing together) can't
+    // spend one wave's choice twice, and on `over` because the picker is torn
+    // down on death.
+    chooseUpgrade(index) {
       if (!this.choosing || this.over) return;
-      const p = this.player;
-      if (id === "attack") {
-        p.attack += UP_ATTACK;
-      } else if (id === "haste") {
-        p.haste += 1;
-        p.cd = playerCooldown(p.haste);
-      } else if (id === "defense") {
-        p.defense += UP_DEFENSE;
-      } else {
-        return; // unknown id — leave the picker open rather than eating the choice
-      }
+      const boon = this.offer[index];
+      if (!boon) return; // an empty slot — leave the picker open rather than eating the choice
+      boon.apply(this.player);
+      this.player.stacks[boon.id]++;
       this.choosing = false;
       this.el.upgrade.classList.remove("is-open");
       this.refreshHud();
+      this.nextWaveAfterChoice();
+    }
 
+    nextWaveAfterChoice() {
       this.banner("WAVE " + (this.wave + 1) + " INCOMING", WAVE_BREATHER_MS);
       this.after(WAVE_BREATHER_MS, () => {
         if (this.over) return;
@@ -1157,7 +1305,17 @@
 
     closeUpgrades() {
       this.choosing = false;
+      this.offer = [];
       this.el.upgrade.classList.remove("is-open");
+    }
+
+    // What the run ended up built out of, e.g. "+1 Attack ×3, +15 Max Life ×2".
+    // Pool order, not pick order, so two runs with the same build read the same.
+    boonSummary() {
+      const taken = BOON_POOL.filter((b) => this.player.stacks[b.id] > 0).map(
+        (b) => b.name + (this.player.stacks[b.id] > 1 ? " ×" + this.player.stacks[b.id] : "")
+      );
+      return taken.length ? taken.join(", ") : "none";
     }
 
     /* ---------- tiny tween / timer plumbing ---------- */
@@ -1224,15 +1382,23 @@
 
       this.el.stats.textContent = "Wave " + this.wave + "  ·  Slain " + this.kills;
       this.el.gold.textContent = this.gold;
-      // The build line stays hidden until there's a build — on wave 1 it would
-      // just be three zeroes taking up room on a phone.
-      const built = p.attack > 0 || p.haste > 0 || p.defense > 0;
-      this.el.build.classList.toggle("is-shown", built);
-      if (built) {
-        this.el.build.textContent =
-          "Atk " + (p.dmg[0] + p.attack) + "–" + (p.dmg[1] + p.attack) +
-          "  ·  " + (p.cd / 1000).toFixed(2) + "s  ·  Def " + p.defense;
+      // The build line stays hidden until there's a build, and only lists the
+      // stats that actually moved — with nine boons in the pool, printing all
+      // of them would be a paragraph in the corner of a phone.
+      const s = p.stacks;
+      const parts = [];
+      if (s.attack) parts.push("Atk " + (p.dmg[0] + p.attack) + "–" + (p.dmg[1] + p.attack));
+      if (s.haste) parts.push((p.cd / 1000).toFixed(2) + "s");
+      if (s.range) parts.push("Rng " + p.range.toFixed(1));
+      if (s.defense) parts.push("Def " + p.defense);
+      if (s.life) parts.push("Life " + p.maxHp);
+      if (s.leech) parts.push("Leech " + p.leech);
+      if (s.move) parts.push("Spd " + p.speed.toFixed(1));
+      if (s.novacd || s.novadmg) {
+        parts.push("Nova " + (p.novaCd / 1000).toFixed(1) + "s" + (s.novadmg ? "/+" + p.novaDmg : ""));
       }
+      this.el.build.classList.toggle("is-shown", parts.length > 0);
+      this.el.build.textContent = parts.join("  ·  ");
       this.el.best.textContent =
         this.startBest.wave > 0 ? "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")" : "Best: —";
     }
@@ -1250,7 +1416,7 @@
     novaCharge() {
       const left = this.novaReadyAt - this.now;
       if (left <= 0) return 1;
-      return 1 - left / NOVA_CD;
+      return 1 - left / this.player.novaCd;
     }
 
     drawBar(m) {
@@ -1386,11 +1552,12 @@
         // 1/2/3 pick a boon while the picker is up — the cards are the touch
         // path, these are the desktop one.
         if (this.choosing) {
-          const pick = UPGRADES.find((u) => e.code === "Digit" + u.key || e.code === "Numpad" + u.key);
-          if (pick) {
-            e.preventDefault();
-            this.chooseUpgrade(pick.id);
-            return;
+          for (let i = 0; i < 3; i++) {
+            if (e.code === "Digit" + (i + 1) || e.code === "Numpad" + (i + 1)) {
+              e.preventDefault();
+              this.chooseUpgrade(i);
+              return;
+            }
           }
         }
         if (e.code === "Space") {
@@ -1407,10 +1574,12 @@
         this.keys = Object.create(null);
       });
 
-      UPGRADES.forEach((u) => {
-        const btn = this.el["up" + u.id.charAt(0).toUpperCase() + u.id.slice(1)];
-        this.listen(btn, "click", () => this.chooseUpgrade(u.id));
-      });
+      // The three card slots are fixed; which boon sits in each one is decided
+      // per draw, so the handlers pick by slot index.
+      for (let i = 0; i < 3; i++) {
+        const slot = i;
+        this.listen(this.el["card" + slot], "click", () => this.chooseUpgrade(slot));
+      }
 
       this.listen(this.el.menu, "click", () => this.toMenu());
       this.listen(this.el.toMenu, "click", () => this.toMenu());
@@ -1548,14 +1717,15 @@
 
     castNova() {
       if (this.over || this.now < this.novaReadyAt) return;
-      this.novaReadyAt = this.now + NOVA_CD;
+      this.novaReadyAt = this.now + this.player.novaCd;
       this.spawnNovaFx(this.player.gx, this.player.gz);
       this.shakeCamera(0.1, 170);
 
       this.monsters.forEach((m) => {
         if (!m.alive) return;
         if (dist(m.gx, m.gz, this.player.gx, this.player.gz) <= NOVA_RADIUS) {
-          this.hurtMonster(m, randInt(NOVA_DMG[0], NOVA_DMG[1]), "#8fd8ff");
+          const bonus = this.player.novaDmg;
+          this.hurtMonster(m, randInt(NOVA_DMG[0] + bonus, NOVA_DMG[1] + bonus), "#8fd8ff");
         }
       });
       this.refreshHud();
@@ -1913,6 +2083,14 @@
       );
       if (Math.random() < FLASK_CHANCE) this.dropFlask(m.gx, m.gz);
       this.dropGold(m.gx, m.gz);
+      // Leech: the kill itself pays, which is what makes the boon a survival
+      // pick rather than a flat heal — it rewards killing faster.
+      const p = this.player;
+      if (p.leech > 0 && p.hp < p.maxHp) {
+        const healed = Math.min(p.leech, p.maxHp - p.hp);
+        p.hp += healed;
+        this.popNumber(p.gx, p.barY, p.gz, "+" + healed, "#7dd87d");
+      }
       this.refreshHud();
       if (this.monsters.every((e) => !e.alive)) {
         this.after(500, () => this.onWaveCleared());
@@ -2238,13 +2416,9 @@
         this.kills +
         "<br>Gold collected: " +
         this.gold +
-        "<br>Boons: +" +
-        this.player.attack +
-        " atk · +" +
-        this.player.haste * 5 +
-        "% speed · +" +
-        this.player.defense +
-        " def<br>" +
+        "<br>Boons: " +
+        this.boonSummary() +
+        "<br>" +
         (isBest ? "★ New Best!" : "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")");
       this.el.death.classList.add("is-open");
     }
