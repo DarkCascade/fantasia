@@ -116,6 +116,25 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   object with `destroy()` (no arguments — unlike the Phaser games'
   `destroy(true)`), and it exists from the moment the button is pressed so
   returning to the menu mid-load cancels the boot.
+- **Bark Quest** (`src/bark-quest.js`) — a Puzzle-Quest-style match-3 battler on
+  the last slot of menu page 2. Miles, a red doberman, faces an endless line of
+  foes (fox; every third one is a wolf). Nobody has hit points: each combatant
+  has a **Courage** meter, and the only weapon is a bark. The bottom two thirds
+  is a 6×6 board of five gem colours; drag or tap-tap a gem onto a neighbour to
+  swap. Matching a colour charges one of the four **bark meters** stacked under
+  Miles' paws; **gold is wild fuel** — it feeds all four meters and has no meter
+  of its own. A meter topping out drops Miles into his barking stance and fires
+  an anime energy beam in that colour (`fireBeam`: charge orb → additive
+  glow/body/core rectangles rotated along the muzzle→foe axis → impact burst,
+  shards and a camera shake). Beyond damage each colour carries a flavour
+  effect — green steadies Miles' own Courage, blue shoves the foe's bark fuse
+  back, yellow resets it, red is pure damage. The foe barks back on a fuse of
+  its own; at zero Courage it turns tail and flees, and Miles backing down ends
+  the run. Best routed count in `localStorage` (`bark-quest-best`). Both stances
+  (`bq-miles` / `bq-miles-bark`) plus the fox and wolf are drawn from primitives
+  like everything else. Its board state machine is worth knowing: `state` is one
+  of `intro`/`fight`/`attack`/`flee`/`over` and input needs `fight && !busy`, so
+  new effects must return the pair to that state or the board stays locked.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -132,6 +151,7 @@ src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
 src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
 src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
+src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
@@ -215,11 +235,12 @@ vendor/three.module.min.js  three.js r160 ES module (vendored; imported on deman
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchCombatSim`, `launchGloomHollow`,
-  `launchGloomHollow3D`); the menu buttons call these to create the
-  chosen game (once) into `#game-container`, and `window.returnToMenu()`
-  tears down whichever game is running (`window.game` / `aviansGame` /
-  `starCatcherGame` / `arrowGame` / `cosmicDashGame` / `combatGame` /
-  `gloomGame` / `gloom3DGame`) and re-shows the menu. All of those are Phaser
+  `launchGloomHollow3D`, `launchBarkQuest`); the menu buttons call these to
+  create the chosen game (once) into `#game-container`, and
+  `window.returnToMenu()` tears down whichever game is running (`window.game` /
+  `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
+  `combatGame` / `gloomGame` / `gloom3DGame` / `barkQuestGame`) and re-shows
+  the menu. All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`, whose handle
   takes a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`

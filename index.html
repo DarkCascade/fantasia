@@ -326,7 +326,9 @@
           <button id="btn-gloom3d" class="menu-btn menu-btn--secondary" type="button">
             Gloom Hollow 3D
           </button>
-          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button id="btn-barkquest" class="menu-btn menu-btn--secondary" type="button">
+            Bark Quest
+          </button>
         </div>
       </div>
     </div>
@@ -354,6 +356,7 @@
   <script src="src/cosmic-dash.js"></script>
   <script src="src/combat-sim.js"></script>
   <script src="src/gloom-hollow.js"></script>
+  <script src="src/bark-quest.js"></script>
   <!-- three.js is NOT loaded here: src/gloom-hollow-3d.js imports
        vendor/three.module.min.js on demand, the first time that game is picked. -->
   <script src="src/gloom-hollow-3d.js"></script>
@@ -415,6 +418,11 @@
         if (typeof window.launchGloomHollow3D === "function") window.launchGloomHollow3D();
       });
 
+      document.getElementById("btn-barkquest").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchBarkQuest === "function") window.launchBarkQuest();
+      });
+
       // Underfoot (page 2) -> "under construction" modal.
       var ucModal = document.getElementById("uc-modal");
       document.getElementById("btn-underfoot").addEventListener("click", function () {
@@ -444,6 +452,7 @@
           if (window.cosmicDashGame) { try { window.cosmicDashGame.destroy(true); } catch (e) {} window.cosmicDashGame = null; }
           if (window.combatGame) { try { window.combatGame.destroy(true); } catch (e) {} window.combatGame = null; }
           if (window.gloomGame) { try { window.gloomGame.destroy(true); } catch (e) {} window.gloomGame = null; }
+          if (window.barkQuestGame) { try { window.barkQuestGame.destroy(true); } catch (e) {} window.barkQuestGame = null; }
           // Gloom Hollow 3D isn't a Phaser game: its handle owns a three.js
           // renderer plus its own DOM overlay, and destroy() takes no arguments.
           if (window.gloom3DGame) { try { window.gloom3DGame.destroy(); } catch (e) {} window.gloom3DGame = null; }
