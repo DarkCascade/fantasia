@@ -128,7 +128,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   glow/body/core rectangles rotated along the muzzle→foe axis → impact burst,
   shards and a camera shake). Beyond damage each colour carries a flavour
   effect — green steadies Miles' own Courage, blue shoves the foe's bark fuse
-  back, yellow resets it, red is pure damage. The foe barks back on a fuse of
+  back, brown resets it, red is pure damage. The foe barks back on a fuse of
   its own; at zero Courage it turns tail and flees, and Miles backing down ends
   the run. Best routed count in `localStorage` (`bark-quest-best`). Both stances
   (`bq-miles` / `bq-miles-bark`) plus the fox and wolf are drawn from primitives

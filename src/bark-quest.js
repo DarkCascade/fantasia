@@ -51,13 +51,13 @@
       dmg: 30,
     },
     {
-      key: "yellow",
+      key: "brown",
       label: "THUNDER YAP",
-      tile: 0xe8b524,
-      edge: 0x7a5806,
-      hi: 0xffe89a,
-      beam: 0xffd23f,
-      css: "#ffd23f",
+      tile: 0x8c5a2e,
+      edge: 0x3f2210,
+      hi: 0xd7a06a,
+      beam: 0xd08a45,
+      css: "#e0a86a",
       need: 11,
       dmg: 20,
     },
@@ -293,7 +293,7 @@
       g.fillRoundedRect(15, 36, 26, 6, 3);
       g.fillCircle(28, 45, 4);
       g.fillCircle(28, 18, 3.4);
-      g.fillStyle(0xc9a34a, 0.55);
+      g.fillStyle(0x7a4a1e, 0.5);
       g.fillRoundedRect(24, 24, 4, 13, 2);
     }
 
@@ -1394,7 +1394,7 @@
       this.tweens.add({ targets: foe.spr, alpha: 0.35, duration: 60, yoyo: true, repeat: 3 });
 
       // Per-colour flavour: green steadies Miles, blue shoves the foe's fuse
-      // back, yellow resets it outright, red is pure damage.
+      // back, brown resets it outright, red is pure damage.
       if (colorIdx === 2) {
         const before = this.milesCourage;
         this.milesCourage = Math.min(MILES_COURAGE, this.milesCourage + GREEN_HEAL);
