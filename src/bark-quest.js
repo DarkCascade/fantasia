@@ -273,8 +273,8 @@
 
     buildBackdrop(g) {
       if (this.textures.exists("bq-bg")) return;
-      const top = Phaser.Display.Color.ValueToColor(0x2b1f52);
-      const bot = Phaser.Display.Color.ValueToColor(0x0a0718);
+      const top = Phaser.Display.Color.ValueToColor(0x3d2e73);
+      const bot = Phaser.Display.Color.ValueToColor(0x181138);
       const strips = 48;
       const sh = Math.ceil(H / strips);
       for (let i = 0; i < strips; i++) {
@@ -282,11 +282,12 @@
         g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b), 1);
         g.fillRect(0, i * sh, W, sh + 1);
       }
-      // A pale moon behind the duel so the silhouettes read.
+      // A pale moon behind the duel so the silhouettes read. Small and high,
+      // so it frames the foe rather than haloing him.
       g.fillStyle(0xfff2c4, 0.1);
-      g.fillCircle(300, 84, 62);
+      g.fillCircle(300, 62, 31);
       g.fillStyle(0xfff2c4, 0.14);
-      g.fillCircle(300, 84, 44);
+      g.fillCircle(300, 62, 22);
       g.generateTexture("bq-bg", W, H);
       g.clear();
     }
