@@ -118,7 +118,11 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   returning to the menu mid-load cancels the boot.
 - **Bark Quest** (`src/bark-quest.js`) — a Puzzle-Quest-style match-3 battler on
   the last slot of menu page 2. Miles, a red doberman, faces an endless line of
-  foes (fox; every third one is a wolf). Nobody has hit points: each combatant
+  foes on a repeating three-foe rotation (`FOE_ORDER`): fox, squirrel, wolf,
+  with the wolf still anchoring every third fight as the hard one. The
+  squirrel is the skirmisher — least Courage and the weakest bark, but the
+  fastest fuse. Each foe's `shout` lives in the `FOES` table rather than in
+  a ternary in `foeBarks`. Nobody has hit points: each combatant
   has a **Courage** meter, and the only weapon is a bark. The bottom two thirds
   is a 6×6 board of five gem colours; drag or tap-tap a gem onto a neighbour to
   swap. Matching a colour charges one of the four **bark meters** stacked under
@@ -137,7 +141,8 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   ends a run. Best routed count in `localStorage` (`bark-quest-best`).
   The fox and wolf are drawn from primitives, but **Miles is the exception to
   the no-external-assets rule**: both stances are hand-authored pixel art at
-  `src/bark-quest/miles-idle.png` and `miles-bark.png`, loaded in the scene's
+  `src/bark-quest/miles-idle.png` and `miles-bark.png` (and the squirrel at
+  `squirrel.png`), loaded in the scene's
   `preload()`. They ship for free because the workflow already does
   `cp -r src _site/`. He is a red doberman with **cropped ears and a docked
   tail** — check the tail on any replacement art. Both stances are the same
@@ -205,7 +210,7 @@ src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
 src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
-src/bark-quest/         Miles' two sprites (the only art not drawn at runtime)
+src/bark-quest/         Miles' two stances + the squirrel (the art not drawn at runtime)
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)

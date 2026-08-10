@@ -145,9 +145,22 @@
   const MILES_RECOVER = 12; // nerve regained after each foe is routed
 
   const FOES = {
-    fox: { name: "FOX", tex: "bq-fox", half: 40, courage: 88, bark: 9, fuse: 7200 },
-    wolf: { name: "WOLF", tex: "bq-wolf", half: 44, courage: 150, bark: 14, fuse: 6400 },
+    fox: { name: "FOX", tex: "bq-fox", half: 40, courage: 88, bark: 9, fuse: 7200, shout: "YIP YIP!" },
+    squirrel: {
+      name: "SQUIRREL",
+      tex: "bq-squirrel",
+      half: 42,
+      courage: 62,
+      bark: 6,
+      fuse: 5200,
+      shout: "CHIT-CHIT!",
+    },
+    wolf: { name: "WOLF", tex: "bq-wolf", half: 44, courage: 150, bark: 14, fuse: 6400, shout: "AWOOO!" },
   };
+
+  // Who turns up, in order, repeating: the wolf still anchors every third
+  // fight as the hard one.
+  const FOE_ORDER = ["fox", "squirrel", "wolf"];
 
   const MILES_X = 80;
   const MILES_Y = GROUND_Y - 46; // paws (row 98 of 104) land on GROUND_Y
@@ -212,6 +225,7 @@
     preload() {
       this.load.image("bq-miles", "src/bark-quest/miles-idle.png");
       this.load.image("bq-miles-bark", "src/bark-quest/miles-bark.png");
+      this.load.image("bq-squirrel", "src/bark-quest/squirrel.png");
     }
 
     create() {
@@ -1671,7 +1685,7 @@
     nextFoe() {
       this.wave++;
       // Every third challenger is a wolf; the rest are foxes.
-      const kind = this.wave % 3 === 0 ? "wolf" : "fox";
+      const kind = FOE_ORDER[(this.wave - 1) % FOE_ORDER.length];
       const base = FOES[kind];
       const step = this.wave - 1;
 
@@ -1723,7 +1737,7 @@
       this.busy = true;
       this.clearSelection();
 
-      const shout = foe.kind === "wolf" ? "AWOOO!" : "YIP YIP!";
+      const shout = FOES[foe.kind].shout;
       this.floatText(foe.spr.x, foe.spr.y - 8, shout, "#ff9b8a", 20, 34);
       this.tweens.add({ targets: foe.spr, x: foe.spr.x - 26, duration: 130, yoyo: true, ease: "Quad.easeOut" });
 
