@@ -229,6 +229,7 @@
       this.load.image("bq-miles-bark", "src/bark-quest/miles-bark.png");
       this.load.image("bq-squirrel", "src/bark-quest/squirrel.png");
       this.load.image("bq-wolf", "src/bark-quest/wolf.png");
+      this.load.image("bq-fox", "src/bark-quest/fox.png");
     }
 
     create() {
@@ -282,7 +283,6 @@
       this.buildBackdrop(g);
       this.buildBowl(g);
       this.buildGems(g);
-      this.buildFoxTexture(g);
 
       g.destroy();
     }
@@ -487,98 +487,6 @@
       poly(g, starPoints(28, 29, 17, 7.4, 5));
       g.fillStyle(0xffdc70, 0.85);
       poly(g, starPoints(28, 29, 10, 4.4, 5));
-    }
-
-    /* ---- Fox: facing left, towards Miles ---- */
-
-    buildFoxTexture(g) {
-      if (this.textures.exists("bq-fox")) return;
-      const FUR = 0xd9682a;
-      const DARK = 0xa54718;
-      const CREAM = 0xffeacf;
-      const SOCK = 0x40241a;
-      g.clear();
-
-      // Bushy tail sweeping out behind (to the right).
-      g.fillStyle(FUR, 1);
-      g.fillEllipse(74, 44, 40, 26);
-      g.fillStyle(CREAM, 1);
-      g.fillCircle(90, 40, 9);
-
-      // Far legs.
-      g.fillStyle(DARK, 1);
-      g.fillRoundedRect(38, 58, 8, 22, 4);
-      g.fillRoundedRect(56, 58, 8, 22, 4);
-
-      // Body.
-      g.fillStyle(FUR, 1);
-      g.fillRoundedRect(24, 38, 44, 26, 12);
-      g.fillCircle(60, 50, 15);
-      g.fillCircle(32, 50, 13);
-
-      // Neck into the head, on the left.
-      poly(g, [
-        { x: 34, y: 40 },
-        { x: 20, y: 24 },
-        { x: 8, y: 34 },
-        { x: 26, y: 52 },
-      ]);
-      g.fillRoundedRect(8, 20, 26, 20, 8);
-      // Snout.
-      g.fillStyle(CREAM, 1);
-      poly(g, [
-        { x: 14, y: 28 },
-        { x: 14, y: 38 },
-        { x: 0, y: 34 },
-      ]);
-      g.fillStyle(0x1c1108, 1);
-      g.fillCircle(2, 33, 3);
-
-      // Big ears.
-      g.fillStyle(FUR, 1);
-      poly(g, [
-        { x: 12, y: 22 },
-        { x: 8, y: 2 },
-        { x: 22, y: 18 },
-      ]);
-      poly(g, [
-        { x: 24, y: 21 },
-        { x: 28, y: 2 },
-        { x: 34, y: 20 },
-      ]);
-      g.fillStyle(0x2b1a12, 1);
-      poly(g, [
-        { x: 13, y: 20 },
-        { x: 10.5, y: 8 },
-        { x: 18, y: 18 },
-      ]);
-      poly(g, [
-        { x: 25.5, y: 19 },
-        { x: 27.5, y: 8 },
-        { x: 31, y: 18 },
-      ]);
-
-      // Cheek ruff, eye, chest.
-      g.fillStyle(CREAM, 1);
-      g.fillEllipse(20, 40, 14, 10);
-      g.fillEllipse(26, 56, 12, 16);
-      g.fillStyle(0xfff0b0, 1);
-      g.fillCircle(21, 28, 3.4);
-      g.fillStyle(0x1c1108, 1);
-      g.fillCircle(20, 28, 2.1);
-
-      // Near legs with dark socks.
-      g.fillStyle(FUR, 1);
-      g.fillRoundedRect(26, 58, 9, 22, 4);
-      g.fillRoundedRect(60, 58, 9, 22, 4);
-      g.fillStyle(SOCK, 1);
-      g.fillRoundedRect(26, 71, 9, 9, 4);
-      g.fillRoundedRect(60, 71, 9, 9, 4);
-      g.fillRoundedRect(38, 71, 8, 9, 4);
-      g.fillRoundedRect(56, 71, 8, 9, 4);
-
-      g.generateTexture("bq-fox", 96, 80);
-      g.clear();
     }
 
     /* ================================================================== */
