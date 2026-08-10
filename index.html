@@ -191,8 +191,14 @@
     /* Bark Quest gets a drifting field of dog bones behind its label. The tile
        is an inline SVG (two bones, half-drop, no shape crossing an edge) so it
        repeats seamlessly; the animation walks background-position by exactly
-       one tile width, which loops with no visible seam. Kept low-contrast over
-       a warm base so the gold text stays readable. */
+       one tile in x and y, so the drift reads as 45° down-left and still loops
+       with no visible seam. The tile is square, so equal steps really are 45°.
+       Down-LEFT specifically: the two bones sit on the tile's down-right
+       diagonal, so drifting that way would just slide one into the other's old
+       spot and read as stepping rather than motion. The diagonal path is 72*sqrt2
+       (~102px) per cycle vs 72px horizontally, hence the longer duration — it
+       keeps the on-screen speed the same. Kept low-contrast over a warm base so
+       the gold text stays readable. */
     #btn-barkquest {
       background-image:
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='%23ffe7a3' fill-opacity='.20'%3E%3Cg transform='translate(18 18) rotate(-20)'%3E%3Crect x='-9' y='-2.6' width='18' height='5.2' rx='2.6'/%3E%3Ccircle cx='-9' cy='-3.4' r='3.9'/%3E%3Ccircle cx='-9' cy='3.4' r='3.9'/%3E%3Ccircle cx='9' cy='-3.4' r='3.9'/%3E%3Ccircle cx='9' cy='3.4' r='3.9'/%3E%3C/g%3E%3Cg transform='translate(54 54) rotate(25)'%3E%3Crect x='-9' y='-2.6' width='18' height='5.2' rx='2.6'/%3E%3Ccircle cx='-9' cy='-3.4' r='3.9'/%3E%3Ccircle cx='-9' cy='3.4' r='3.9'/%3E%3Ccircle cx='9' cy='-3.4' r='3.9'/%3E%3Ccircle cx='9' cy='3.4' r='3.9'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
@@ -200,12 +206,12 @@
       background-size: 72px 72px, auto;
       background-repeat: repeat, no-repeat;
       background-position: 0 0, 0 0;
-      animation: bark-bone-scroll 5s linear infinite;
+      animation: bark-bone-scroll 7s linear infinite;
     }
 
     @keyframes bark-bone-scroll {
       to {
-        background-position: -72px 0, 0 0;
+        background-position: -72px 72px, 0 0;
       }
     }
 
