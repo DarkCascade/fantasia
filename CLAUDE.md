@@ -135,18 +135,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   turns around and trots off left, and only then does the panel land, so the dim
   doesn't cover the one bit worth watching. Keep that framing for anything that
   ends a run. Best routed count in `localStorage` (`bark-quest-best`). Both stances
-  (`bq-miles` / `bq-miles-bark`) plus the fox and wolf are drawn from primitives
-  like everything else — Miles to a pixel-art reference: saturated red, cream
-  rim-light, plume tail, hard ink outline. Three things about that drawing code
-  bite if ignored: necks and tails use `chain()` (overlapping circles along a
-  spine) because a polygon that doesn't quite meet the body reads as a floating
-  lollipop at this size; the outline is a **dilation pass** that redraws the
-  whole dog eight times at ±2px in ink before the colour pass, so **no shape may
-  reach x=112** or the outline is sliced into a hard vertical edge; and the open
-  jaw must be two *diverging wedges* over a gullet drawn first, since
-  overlapping rectangles just make the head one solid brick. Both stances share
-  `body()` and differ only in head, tail lift and front paw, so swapping texture
-  mid-bark can't change his size. Its board state machine is worth knowing: `state` is one
+  The fox and wolf are drawn from primitives, but **Miles is the exception to
+  the no-external-assets rule**: both stances are hand-authored pixel art at
+  `src/bark-quest/miles-idle.png` and `miles-bark.png`, loaded in the scene's
+  `preload()`. They ship for free because the workflow already does
+  `cp -r src _site/`. Both are the same 112x104 canvas with the paws on the
+  same row (99), which is why `MILES_Y` is `GROUND_Y - 47` and why swapping
+  texture mid-bark can neither move nor resize him — keep that invariant if
+  either sprite is ever re-cut. The source art faces left and is mirrored on
+  export, and `MUZZLE_X`/`MUZZLE_Y` are measured off the barking sprite's open
+  mouth so the beam leaves his jaws rather than his chest.
+  Its board state machine is worth knowing: `state` is one
   of `intro`/`fight`/`attack`/`flee`/`over` and input needs `fight && !busy`, so
   new effects must return the pair to that state or the board stays locked.
   **Special gems** are a second axis on the cell (`kind`: `PLAIN`/`LINE`/
@@ -203,6 +202,7 @@ src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
 src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
+src/bark-quest/         Miles' two sprites (the only art not drawn at runtime)
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
