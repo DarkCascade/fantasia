@@ -102,6 +102,31 @@
   const GEM_WEIGHTS = [22, 22, 22, 22, 11];
   const GEM_TOTAL = GEM_WEIGHTS.reduce((a, b) => a + b, 0);
 
+  /* ---------- special gems ----------
+   * A run of 4 leaves a LINE gem behind, a run of 5+ leaves a BURST. Both keep
+   * their colour and feed the normal meters — the special is a second axis on
+   * the cell (`kind`), not a sixth colour. Gold is excluded: it already feeds
+   * all four meters, so a gold line clear would chain a wall of beams.
+   */
+  const PLAIN = 0;
+  const LINE = 1; // clears its whole row or column when cleared
+  const BURST = 2; // swap it onto a gem to clear every tile of that colour
+  const RUN_FOR_LINE = 4;
+  const RUN_FOR_BURST = 5;
+  const QUEUE_CAP = 2; // barks in flight at once — the rest wait their turn
+  const METER_CAP_BARKS = 2; // a tube holds two barks; overflow is lost
+
+  function canSpecial(color) {
+    return color !== GOLD;
+  }
+
+  function gemTex(color, kind) {
+    const key = "bq-gem-" + GEMS[color].key;
+    if (kind === LINE) return key + "-line";
+    if (kind === BURST) return key + "-burst";
+    return key;
+  }
+
   const GREEN_HEAL = 8; // Brave Growl steadies Miles' own nerve
   const BLUE_STALL = 2400; // Sonic Woof shoves the foe's bark fuse back (ms)
 
@@ -172,6 +197,8 @@
       this.routed = 0;
       this.wave = 0;
       this.queue = [];
+      this.forced = []; // burst gems fired by a swap, pending the next resolve
+      this.lastSwap = null; // where a run of 4+ should leave its special
       this.selected = null;
       this.dragFrom = null;
       this.best = this.loadBest();
@@ -244,31 +271,87 @@
     buildGems(g) {
       for (let i = 0; i < GEMS.length; i++) {
         const def = GEMS[i];
-        const key = "bq-gem-" + def.key;
-        if (this.textures.exists(key)) continue;
-        g.clear();
+        // Plain tile, plus the two special variants for every colour but gold.
+        const kinds = canSpecial(i) ? [PLAIN, LINE, BURST] : [PLAIN];
+        for (let k = 0; k < kinds.length; k++) {
+          const kind = kinds[k];
+          const key = gemTex(i, kind);
+          if (this.textures.exists(key)) continue;
+          g.clear();
+          this.gemFace(g, def, kind);
 
-        // Tile: dark bevel, colour face, glossy corner.
-        g.fillStyle(def.edge, 1);
-        g.fillRoundedRect(0, 0, GEM, GEM, 15);
-        g.fillStyle(def.tile, 1);
-        g.fillRoundedRect(3, 3, GEM - 6, GEM - 6, 13);
-        g.fillStyle(def.hi, 0.5);
-        g.fillRoundedRect(8, 7, 24, 12, 6);
-        g.fillStyle(0x000000, 0.16);
-        g.fillRoundedRect(8, GEM - 16, GEM - 16, 8, 4);
+          // Every colour carries its own silhouette, so the board is readable
+          // without relying on hue alone.
+          if (i === 0) this.iconBone(g);
+          else if (i === 1) this.iconBell(g);
+          else if (i === 2) this.iconPaw(g);
+          else if (i === 3) this.iconBall(g);
+          else this.iconStar(g);
 
-        // Every colour carries its own silhouette, so the board is readable
-        // without relying on hue alone.
-        if (i === 0) this.iconBone(g);
-        else if (i === 1) this.iconBell(g);
-        else if (i === 2) this.iconPaw(g);
-        else if (i === 3) this.iconBall(g);
-        else this.iconStar(g);
+          if (kind === LINE) this.markLine(g, def);
+          else if (kind === BURST) this.markBurst(g, def);
 
-        g.generateTexture(key, GEM, GEM);
+          g.generateTexture(key, GEM, GEM);
+        }
       }
       g.clear();
+    }
+
+    // Tile: dark bevel, colour face, glossy corner. Specials get a brighter
+    // face and a pale rim so they stand out from the plain tiles at 62px.
+    gemFace(g, def, kind) {
+      g.fillStyle(kind === PLAIN ? def.edge : 0xfff6e0, 1);
+      g.fillRoundedRect(0, 0, GEM, GEM, 15);
+      g.fillStyle(def.tile, 1);
+      g.fillRoundedRect(3, 3, GEM - 6, GEM - 6, 13);
+      if (kind !== PLAIN) {
+        g.fillStyle(def.hi, 0.28);
+        g.fillRoundedRect(3, 3, GEM - 6, GEM - 6, 13);
+      }
+      g.fillStyle(def.hi, 0.5);
+      g.fillRoundedRect(8, 7, 24, 12, 6);
+      g.fillStyle(0x000000, 0.16);
+      g.fillRoundedRect(8, GEM - 16, GEM - 16, 8, 4);
+    }
+
+    // LINE: a cross with arrowheads on all four sides — it sweeps both axes.
+    markLine(g, def) {
+      const mid = GEM / 2;
+      // Kept thin on purpose: the colour's own silhouette has to stay legible
+      // underneath, since that is the board's colour-blind cue.
+      g.fillStyle(0x000000, 0.28);
+      g.fillRect(4, mid - 3, GEM - 8, 6);
+      g.fillRect(mid - 3, 4, 6, GEM - 8);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillRect(4, mid - 1, GEM - 8, 2);
+      g.fillRect(mid - 1, 4, 2, GEM - 8);
+      g.fillStyle(0xffffff, 1);
+      const head = [
+        [{ x: 11, y: mid - 6 }, { x: 3, y: mid }, { x: 11, y: mid + 6 }],
+        [{ x: GEM - 11, y: mid - 6 }, { x: GEM - 3, y: mid }, { x: GEM - 11, y: mid + 6 }],
+        [{ x: mid - 6, y: 11 }, { x: mid, y: 3 }, { x: mid + 6, y: 11 }],
+        [{ x: mid - 6, y: GEM - 11 }, { x: mid, y: GEM - 3 }, { x: mid + 6, y: GEM - 11 }],
+      ];
+      for (let i = 0; i < head.length; i++) poly(g, head[i]);
+    }
+
+    // BURST: a radiant star behind the icon — "this one takes the whole colour".
+    markBurst(g, def) {
+      g.fillStyle(0xffffff, 0.85);
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        const x = GEM / 2 + Math.cos(a) * 20;
+        const y = GEM / 2 + Math.sin(a) * 20;
+        poly(g, [
+          { x: GEM / 2 + Math.cos(a - 0.16) * 12, y: GEM / 2 + Math.sin(a - 0.16) * 12 },
+          { x: x, y: y },
+          { x: GEM / 2 + Math.cos(a + 0.16) * 12, y: GEM / 2 + Math.sin(a + 0.16) * 12 },
+        ]);
+      }
+      g.lineStyle(2.5, 0xffffff, 0.95);
+      g.strokeRoundedRect(4, 4, GEM - 8, GEM - 8, 12);
+      g.fillStyle(def.hi, 0.5);
+      g.fillCircle(GEM / 2, GEM / 2, 9);
     }
 
     iconBone(g) {
@@ -938,23 +1021,22 @@
       return 0;
     }
 
-    makeGem(c, r, color, spawnAbove) {
+    makeGem(c, r, color, spawnAbove, kind) {
       const y = spawnAbove === undefined ? this.cellY(r) : spawnAbove;
-      const spr = this.add.image(this.cellX(c), y, "bq-gem-" + GEMS[color].key).setDepth(5);
-      return { color: color, spr: spr };
+      const k = kind || PLAIN;
+      const spr = this.add.image(this.cellX(c), y, gemTex(color, k)).setDepth(5);
+      return { color: color, kind: k, spr: spr };
     }
 
     /* ---- matching ---- */
 
-    // Every cell that sits in a run of 3+, as {c, r} pairs.
-    findMatches() {
-      const hit = [];
-      const seen = {};
-      const push = (c, r) => {
-        const k = c + "," + r;
-        if (seen[k]) return;
-        seen[k] = 1;
-        hit.push({ c: c, r: r });
+    // Every run of 3+ on the board, as {cells, len, dir, color}. Runs are kept
+    // whole (rather than flattened straight to cells) because their length is
+    // what decides whether a special gem is left behind.
+    findRuns() {
+      const runs = [];
+      const take = (cells, dir) => {
+        runs.push({ cells: cells, len: cells.length, dir: dir, color: this.grid[cells[0].c][cells[0].r].color });
       };
 
       for (let r = 0; r < ROWS; r++) {
@@ -965,7 +1047,11 @@
           if (a && b && a.color === b.color) {
             run++;
           } else {
-            if (run >= 3) for (let k = c - run; k < c; k++) push(k, r);
+            if (run >= 3) {
+              const cells = [];
+              for (let k = c - run; k < c; k++) cells.push({ c: k, r: r });
+              take(cells, "h");
+            }
             run = 1;
           }
         }
@@ -978,9 +1064,30 @@
           if (a && b && a.color === b.color) {
             run++;
           } else {
-            if (run >= 3) for (let k = r - run; k < r; k++) push(c, k);
+            if (run >= 3) {
+              const cells = [];
+              for (let k = r - run; k < r; k++) cells.push({ c: c, r: k });
+              take(cells, "v");
+            }
             run = 1;
           }
+        }
+      }
+      return runs;
+    }
+
+    // Flat, deduped cell list — an L or T shape shares cells between two runs.
+    findMatches() {
+      const hit = [];
+      const seen = {};
+      const runs = this.findRuns();
+      for (let i = 0; i < runs.length; i++) {
+        const cells = runs[i].cells;
+        for (let j = 0; j < cells.length; j++) {
+          const k = cells[j].c + "," + cells[j].r;
+          if (seen[k]) continue;
+          seen[k] = 1;
+          hit.push(cells[j]);
         }
       }
       return hit;
@@ -989,6 +1096,13 @@
     // Would any single adjacent swap produce a run? Works on a plain colour
     // copy so nothing on screen has to move.
     hasAnyMove() {
+      // A burst gem is always a legal move — without this check a board could
+      // be called dead and reshuffled out from under the player's burst.
+      for (let c = 0; c < COLS; c++) {
+        for (let r = 0; r < ROWS; r++) {
+          if (this.grid[c][r] && this.grid[c][r].kind === BURST) return true;
+        }
+      }
       const a = [];
       for (let c = 0; c < COLS; c++) {
         a[c] = [];
@@ -1031,7 +1145,10 @@
           for (let r = 0; r < ROWS; r++) {
             const cell = this.grid[c][r];
             cell.color = randomGem();
-            cell.spr.setTexture("bq-gem-" + GEMS[cell.color].key);
+            // A reshuffle re-deals colours but never destroys a special the
+            // player earned; gold can't hold one, so drop the kind if it lands.
+            if (!canSpecial(cell.color)) cell.kind = PLAIN;
+            cell.spr.setTexture(gemTex(cell.color, cell.kind));
           }
         }
         if (!this.findMatches().length && this.hasAnyMove()) return;
@@ -1122,13 +1239,24 @@
       this.grid[a.c][a.r] = cb;
       this.grid[b.c][b.r] = ca;
 
+      // A run of 4+ leaves its special on the cell the player actually moved,
+      // which is what makes a big match feel aimed rather than incidental.
+      this.lastSwap = [a, b];
+
+      // Swapping a burst gem is the one move that needs no match: it fires on
+      // the colour of whatever it was swapped with.
+      this.forced = [];
+      if (ca.kind === BURST) this.forced.push({ c: b.c, r: b.r, color: cb.color });
+      if (cb.kind === BURST) this.forced.push({ c: a.c, r: a.r, color: ca.color });
+
       const done = () => {
-        if (this.findMatches().length) {
+        if (this.forced.length || this.findMatches().length) {
           this.resolve(1);
         } else {
           // Illegal move: put both back where they were.
           this.grid[a.c][a.r] = ca;
           this.grid[b.c][b.r] = cb;
+          this.lastSwap = null;
           this.tweens.add({ targets: ca.spr, x: this.cellX(a.c), y: this.cellY(a.r), duration: 130 });
           this.tweens.add({
             targets: cb.spr,
@@ -1154,17 +1282,48 @@
     }
 
     resolve(cascade) {
-      const matched = this.findMatches();
-      if (!matched.length) {
+      const runs = this.findRuns();
+      const forced = this.forced || [];
+      this.forced = [];
+      if (!runs.length && !forced.length) {
         this.afterResolve();
         return;
       }
 
-      // Later links in a cascade are worth more.
-      const mult = 1 + 0.3 * (cascade - 1);
+      // 1. Everything a run wants gone, deduped across overlapping runs.
+      const clear = {};
+      const key = (c, r) => c + "," + r;
+      const mark = (c, r) => {
+        clear[key(c, r)] = { c: c, r: r };
+      };
+      for (let i = 0; i < runs.length; i++) {
+        for (let j = 0; j < runs[i].cells.length; j++) mark(runs[i].cells[j].c, runs[i].cells[j].r);
+      }
+      // A swapped burst takes the colour it was swapped ONTO, match or no
+      // match. It counts as already spent so step 2 doesn't also fire it on
+      // its own colour.
+      const spent = {};
+      for (let i = 0; i < forced.length; i++) {
+        mark(forced[i].c, forced[i].r);
+        spent[key(forced[i].c, forced[i].r)] = 1;
+        this.markColor(clear, mark, forced[i].color);
+        const at = this.grid[forced[i].c][forced[i].r];
+        if (at) this.detonateFx(at, forced[i].c, forced[i].r, BURST);
+      }
+
+      // 2. Detonate specials caught in the clear, to a fixed point — a line
+      //    sweep can uncover another special, which sweeps in turn.
+      this.expandDetonations(clear, mark, spent);
+
+      // 3. Big runs leave a special behind, so that cell survives the clear.
+      const spawns = this.planSpawns(runs, clear);
+
+      // 4. Award and pop everything that is actually going.
+      const mult = 1 + 0.3 * (cascade - 1); // later links in a cascade are worth more
       const gains = [0, 0, 0, 0];
-      for (let i = 0; i < matched.length; i++) {
-        const m = matched[i];
+      const going = Object.keys(clear);
+      for (let i = 0; i < going.length; i++) {
+        const m = clear[going[i]];
         const cell = this.grid[m.c][m.r];
         if (!cell) continue;
         if (cell.color === GOLD) {
@@ -1176,14 +1335,131 @@
         this.popGem(cell, m.c, m.r);
         this.grid[m.c][m.r] = null;
       }
-      for (let k = 0; k < METERS; k++) this.meters[k] += gains[k];
+      // A tube holds two barks and no more. Detonations routinely clear a
+      // dozen gems at once, and without a ceiling that charge banks up
+      // forever — the tubes sit pegged and the surplus never means anything.
+      // Capping it is the Puzzle Quest mana rule: a full meter is a signal to
+      // spend, and overflow is the price of sitting on it.
+      for (let k = 0; k < METERS; k++) {
+        this.meters[k] = Math.min(this.meters[k] + gains[k], GEMS[k].need * METER_CAP_BARKS);
+      }
       this.drawMeters();
+
+      for (let i = 0; i < spawns.length; i++) this.makeSpecial(spawns[i]);
+      this.lastSwap = null;
 
       if (cascade > 1) this.floatText(W / 2, GY + 40, "COMBO x" + cascade, "#ffe7a3", 22);
 
       this.time.delayedCall(140, () => {
         const ms = this.applyGravity();
         this.time.delayedCall(ms + 40, () => this.resolve(cascade + 1));
+      });
+    }
+
+    // Add every cell of one colour to the clear set (a burst's payload).
+    markColor(clear, mark, color) {
+      for (let c = 0; c < COLS; c++) {
+        for (let r = 0; r < ROWS; r++) {
+          if (this.grid[c][r] && this.grid[c][r].color === color) mark(c, r);
+        }
+      }
+    }
+
+    // Walk the clear set; every special inside it drags in its own payload,
+    // and anything newly dragged in is walked too. `fired` keeps chains finite.
+    expandDetonations(clear, mark, spent) {
+      const fired = {};
+      if (spent) for (const k in spent) fired[k] = 1;
+      for (let guard = 0; guard < COLS * ROWS; guard++) {
+        const keys = Object.keys(clear);
+        let grew = false;
+        for (let i = 0; i < keys.length; i++) {
+          if (fired[keys[i]]) continue;
+          const m = clear[keys[i]];
+          const cell = this.grid[m.c][m.r];
+          if (!cell || cell.kind === PLAIN) {
+            fired[keys[i]] = 1;
+            continue;
+          }
+          fired[keys[i]] = 1;
+          grew = true;
+          if (cell.kind === LINE) {
+            // Both axes: one rule, no hidden orientation for the player to
+            // guess, and it matches the cross the texture advertises.
+            for (let c = 0; c < COLS; c++) if (this.grid[c][m.r]) mark(c, m.r);
+            for (let r = 0; r < ROWS; r++) if (this.grid[m.c][r]) mark(m.c, r);
+            this.detonateFx(cell, m.c, m.r, LINE);
+          } else {
+            this.markColor(clear, mark, cell.color);
+            this.detonateFx(cell, m.c, m.r, BURST);
+          }
+        }
+        if (!grew) break;
+      }
+    }
+
+    // Which cells get to become specials, and of what kind. Runs of 4+ only,
+    // never gold, one special per cell even where two runs cross.
+    planSpawns(runs, clear) {
+      const spawns = [];
+      const taken = {};
+      for (let i = 0; i < runs.length; i++) {
+        const run = runs[i];
+        if (run.len < RUN_FOR_LINE || !canSpecial(run.color)) continue;
+        const at = this.spawnCell(run);
+        const k = at.c + "," + at.r;
+        if (taken[k]) continue;
+        taken[k] = 1;
+        delete clear[k]; // it survives; it is the reward
+        spawns.push({ c: at.c, r: at.r, color: run.color, kind: run.len >= RUN_FOR_BURST ? BURST : LINE });
+      }
+      return spawns;
+    }
+
+    // Prefer the cell the player just moved, so the special lands where they
+    // aimed; otherwise the middle of the run.
+    spawnCell(run) {
+      const swap = this.lastSwap;
+      if (swap) {
+        for (let i = 0; i < run.cells.length; i++) {
+          for (let j = 0; j < swap.length; j++) {
+            if (run.cells[i].c === swap[j].c && run.cells[i].r === swap[j].r) return run.cells[i];
+          }
+        }
+      }
+      return run.cells[Math.floor(run.cells.length / 2)];
+    }
+
+    makeSpecial(spawn) {
+      const cell = this.grid[spawn.c][spawn.r];
+      if (!cell) return;
+      cell.kind = spawn.kind;
+      cell.color = spawn.color;
+      cell.spr.setTexture(gemTex(cell.color, cell.kind));
+      cell.spr.setScale(0.1);
+      this.tweens.add({ targets: cell.spr, scale: 1, duration: 260, ease: "Back.easeOut" });
+      const ring = this.add.circle(this.cellX(spawn.c), this.cellY(spawn.r), 16, 0xffffff, 0).setDepth(7);
+      ring.setStrokeStyle(3, GEMS[spawn.color].hi, 0.95);
+      this.tweens.add({ targets: ring, scale: 2.4, alpha: 0, duration: 340, onComplete: () => ring.destroy() });
+    }
+
+    // A line gem throws a bar down its row and column; a burst throws a ring.
+    detonateFx(cell, c, r, kind) {
+      const x = this.cellX(c);
+      const y = this.cellY(r);
+      const tint = GEMS[cell.color].beam;
+      if (kind === BURST) {
+        const ring = this.add.circle(x, y, 18, tint, 0.6).setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 420, onComplete: () => ring.destroy() });
+        return;
+      }
+      const bars = [
+        this.add.rectangle(GX + (COLS * CELL) / 2, y, COLS * CELL, 12, tint, 0.85),
+        this.add.rectangle(x, GY + (ROWS * CELL) / 2, 12, ROWS * CELL, tint, 0.85),
+      ];
+      bars.forEach((b) => {
+        b.setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: b, alpha: 0, duration: 320, onComplete: () => b.destroy() });
       });
     }
 
@@ -1239,16 +1515,23 @@
         this.floatText(W / 2, GY + 40, "NO MOVES — RESHUFFLE", "#b6a8e6", 18);
         this.shuffleBoard();
       }
-      // Any meter that topped out queues a bark, remainder carried over.
+      this.queueBarks();
+      this.drawMeters();
+      if (this.queue.length) this.processQueue();
+      else this.busy = false;
+    }
+
+    // Turn full meters into queued barks, remainder carried over. Only
+    // QUEUE_CAP may be in flight at once so a single big move can't chain a
+    // wall of beams; whatever is left stays charged and goes out as the queue
+    // drains, so nothing under the meter cap is wasted.
+    queueBarks() {
       for (let i = 0; i < METERS; i++) {
-        while (this.meters[i] >= GEMS[i].need) {
+        while (this.meters[i] >= GEMS[i].need && this.queue.length < QUEUE_CAP) {
           this.meters[i] -= GEMS[i].need;
           this.queue.push(i);
         }
       }
-      this.drawMeters();
-      if (this.queue.length) this.processQueue();
-      else this.busy = false;
     }
 
     processQueue() {
@@ -1256,6 +1539,12 @@
         this.queue.length = 0;
         this.busy = false;
         return;
+      }
+      if (!this.queue.length) {
+        // Room in the queue again — let anything still charged go out now
+        // rather than making the player spend a move to release it.
+        this.queueBarks();
+        this.drawMeters();
       }
       if (!this.queue.length) {
         this.busy = false;

@@ -135,6 +135,31 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   like everything else. Its board state machine is worth knowing: `state` is one
   of `intro`/`fight`/`attack`/`flee`/`over` and input needs `fight && !busy`, so
   new effects must return the pair to that state or the board stays locked.
+  **Special gems** are a second axis on the cell (`kind`: `PLAIN`/`LINE`/
+  `BURST`), not a sixth colour — a run of 4 leaves a LINE that sweeps its whole
+  row *and* column, a run of 5 leaves a BURST that clears every tile of one
+  colour, and both keep their colour and feed the normal meters. Gold is
+  excluded (`canSpecial`): it already feeds all four tubes, so a gold line clear
+  would chain a wall of beams. `gemTex(color, kind)` is the single source of
+  texture keys — 13 in all, five plain plus two variants for each meter colour.
+  Four things here are load-bearing rather than cosmetic:
+  - `resolve()` runs **clear-set → detonate → spawn → award**, in that order,
+    because a run's spawn cell has to be pulled back out of the clear set
+    before anything pops. `expandDetonations` iterates to a fixed point so a
+    line sweep that uncovers another special chains, with a `fired` map
+    keeping it finite.
+  - A burst fired by a swap arrives via `this.forced` and is pre-marked
+    `spent`, so it detonates on the colour it was swapped *onto* and not also
+    on its own.
+  - `hasAnyMove()` returns true whenever a burst is on the board. A burst is
+    always a legal move, and without that check a live board reads as dead and
+    the reshuffle destroys the gem the player earned.
+  - Detonations clear a dozen-plus gems at once, which swamps an economy tuned
+    for 3–5. Two ceilings hold it together: `METER_CAP_BARKS` (a tube holds two
+    barks, overflow lost — the Puzzle Quest mana rule) stops charge banking up
+    forever, and `QUEUE_CAP` limits barks *in flight* while `queueBarks()`
+    (called from both `afterResolve` and `processQueue`) releases the rest as
+    the queue drains, so nothing under the cap is wasted.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
