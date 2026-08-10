@@ -129,8 +129,12 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   shards and a camera shake). Beyond damage each colour carries a flavour
   effect — green steadies Miles' own Courage, blue shoves the foe's bark fuse
   back, brown resets it, red is pure damage. The foe barks back on a fuse of
-  its own; at zero Courage it turns tail and flees, and Miles backing down ends
-  the run. Best routed count in `localStorage` (`bark-quest-best`). Both stances
+  its own; at zero Courage it turns tail and flees. **Nothing in this game dies
+  and nobody loses** — when Miles' own Courage runs out he is called in for
+  supper (`dinnerTime` → `dinnerPanel`, not a "game over"): he perks up, hops,
+  turns around and trots off left, and only then does the panel land, so the dim
+  doesn't cover the one bit worth watching. Keep that framing for anything that
+  ends a run. Best routed count in `localStorage` (`bark-quest-best`). Both stances
   (`bq-miles` / `bq-miles-bark`) plus the fox and wolf are drawn from primitives
   like everything else. Its board state machine is worth knowing: `state` is one
   of `intro`/`fight`/`attack`/`flee`/`over` and input needs `fight && !busy`, so

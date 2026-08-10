@@ -11,8 +11,9 @@
  * to all four meters at once, and gold has no meter of its own. When a meter
  * tops out Miles drops into his barking stance and lets rip an anime energy
  * beam in that colour; the foe loses Courage, and at zero Courage it turns tail
- * and runs. The foe barks back on a fuse of its own — let Miles' Courage hit
- * zero and the run is over.
+ * and runs. The foe barks back on a fuse of its own — and when Miles' Courage
+ * hits zero it isn't a death or a defeat: supper gets called, and he trots home
+ * with his tally. That's the run's only ending.
  *
  * All art is generated at runtime from primitives, like the rest of Fantasia.
  * Created on demand via window.launchBarkQuest() so the menu stays first.
@@ -240,6 +241,7 @@
       const g = this.make.graphics({ x: 0, y: 0, add: false });
 
       this.buildBackdrop(g);
+      this.buildBowl(g);
       this.buildGems(g);
       this.buildMilesTextures(g);
       this.buildFoxTexture(g);
@@ -265,6 +267,43 @@
       g.fillStyle(0xfff2c4, 0.14);
       g.fillCircle(300, 84, 44);
       g.generateTexture("bq-bg", W, H);
+      g.clear();
+    }
+
+    // Miles' supper bowl, for the end-of-run panel.
+    buildBowl(g) {
+      if (this.textures.exists("bq-bowl")) return;
+      g.clear();
+      // Heaped food first, so the bowl rim overlaps it.
+      g.fillStyle(0x8a4a22, 1);
+      g.fillEllipse(44, 26, 52, 22);
+      g.fillStyle(0xa8632f, 1);
+      g.fillEllipse(38, 23, 20, 11);
+      g.fillEllipse(54, 25, 16, 9);
+      // Bowl: bevel, body, rim, and a pale foot.
+      g.fillStyle(0x1d3a63, 1);
+      poly(g, [
+        { x: 12, y: 26 },
+        { x: 76, y: 26 },
+        { x: 66, y: 56 },
+        { x: 22, y: 56 },
+      ]);
+      g.fillStyle(0x2f5a8a, 1);
+      poly(g, [
+        { x: 16, y: 30 },
+        { x: 72, y: 30 },
+        { x: 63, y: 53 },
+        { x: 25, y: 53 },
+      ]);
+      g.fillStyle(0x4d84c4, 0.75);
+      g.fillEllipse(44, 27, 64, 13);
+      g.fillStyle(0x1d3a63, 1);
+      g.fillEllipse(44, 27, 52, 8);
+      g.fillStyle(0xd7e6f5, 0.85);
+      g.fillRoundedRect(22, 44, 10, 5, 2.5);
+      g.fillStyle(0x16294a, 1);
+      g.fillRoundedRect(18, 55, 52, 6, 3);
+      g.generateTexture("bq-bowl", 88, 64);
       g.clear();
     }
 
@@ -1799,7 +1838,7 @@
 
         this.time.delayedCall(320, () => {
           if (this.milesCourage <= 0) {
-            this.gameOver();
+            this.dinnerTime();
             return;
           }
           this.state = "fight";
@@ -1869,22 +1908,74 @@
       this.drawFuse();
     }
 
-    gameOver() {
+    // The run's end. Mechanically this is still "Miles' Courage hit zero", but
+    // nobody dies in this game and nobody loses: his nerve goes, and right on
+    // cue supper is called, so he gets a face-saving reason to trot home. The
+    // outro plays first and the panel lands after it, or the dim would cover
+    // the only part worth watching.
+    dinnerTime() {
       this.state = "over";
       this.busy = true;
       this.clearSelection();
       this.saveBest();
 
-      this.tweens.killTweensOf(this.miles);
-      this.tweens.add({ targets: this.miles, y: MILES_Y + 10, alpha: 0.45, angle: -6, duration: 500 });
+      this.floatText(MILES_X, MILES_Y - 30, "DINNER!", "#ffe7a3", 24, 30);
 
+      // Ears up, a delighted hop, then about-turn and off home at a trot.
+      this.tweens.killTweensOf(this.miles);
+      this.miles.setTexture("bq-miles-bark");
+      this.tweens.add({
+        targets: this.miles,
+        y: MILES_Y - 16,
+        duration: 200,
+        yoyo: true,
+        ease: "Quad.easeOut",
+        onComplete: () => {
+          this.miles.setTexture("bq-miles").setFlipX(true);
+          this.tweens.add({
+            targets: this.miles,
+            x: -80,
+            duration: 620,
+            ease: "Quad.easeIn",
+          });
+          this.tweens.add({
+            targets: this.miles,
+            y: MILES_Y - 8,
+            duration: 155,
+            yoyo: true,
+            repeat: 3,
+            ease: "Sine.easeOut",
+          });
+        },
+      });
+
+      this.time.delayedCall(900, () => this.dinnerPanel());
+    }
+
+    dinnerPanel() {
       this.add.rectangle(0, 0, W, H, 0x000000, 0.62).setOrigin(0, 0).setDepth(90);
+      // Everything sits inside the board area, clear of the meter tubes and
+      // the board frame, so the dim behind it is even.
+      const bowl = this.add.image(W / 2, 252, "bq-bowl").setDepth(91).setScale(0.9);
+      this.tweens.add({ targets: bowl, y: 244, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
       this.add
-        .text(W / 2, H * 0.36, "MILES BACKS DOWN", font(30, "#ff6b5a", 8))
+        .text(W / 2, 316, "DINNER TIME!", font(32, "#ffd23f", 8))
         .setOrigin(0.5)
         .setDepth(91);
       this.add
-        .text(W / 2, H * 0.36 + 48, "Foes routed: " + this.routed + "\nBest: " + this.best, {
+        .text(W / 2, 356, "Miles' nerve runs out — and right then,\nthe back door opens and supper calls.", {
+          fontFamily: "Arial, sans-serif",
+          fontSize: "14px",
+          color: "#cfe0ff",
+          align: "center",
+          fontStyle: "italic",
+          stroke: "#000000",
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5)
+        .setDepth(91);
+      this.add
+        .text(W / 2, 412, "Foes routed: " + this.routed + "\nBest: " + this.best, {
           fontFamily: "Arial, sans-serif",
           fontSize: "18px",
           color: "#ffe7a3",
@@ -1896,8 +1987,8 @@
         .setOrigin(0.5)
         .setDepth(91);
 
-      this.makeButton(W / 2, H * 0.58, "▸ Bark Again", 0x2f5a8a, () => this.scene.restart());
-      this.makeButton(W / 2, H * 0.58 + 62, "≡ Menu", 0x4a4270, () => {
+      this.makeButton(W / 2, 476, "▸ Back Out", 0x2f5a8a, () => this.scene.restart());
+      this.makeButton(W / 2, 538, "≡ Menu", 0x4a4270, () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       });
     }
