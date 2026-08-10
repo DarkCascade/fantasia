@@ -150,11 +150,11 @@
   };
 
   const MILES_X = 80;
-  const MILES_Y = GROUND_Y - 47; // paws (row 99 of 104) land on GROUND_Y
+  const MILES_Y = GROUND_Y - 46; // paws (row 98 of 104) land on GROUND_Y
   // Where the beam leaves the barking sprite's open mouth, relative to the
   // sprite's centre. Measured off miles-bark.png, not guessed.
-  const MUZZLE_X = 26;
-  const MUZZLE_Y = -33;
+  const MUZZLE_X = 37;
+  const MUZZLE_Y = -27;
 
   const FOE_X = 300;
 

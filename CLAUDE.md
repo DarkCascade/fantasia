@@ -134,17 +134,20 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   supper (`dinnerTime` → `dinnerPanel`, not a "game over"): he perks up, hops,
   turns around and trots off left, and only then does the panel land, so the dim
   doesn't cover the one bit worth watching. Keep that framing for anything that
-  ends a run. Best routed count in `localStorage` (`bark-quest-best`). Both stances
+  ends a run. Best routed count in `localStorage` (`bark-quest-best`).
   The fox and wolf are drawn from primitives, but **Miles is the exception to
   the no-external-assets rule**: both stances are hand-authored pixel art at
   `src/bark-quest/miles-idle.png` and `miles-bark.png`, loaded in the scene's
   `preload()`. They ship for free because the workflow already does
-  `cp -r src _site/`. Both are the same 112x104 canvas with the paws on the
-  same row (99), which is why `MILES_Y` is `GROUND_Y - 47` and why swapping
-  texture mid-bark can neither move nor resize him — keep that invariant if
-  either sprite is ever re-cut. The source art faces left and is mirrored on
-  export, and `MUZZLE_X`/`MUZZLE_Y` are measured off the barking sprite's open
-  mouth so the beam leaves his jaws rather than his chest.
+  `cp -r src _site/`. He is a red doberman with **cropped ears and a docked
+  tail** — check the tail on any replacement art. Both stances are the same
+  112x104 canvas with the paws on the same row (98), which is why `MILES_Y` is
+  `GROUND_Y - 46` and why swapping texture mid-bark can neither move nor resize
+  him. The current source already faces right so it is **not** mirrored on
+  export (an earlier reference faced left and was), and `MUZZLE_X` / `MUZZLE_Y`
+  are measured off the barking sprite's open mouth so the beam leaves his jaws
+  rather than his chest. Re-cutting the sprites means re-checking all four: paw
+  row, `MILES_Y`, mirroring, and the muzzle.
   Its board state machine is worth knowing: `state` is one
   of `intro`/`fight`/`attack`/`flee`/`over` and input needs `fight && !busy`, so
   new effects must return the pair to that state or the board stays locked.
