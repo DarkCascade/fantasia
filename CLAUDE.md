@@ -136,7 +136,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   doesn't cover the one bit worth watching. Keep that framing for anything that
   ends a run. Best routed count in `localStorage` (`bark-quest-best`). Both stances
   (`bq-miles` / `bq-miles-bark`) plus the fox and wolf are drawn from primitives
-  like everything else. Its board state machine is worth knowing: `state` is one
+  like everything else — Miles to a pixel-art reference: saturated red, cream
+  rim-light, plume tail, hard ink outline. Three things about that drawing code
+  bite if ignored: necks and tails use `chain()` (overlapping circles along a
+  spine) because a polygon that doesn't quite meet the body reads as a floating
+  lollipop at this size; the outline is a **dilation pass** that redraws the
+  whole dog eight times at ±2px in ink before the colour pass, so **no shape may
+  reach x=112** or the outline is sliced into a hard vertical edge; and the open
+  jaw must be two *diverging wedges* over a gullet drawn first, since
+  overlapping rectangles just make the head one solid brick. Both stances share
+  `body()` and differ only in head, tail lift and front paw, so swapping texture
+  mid-bark can't change his size. Its board state machine is worth knowing: `state` is one
   of `intro`/`fight`/`attack`/`flee`/`over` and input needs `fight && !busy`, so
   new effects must return the pair to that state or the board stays locked.
   **Special gems** are a second axis on the cell (`kind`: `PLAIN`/`LINE`/

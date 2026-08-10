@@ -459,225 +459,266 @@
       poly(g, starPoints(28, 29, 10, 4.4, 5));
     }
 
-    /* ---- Miles: a red (rust) doberman in profile, facing right ---- */
+    /* ---- Miles: a red doberman in profile, facing right ----
+     * Drawn to a pixel-art reference: saturated red coat with maroon shading
+     * underneath, cream rim-light along the back and the front of the legs, a
+     * plume tail carried high, and a hard ink outline around the silhouette.
+     *
+     * Necks and tails are built with `chain()` — a run of overlapping circles
+     * along a spine — rather than as polygons, because a polygon that doesn't
+     * quite meet the body reads as a floating lollipop, and at this size that
+     * is exactly what happens.
+     *
+     * Both stances share `body()` and differ only in head, tail lift and front
+     * paw, so Miles stays exactly the same size whichever is showing.
+     */
 
     buildMilesTextures(g) {
-      const COAT = 0x94401f;
-      const DARK = 0x6c2b13;
-      const TAN = 0xd79b5e;
-      const EAR = 0xb96a4a;
-      const NOSE = 0x241309;
-      const GUM = 0x51101d;
+      const RED = 0xd93a22; // coat
+      const LIT = 0xf2703a; // sunlit planes
+      const RIM = 0xffbd8e; // rim-light along the top edges
+      const SHD = 0x7a1e2a; // shaded underside
+      const DEEP = 0x4d1220; // far-side limbs
+      const INK = 0x2a0a12; // outline
+      const NOSE = 0x140a0e;
+      const TOOTH = 0xfff4e8;
+      const MOUTH = 0x8c1c2c;
+      const TONGUE = 0xd94a5c;
 
-      // Shared body: a short-coupled, deep-chested dog standing square. Only
-      // the head and the front paw differ between the two stances.
-      const drawBody = () => {
-        // Far legs first, shaded, so the near pair reads as closer.
-        g.fillStyle(DARK, 1);
-        g.fillRoundedRect(42, 62, 10, 32, 5);
-        g.fillRoundedRect(60, 62, 10, 32, 5);
-
-        g.fillStyle(COAT, 1);
-        g.fillRoundedRect(20, 40, 58, 28, 13); // barrel
-        g.fillCircle(32, 54, 15); // haunch
-        g.fillCircle(68, 54, 15); // chest
-
-        // Docked tail, cocked up over the rump.
-        poly(g, [
-          { x: 14, y: 46 },
-          { x: 18, y: 22 },
-          { x: 27, y: 24 },
-          { x: 25, y: 48 },
-        ]);
-
-        // Tan belly and chest markings.
-        g.fillStyle(TAN, 1);
-        g.fillEllipse(48, 66, 32, 8);
-        g.fillEllipse(76, 56, 10, 18);
+      // Every part paints through this. When `flat` is set the whole dog is
+      // drawn in one colour, which is how the outline pass works.
+      let flat = null;
+      const F = (c) => g.fillStyle(flat === null ? c : flat, 1);
+      // A tapering run of overlapping circles: [x, y, r], ...
+      const chain = (pts) => {
+        for (let i = 0; i < pts.length; i++) g.fillCircle(pts[i][0], pts[i][1], pts[i][2]);
       };
 
-      const drawNearLegs = () => {
-        g.fillStyle(COAT, 1);
-        g.fillRoundedRect(26, 62, 11, 32, 5);
-        g.fillRoundedRect(70, 62, 11, 32, 5);
-        g.fillStyle(TAN, 1);
-        g.fillRoundedRect(26, 84, 11, 10, 5);
-        g.fillRoundedRect(70, 84, 11, 10, 5);
-        g.fillRoundedRect(42, 84, 10, 10, 5);
-        g.fillRoundedRect(60, 84, 10, 10, 5);
+      /* --- shared body: barrel, haunch, deep chest, all four legs --- */
+      const body = () => {
+        // Far legs first and darkest, so the near pair reads in front.
+        F(DEEP);
+        g.fillRoundedRect(45, 64, 11, 30, 5);
+        g.fillRoundedRect(79, 64, 11, 30, 5);
+
+        F(RED);
+        g.fillRoundedRect(24, 44, 58, 28, 13); // barrel
+        g.fillCircle(34, 58, 16); // haunch
+        g.fillCircle(72, 56, 17); // deep chest
       };
 
-      /* --- idle: head level, mouth shut, watching --- */
-      if (!this.textures.exists("bq-miles")) {
-        g.clear();
-        drawBody();
+      const nearLegs = (braced) => {
+        F(RED);
+        g.fillRoundedRect(30, 66, 12, 28, 5); // near hind
+        g.fillRoundedRect(66, 66, 12, 28, 5); // near front
+        if (braced) g.fillRoundedRect(70, 80, 20, 12, 6); // paw thrown forward
+        F(RIM);
+        g.fillRect(30.5, 68, 2, 12);
+        g.fillRect(66.5, 68, 2, 12);
+      };
 
-        // Narrow neck; the head sits down on the shoulders and is clearly
-        // wider than the neck, so he reads as a dog rather than a deer.
-        g.fillStyle(COAT, 1);
-        poly(g, [
-          { x: 66, y: 50 },
-          { x: 76, y: 30 },
-          { x: 86, y: 34 },
-          { x: 80, y: 54 },
-        ]);
-        g.fillRoundedRect(70, 22, 32, 22, 9); // skull
+      // Shading and highlights sitting on top of the body mass.
+      const shade = () => {
+        F(SHD);
+        g.fillEllipse(54, 69, 48, 10); // belly
+        g.fillEllipse(38, 67, 22, 9); // under the haunch
+        F(LIT);
+        g.fillEllipse(42, 54, 22, 14); // haunch plane
+        g.fillEllipse(68, 50, 20, 15); // shoulder plane
+        F(RIM);
+        g.fillRoundedRect(32, 45, 46, 3, 1.5); // along the back
+      };
 
-        // Cropped ears: tall, narrow, close together.
+      // Plume tail off the rump. `lift` raises the whole arc.
+      const tail = (lift) => {
+        F(RED);
+        chain([
+          [28, 54, 8.5],
+          [21, 46 - lift, 8],
+          [16, 36 - lift, 7],
+          [17, 27 - lift, 6],
+          [23, 21 - lift, 5],
+        ]);
+        F(LIT);
+        chain([
+          [17, 27 - lift, 3.5],
+          [23, 21 - lift, 3],
+        ]);
+        F(RIM);
+        g.fillCircle(24, 19 - lift, 2.2);
+      };
+
+      /* --- idle: head level, alert --- */
+      const headIdle = () => {
+        F(RED);
+        chain([
+          [70, 52, 14],
+          [76, 46, 13],
+        ]); // barely a neck — a doberman carries its head on its shoulders
+        g.fillRoundedRect(73, 18, 28, 26, 9); // skull, generous
+        g.fillRoundedRect(92, 30, 15, 14, 5); // muzzle, deep not spindly
+
+        // Cropped ears: tall, sharp, close together.
         poly(g, [
-          { x: 74, y: 25 },
-          { x: 77, y: 6 },
-          { x: 85, y: 23 },
+          { x: 76, y: 22 },
+          { x: 73, y: 4 },
+          { x: 85, y: 20 },
         ]);
         poly(g, [
-          { x: 87, y: 24 },
-          { x: 93, y: 6 },
-          { x: 98, y: 23 },
+          { x: 87, y: 21 },
+          { x: 92, y: 4 },
+          { x: 98, y: 20 },
         ]);
-        g.fillStyle(EAR, 1);
+        F(SHD);
         poly(g, [
-          { x: 76, y: 23 },
-          { x: 78, y: 11 },
-          { x: 83, y: 22 },
+          { x: 77.5, y: 20 },
+          { x: 75, y: 9 },
+          { x: 82, y: 19 },
         ]);
         poly(g, [
-          { x: 89, y: 22 },
-          { x: 92.5, y: 11 },
-          { x: 96, y: 22 },
+          { x: 88.5, y: 19 },
+          { x: 91, y: 9 },
+          { x: 95, y: 19 },
         ]);
 
-        // Long tapering muzzle.
-        g.fillStyle(TAN, 1);
-        poly(g, [
-          { x: 96, y: 30 },
-          { x: 112, y: 33 },
-          { x: 112, y: 42 },
-          { x: 96, y: 43 },
-        ]);
-        g.fillStyle(NOSE, 1);
-        g.fillCircle(109, 35, 3.8);
-        g.lineStyle(1.6, 0x8a5a30, 1);
-        g.lineBetween(100, 42, 109, 41); // closed mouth
-
-        // Tan brow spot and amber eye.
-        g.fillStyle(TAN, 1);
-        g.fillEllipse(84, 27, 9, 4);
-        g.fillStyle(0xffd07a, 1);
-        g.fillCircle(84, 32, 3.4);
-        g.fillStyle(NOSE, 1);
-        g.fillCircle(85, 32, 2.1);
-
-        drawNearLegs();
-        g.generateTexture("bq-miles", 112, 96);
-      }
+        F(LIT);
+        g.fillEllipse(86, 29, 18, 11); // cheek plane
+        F(RIM);
+        g.fillRoundedRect(75, 17, 24, 2.5, 1.2); // top of the skull
+        F(SHD);
+        g.fillRect(93, 40, 12, 1.6); // mouth line, tucked inside the muzzle
+        F(NOSE);
+        g.fillCircle(101, 35, 4.5);
+        g.fillCircle(89, 30, 2.8); // eye
+        F(RIM);
+        g.fillCircle(88, 29, 1.1);
+      };
 
       /* --- barking: head thrown up and back, jaw cracked wide --- */
-      if (!this.textures.exists("bq-miles-bark")) {
+      const headBark = () => {
+        F(RED);
+        chain([
+          [70, 52, 14],
+          [74, 44, 13],
+          [78, 36, 12],
+        ]); // neck extended, head rocked back over the shoulders
+        g.fillRoundedRect(70, 14, 26, 24, 9); // skull
+
+        // Ears raked back with the effort.
+        poly(g, [
+          { x: 73, y: 18 },
+          { x: 64, y: 2 },
+          { x: 82, y: 16 },
+        ]);
+        poly(g, [
+          { x: 84, y: 17 },
+          { x: 82, y: 2 },
+          { x: 93, y: 16 },
+        ]);
+        F(SHD);
+        poly(g, [
+          { x: 74.5, y: 17 },
+          { x: 69, y: 6 },
+          { x: 80, y: 15 },
+        ]);
+        poly(g, [
+          { x: 85.5, y: 15 },
+          { x: 84, y: 6 },
+          { x: 90, y: 15 },
+        ]);
+
+        // The open mouth is a wedge, not a box: the gullet goes down first and
+        // the two jaws are drawn over it as tapering shapes that diverge from
+        // a hinge, so the gap between them widens towards the muzzle. Draw
+        // them as overlapping rectangles instead and the whole head reads as
+        // one solid red brick.
+        F(MOUTH);
+        poly(g, [
+          { x: 86, y: 28 },
+          { x: 106, y: 23 },
+          { x: 105, y: 47 },
+          { x: 87, y: 36 },
+        ]);
+        F(RED);
+        poly(g, [
+          { x: 84, y: 26 },
+          { x: 87, y: 17 },
+          { x: 106, y: 20 },
+          { x: 105, y: 28 },
+        ]); // upper jaw, angled up
+        F(NOSE);
+        g.fillCircle(103, 22, 4.2);
+        F(TONGUE);
+        poly(g, [
+          { x: 90, y: 36 },
+          { x: 103, y: 41 },
+          { x: 101, y: 45 },
+          { x: 89, y: 40 },
+        ]);
+        F(TOOTH);
+        poly(g, [
+          { x: 88, y: 27 },
+          { x: 94, y: 26 },
+          { x: 91, y: 33 },
+        ]);
+        poly(g, [
+          { x: 90, y: 38 },
+          { x: 96, y: 39 },
+          { x: 93, y: 32 },
+        ]);
+        F(RED);
+        poly(g, [
+          { x: 84, y: 32 },
+          { x: 104, y: 42 },
+          { x: 102, y: 50 },
+          { x: 83, y: 42 },
+        ]); // lower jaw, dropped away
+        g.fillCircle(85, 33, 7.5); // hinge, tying both jaws back to the skull
+
+        F(LIT);
+        g.fillEllipse(80, 24, 16, 10);
+        F(RIM);
+        g.fillRoundedRect(72, 13, 22, 2.5, 1.2);
+        F(NOSE);
+        g.fillCircle(82, 25, 2.8); // eye, hot
+        F(RIM);
+        g.fillCircle(81, 24, 1.1);
+      };
+
+      // Draw the whole dog several times at small offsets in ink, then once in
+      // colour on top: a cheap dilation that gives the sprite the hard outline
+      // the reference has, and it works for polygons as well as rects.
+      const stamp = (key, parts) => {
+        if (this.textures.exists(key)) return;
         g.clear();
-        drawBody();
+        const ring = [
+          [-2, 0],
+          [2, 0],
+          [0, -2],
+          [0, 2],
+          [-1.5, -1.5],
+          [1.5, 1.5],
+          [-1.5, 1.5],
+          [1.5, -1.5],
+        ];
+        flat = INK;
+        for (let i = 0; i < ring.length; i++) {
+          g.save();
+          g.translateCanvas(ring[i][0], ring[i][1]);
+          for (let j = 0; j < parts.length; j++) parts[j]();
+          g.restore();
+        }
+        flat = null;
+        for (let j = 0; j < parts.length; j++) parts[j]();
+        g.generateTexture(key, 112, 96);
+        g.clear();
+      };
 
-        // Neck extended and rocked back, head lifted clear of the shoulders.
-        g.fillStyle(COAT, 1);
-        poly(g, [
-          { x: 64, y: 50 },
-          { x: 70, y: 24 },
-          { x: 82, y: 28 },
-          { x: 76, y: 54 },
-        ]);
-        g.fillRoundedRect(64, 14, 32, 22, 9); // skull
-
-        // Ears swept back with the effort.
-        poly(g, [
-          { x: 68, y: 17 },
-          { x: 62, y: 3 },
-          { x: 76, y: 14 },
-        ]);
-        poly(g, [
-          { x: 78, y: 16 },
-          { x: 75, y: 2 },
-          { x: 87, y: 14 },
-        ]);
-        g.fillStyle(EAR, 1);
-        poly(g, [
-          { x: 69, y: 15 },
-          { x: 66, y: 7 },
-          { x: 75, y: 14 },
-        ]);
-        poly(g, [
-          { x: 79, y: 14 },
-          { x: 77.5, y: 6 },
-          { x: 84, y: 14 },
-        ]);
-
-        // Upper jaw, angled up; gullet; lolling tongue; lower jaw dropped away.
-        g.fillStyle(TAN, 1);
-        poly(g, [
-          { x: 90, y: 20 },
-          { x: 112, y: 22 },
-          { x: 112, y: 30 },
-          { x: 90, y: 32 },
-        ]);
-        g.fillStyle(NOSE, 1);
-        g.fillCircle(109, 25, 3.8);
-        g.fillStyle(GUM, 1);
-        poly(g, [
-          { x: 90, y: 30 },
-          { x: 111, y: 30 },
-          { x: 112, y: 42 },
-          { x: 90, y: 39 },
-        ]);
-        g.fillStyle(0xd0455f, 1);
-        poly(g, [
-          { x: 94, y: 34 },
-          { x: 108, y: 37 },
-          { x: 106, y: 41 },
-          { x: 94, y: 39 },
-        ]);
-        g.fillStyle(0xfff4e4, 1);
-        poly(g, [
-          { x: 94, y: 30 },
-          { x: 99, y: 30 },
-          { x: 96, y: 36 },
-        ]);
-        poly(g, [
-          { x: 95, y: 39 },
-          { x: 100, y: 40 },
-          { x: 97, y: 34 },
-        ]);
-        g.fillStyle(TAN, 1);
-        poly(g, [
-          { x: 89, y: 37 },
-          { x: 109, y: 42 },
-          { x: 107, y: 50 },
-          { x: 88, y: 45 },
-        ]);
-
-        // Snarling brow and a hot eye.
-        g.fillStyle(TAN, 1);
-        g.fillEllipse(78, 18, 9, 4);
-        g.fillStyle(0xffd07a, 1);
-        g.fillCircle(78, 23, 3.4);
-        g.fillStyle(NOSE, 1);
-        g.fillCircle(79, 23, 2.1);
-        g.fillStyle(DARK, 1);
-        poly(g, [
-          { x: 71, y: 17 },
-          { x: 85, y: 21 },
-          { x: 85, y: 17 },
-        ]);
-
-        drawNearLegs();
-        // Braced front paw, reaching forward mid-bark.
-        g.fillStyle(COAT, 1);
-        g.fillRoundedRect(70, 76, 20, 12, 6);
-        g.fillStyle(TAN, 1);
-        g.fillRoundedRect(74, 82, 16, 6, 3);
-        g.generateTexture("bq-miles-bark", 112, 96);
-      }
+      stamp("bq-miles", [() => tail(0), body, shade, headIdle, () => nearLegs(false)]);
+      stamp("bq-miles-bark", [() => tail(5), body, shade, headBark, () => nearLegs(true)]);
 
       g.clear();
     }
-
     /* ---- Fox: facing left, towards Miles ---- */
 
     buildFoxTexture(g) {
@@ -1669,8 +1710,8 @@
         hold: mega ? 420 : 300,
       });
 
-      const mx = MILES_X + 45;
-      const my = MILES_Y - 13;
+      const mx = MILES_X + 44;
+      const my = MILES_Y - 16;
       const tx = this.foe.spr.x - 14;
       const ty = this.foe.spr.y - 6;
       const ang = Math.atan2(ty - my, tx - mx);
