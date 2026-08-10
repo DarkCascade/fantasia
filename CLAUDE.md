@@ -164,6 +164,18 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     forever, and `QUEUE_CAP` limits barks *in flight* while `queueBarks()`
     (called from both `afterResolve` and `processQueue`) releases the rest as
     the queue drains, so nothing under the cap is wasted.
+  - **Overflow the queue and you get a MEGA BARK instead.** `trySuper()` (called
+    ahead of `queueBarks()` from both release points) fires when the charged
+    barks *plus* anything already queued exceed `QUEUE_CAP`: every full tube
+    empties to **zero** — the whole bar, not just the barks' worth — and the lot
+    goes out as one attack. `fireBeam(parts)`/`applyAttack(parts)` take
+    `[{idx, barks}]`, so one code path covers both: an ordinary bark is a single
+    entry, a mega gets one coloured band per colour braided into the same beam,
+    damage summed as `dmg × barks` across colours and multiplied by
+    `1 + SUPER_BONUS × (colours − 1)`, and **every** colour's flavour effect
+    applied together (heal + fuse reset + fuse stall at once). The bonus is what
+    makes overflowing a reward rather than a consolation — spending the same
+    charge as separate barks is strictly worse.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the

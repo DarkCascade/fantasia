@@ -117,6 +117,14 @@
   const QUEUE_CAP = 2; // barks in flight at once — the rest wait their turn
   const METER_CAP_BARKS = 2; // a tube holds two barks; overflow is lost
 
+  // Charge more barks at once than the queue will hold and they don't line up
+  // to fire one after another — every full tube empties to zero and the whole
+  // lot goes out as a single MEGA BARK carrying all of those colours and all
+  // of their effects together. It is the payoff for a detonation big enough to
+  // fill half the board's worth of meters in one move.
+  const SUPER_BONUS = 0.25; // extra damage per colour beyond the first
+  const SUPER_LABEL = "MEGA BARK!";
+
   function canSpecial(color) {
     return color !== GOLD;
   }
@@ -1554,10 +1562,51 @@
         this.floatText(W / 2, GY + 40, "NO MOVES — RESHUFFLE", "#b6a8e6", 18);
         this.shuffleBoard();
       }
+      if (this.trySuper()) return;
       this.queueBarks();
       this.drawMeters();
       if (this.queue.length) this.processQueue();
       else this.busy = false;
+    }
+
+    // Barks charged and waiting across all four tubes.
+    pendingBarks() {
+      let n = 0;
+      for (let i = 0; i < METERS; i++) n += Math.floor(this.meters[i] / GEMS[i].need);
+      return n;
+    }
+
+    // More barks charged than the queue holds? Then none of them fire on their
+    // own: every full tube empties to zero and the whole charge goes out as one
+    // mega bark. Returns true when it took over, so callers stop there.
+    trySuper() {
+      if (this.state !== "fight" || !this.foe || this.foe.courage <= 0) return false;
+
+      const parts = [];
+      let total = this.queue.length;
+      for (let i = 0; i < METERS; i++) {
+        const n = Math.floor(this.meters[i] / GEMS[i].need);
+        if (n > 0) {
+          parts.push({ idx: i, barks: n });
+          total += n;
+        }
+      }
+      if (!parts.length || total <= QUEUE_CAP) return false;
+
+      // Empty every full tube — not just the barks' worth, the whole bar.
+      for (let i = 0; i < parts.length; i++) this.meters[parts[i].idx] = 0;
+      // Anything already queued joins the mega bark rather than trailing it.
+      for (let i = 0; i < this.queue.length; i++) {
+        const idx = this.queue[i];
+        const has = parts.filter((p) => p.idx === idx)[0];
+        if (has) has.barks++;
+        else parts.push({ idx: idx, barks: 1 });
+      }
+      this.queue.length = 0;
+      this.drawMeters();
+      this.busy = true;
+      this.fireBeam(parts);
+      return true;
     }
 
     // Turn full meters into queued barks, remainder carried over. Only
@@ -1582,6 +1631,7 @@
       if (!this.queue.length) {
         // Room in the queue again — let anything still charged go out now
         // rather than making the player spend a move to release it.
+        if (this.trySuper()) return;
         this.queueBarks();
         this.drawMeters();
       }
@@ -1590,20 +1640,34 @@
         return;
       }
       this.busy = true;
-      this.fireBeam(this.queue.shift());
+      this.fireBeam([{ idx: this.queue.shift(), barks: 1 }]);
     }
 
     /* ================================================================== */
     /*  Barking: the beam                                                 */
     /* ================================================================== */
 
-    fireBeam(colorIdx) {
-      const def = GEMS[colorIdx];
+    // `parts` is [{idx, barks}]. One entry of one bark is an ordinary attack;
+    // anything more is a mega bark, and the extra colours are braided into the
+    // same beam as separate bands rather than fired one after another.
+    fireBeam(parts) {
+      const lead = GEMS[parts[0].idx];
+      let barks = 0;
+      for (let i = 0; i < parts.length; i++) barks += parts[i].barks;
+      const mega = barks > 1;
+      const bands = parts.length;
+
       this.state = "attack";
       this.clearSelection();
 
       this.miles.setTexture("bq-miles-bark");
-      this.tweens.add({ targets: this.miles, x: MILES_X + 8, duration: 110, yoyo: true, hold: 300 });
+      this.tweens.add({
+        targets: this.miles,
+        x: MILES_X + (mega ? 14 : 8),
+        duration: 110,
+        yoyo: true,
+        hold: mega ? 420 : 300,
+      });
 
       const mx = MILES_X + 45;
       const my = MILES_Y - 13;
@@ -1613,22 +1677,31 @@
       const len = Math.hypot(tx - mx, ty - my) + 30;
 
       // Attack name, hurled across the board.
-      this.bannerText.setText(def.label).setColor(def.css).setAlpha(1).setScale(0.5);
-      this.tweens.add({ targets: this.bannerText, scale: 1, duration: 200, ease: "Back.easeOut" });
-      this.tweens.add({ targets: this.bannerText, alpha: 0, delay: 420, duration: 220 });
+      this.bannerText
+        .setText(mega ? SUPER_LABEL : lead.label)
+        .setColor(mega ? "#ffffff" : lead.css)
+        .setAlpha(1)
+        .setScale(0.5);
+      this.tweens.add({ targets: this.bannerText, scale: mega ? 1.25 : 1, duration: 200, ease: "Back.easeOut" });
+      this.tweens.add({ targets: this.bannerText, alpha: 0, delay: mega ? 620 : 420, duration: 220 });
 
-      // Charge orb at the muzzle.
-      const orb = this.add.circle(mx, my, 4, 0xffffff, 1).setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
-      const halo = this.add.circle(mx, my, 8, def.beam, 0.8).setDepth(44).setBlendMode(Phaser.BlendModes.ADD);
-      this.tweens.add({ targets: [orb, halo], scale: 1.9, duration: 150, ease: "Quad.easeOut" });
+      // Charge orb at the muzzle — bigger and white-hot when it's every colour.
+      const orb = this.add.circle(mx, my, mega ? 6 : 4, 0xffffff, 1).setDepth(45).setBlendMode(Phaser.BlendModes.ADD);
+      const halo = this.add
+        .circle(mx, my, mega ? 12 : 8, mega ? 0xffffff : lead.beam, 0.8)
+        .setDepth(44)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: [orb, halo], scale: mega ? 2.6 : 1.9, duration: 150, ease: "Quad.easeOut" });
 
-      // Three concentric bark rings, the classic wind-up.
-      for (let i = 0; i < 3; i++) {
-        const ring = this.add.circle(mx, my, 12, def.beam, 0).setDepth(43);
-        ring.setStrokeStyle(3, def.beam, 0.9);
+      // Wind-up rings, one per colour going in so the mix is legible early.
+      const rings = mega ? Math.max(3, bands) : 3;
+      for (let i = 0; i < rings; i++) {
+        const tint = GEMS[parts[i % bands].idx].beam;
+        const ring = this.add.circle(mx, my, 12, tint, 0).setDepth(43);
+        ring.setStrokeStyle(3, tint, 0.9);
         this.tweens.add({
           targets: ring,
-          scale: 3.2,
+          scale: mega ? 4 : 3.2,
           alpha: 0,
           duration: 340,
           delay: i * 70,
@@ -1639,22 +1712,30 @@
       this.time.delayedCall(150, () => {
         if (this.state !== "attack") return;
 
-        // The beam itself: a glow sheath, a coloured body and a white-hot core,
-        // all additive, laid along the muzzle→foe axis.
+        // The beam itself: a glow sheath, one coloured body per colour going
+        // in, and a white-hot core, all additive along the muzzle→foe axis.
         const beam = this.add.container(mx, my).setDepth(46).setRotation(ang);
-        const glow = this.add.rectangle(0, 0, len, 52, def.beam, 0.22).setOrigin(0, 0.5);
-        const body = this.add.rectangle(0, 0, len, 28, def.beam, 1).setOrigin(0, 0.5);
-        const core = this.add.rectangle(0, 0, len, 7, 0xffffff, 0.95).setOrigin(0, 0.5);
-        [glow, body, core].forEach((r) => r.setBlendMode(Phaser.BlendModes.ADD));
-        beam.add([glow, body, core]);
+        const bandH = mega ? Math.max(14, 30 - bands * 3) : 28;
+        const spread = mega ? bandH * 1.05 : 0;
+        const glow = this.add
+          .rectangle(0, 0, len, mega ? 40 + bands * 16 : 52, mega ? 0xffffff : lead.beam, mega ? 0.16 : 0.22)
+          .setOrigin(0, 0.5);
+        const bodies = parts.map((p, i) =>
+          this.add
+            .rectangle(0, (i - (bands - 1) / 2) * spread, len, bandH, GEMS[p.idx].beam, 1)
+            .setOrigin(0, 0.5)
+        );
+        const core = this.add.rectangle(0, 0, len, mega ? 11 : 7, 0xffffff, 0.95).setOrigin(0, 0.5);
+        [glow].concat(bodies, [core]).forEach((r) => r.setBlendMode(Phaser.BlendModes.ADD));
+        beam.add([glow].concat(bodies, [core]));
         beam.setScale(0, 1);
         this.tweens.add({ targets: beam, scaleX: 1, duration: 90, ease: "Quad.easeOut" });
         // Crackle: the sheath breathes while the beam is held.
-        this.tweens.add({ targets: glow, scaleY: 1.5, duration: 70, yoyo: true, repeat: 3 });
-        this.tweens.add({ targets: body, scaleY: 0.7, duration: 55, yoyo: true, repeat: 5 });
+        this.tweens.add({ targets: glow, scaleY: 1.5, duration: 70, yoyo: true, repeat: mega ? 5 : 3 });
+        this.tweens.add({ targets: bodies, scaleY: 0.7, duration: 55, yoyo: true, repeat: mega ? 7 : 5 });
 
         // Speed lines streaking along the beam.
-        for (let i = 0; i < 7; i++) {
+        for (let i = 0; i < (mega ? 12 : 7); i++) {
           const off = Phaser.Math.Between(-16, 16);
           const bolt = this.add.rectangle(0, off, 40, 3, 0xffffff, 0.9).setOrigin(0, 0.5);
           bolt.setBlendMode(Phaser.BlendModes.ADD);
@@ -1670,12 +1751,19 @@
         }
 
         // Impact.
-        const burst = this.add.circle(tx, ty, 9, 0xffffff, 0.9).setDepth(47).setBlendMode(Phaser.BlendModes.ADD);
-        const burstGlow = this.add.circle(tx, ty, 16, def.beam, 0.5).setDepth(46).setBlendMode(Phaser.BlendModes.ADD);
-        this.tweens.add({ targets: [burst, burstGlow], scale: 1.7, duration: 130, yoyo: true, repeat: 2 });
-        for (let i = 0; i < 10; i++) {
+        const burst = this.add
+          .circle(tx, ty, mega ? 14 : 9, 0xffffff, 0.9)
+          .setDepth(47)
+          .setBlendMode(Phaser.BlendModes.ADD);
+        const burstGlow = this.add
+          .circle(tx, ty, mega ? 24 : 16, mega ? 0xffffff : lead.beam, 0.5)
+          .setDepth(46)
+          .setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({ targets: [burst, burstGlow], scale: mega ? 2.3 : 1.7, duration: 130, yoyo: true, repeat: 2 });
+        for (let i = 0; i < (mega ? 20 : 10); i++) {
           const a = Math.random() * Math.PI * 2;
-          const shard = this.add.rectangle(tx, ty, 16, 3, def.beam, 1).setDepth(47).setRotation(a);
+          const tint = GEMS[parts[i % bands].idx].beam;
+          const shard = this.add.rectangle(tx, ty, 16, 3, tint, 1).setDepth(47).setRotation(a);
           shard.setBlendMode(Phaser.BlendModes.ADD);
           this.tweens.add({
             targets: shard,
@@ -1687,10 +1775,10 @@
           });
         }
 
-        this.cameras.main.shake(320, 0.007);
-        this.applyAttack(colorIdx);
+        this.cameras.main.shake(mega ? 480 : 320, mega ? 0.013 : 0.007);
+        this.applyAttack(parts);
 
-        this.time.delayedCall(300, () => {
+        this.time.delayedCall(mega ? 420 : 300, () => {
           this.tweens.add({
             targets: [beam, orb, halo, burst, burstGlow],
             alpha: 0,
@@ -1709,33 +1797,64 @@
       });
     }
 
-    applyAttack(colorIdx) {
-      const def = GEMS[colorIdx];
+    applyAttack(parts) {
       const foe = this.foe;
-      const dmg = Math.round(def.dmg * (1 + 0.05 * this.wave));
+      const mega = parts.length > 1;
+
+      let raw = 0;
+      for (let i = 0; i < parts.length; i++) raw += GEMS[parts[i].idx].dmg * parts[i].barks;
+      // Colours braided into one bark hit harder than the same charge spent
+      // as separate barks — that's what makes overflowing the queue a reward
+      // rather than a consolation.
+      const combo = 1 + SUPER_BONUS * (parts.length - 1);
+      const dmg = Math.round(raw * (1 + 0.05 * this.wave) * combo);
+
       foe.courage = Math.max(0, foe.courage - dmg);
       this.drawCourage();
-      this.floatText(foe.spr.x, foe.spr.y - 6, "-" + dmg, def.css, 26, 34);
+      this.floatText(
+        foe.spr.x,
+        foe.spr.y - 6,
+        "-" + dmg,
+        mega ? "#ffffff" : GEMS[parts[0].idx].css,
+        mega ? 34 : 26,
+        34
+      );
 
       // Knockback + flinch.
-      this.tweens.add({ targets: foe.spr, x: foe.spr.x + 22, duration: 90, yoyo: true, ease: "Quad.easeOut" });
-      this.tweens.add({ targets: foe.spr, alpha: 0.35, duration: 60, yoyo: true, repeat: 3 });
+      this.tweens.add({
+        targets: foe.spr,
+        x: foe.spr.x + (mega ? 40 : 22),
+        duration: 90,
+        yoyo: true,
+        ease: "Quad.easeOut",
+      });
+      this.tweens.add({ targets: foe.spr, alpha: 0.35, duration: 60, yoyo: true, repeat: mega ? 5 : 3 });
 
-      // Per-colour flavour: green steadies Miles, blue shoves the foe's fuse
-      // back, brown resets it outright, red is pure damage.
-      if (colorIdx === 2) {
+      // Every colour in the bark brings its flavour along: green steadies
+      // Miles, blue shoves the foe's fuse back, brown resets it outright, red
+      // is pure damage. A mega bark carries all of them at once.
+      let heal = 0;
+      let stall = 0;
+      let reset = false;
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        if (p.idx === 2) heal += GREEN_HEAL * p.barks;
+        else if (p.idx === 3) stall += BLUE_STALL * p.barks;
+        else if (p.idx === 1) reset = true;
+      }
+
+      if (heal > 0) {
         const before = this.milesCourage;
-        this.milesCourage = Math.min(MILES_COURAGE, this.milesCourage + GREEN_HEAL);
+        this.milesCourage = Math.min(MILES_COURAGE, this.milesCourage + heal);
         if (this.milesCourage > before) {
           this.floatText(MILES_X - 20, MILES_Y - 26, "+" + (this.milesCourage - before), "#6ce87f", 22, 26);
         }
         this.drawCourage();
-      } else if (colorIdx === 3) {
-        foe.fuse = Math.max(0, foe.fuse - BLUE_STALL);
-      } else if (colorIdx === 1) {
-        foe.fuse = 0;
-        this.floatText(foe.spr.x, foe.spr.y + 22, "STUNNED", "#ffd23f", 16, 24);
       }
+      if (reset) foe.fuse = 0;
+      if (stall > 0) foe.fuse = Math.max(0, foe.fuse - stall);
+      // Sits low and rises little, so it clears the damage number above it.
+      if (reset) this.floatText(foe.spr.x, foe.spr.y + 34, "STUNNED", "#ffd23f", 16, 16);
       this.drawFuse();
     }
 
