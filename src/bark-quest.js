@@ -218,14 +218,17 @@
       super("BarkQuestScene");
     }
 
-    // Miles is the one part of Bark Quest that is not drawn at runtime — both
-    // stances are pixel-art PNGs under src/bark-quest/. They are the same
-    // 112x104 canvas with the paws on the same row, so swapping texture
-    // mid-bark cannot shift or resize him.
+    // The art that is not drawn at runtime lives under src/bark-quest/. Miles'
+    // two stances share one 112x104 canvas with the paws on the same row, so
+    // swapping texture mid-bark cannot shift or resize him. Every foe PNG is
+    // drawn at its natural size, bottom-aligned on its canvas, and placed at
+    // GROUND_Y - half — so a foe's canvas height must be exactly 2 * its `half`
+    // or its feet stop meeting the ground.
     preload() {
       this.load.image("bq-miles", "src/bark-quest/miles-idle.png");
       this.load.image("bq-miles-bark", "src/bark-quest/miles-bark.png");
       this.load.image("bq-squirrel", "src/bark-quest/squirrel.png");
+      this.load.image("bq-wolf", "src/bark-quest/wolf.png");
     }
 
     create() {
@@ -280,7 +283,6 @@
       this.buildBowl(g);
       this.buildGems(g);
       this.buildFoxTexture(g);
-      this.buildWolfTexture(g);
 
       g.destroy();
     }
@@ -576,101 +578,6 @@
       g.fillRoundedRect(56, 71, 8, 9, 4);
 
       g.generateTexture("bq-fox", 96, 80);
-      g.clear();
-    }
-
-    /* ---- Wolf: facing left, bigger and greyer ---- */
-
-    buildWolfTexture(g) {
-      if (this.textures.exists("bq-wolf")) return;
-      const FUR = 0x7c8794;
-      const DARK = 0x525c68;
-      const PALE = 0xd9e0e8;
-      g.clear();
-
-      // Heavy tail, hanging low behind.
-      g.fillStyle(FUR, 1);
-      g.fillEllipse(88, 56, 38, 24);
-      g.fillStyle(DARK, 1);
-      g.fillCircle(102, 60, 9);
-
-      // Far legs.
-      g.fillStyle(DARK, 1);
-      g.fillRoundedRect(44, 62, 10, 26, 5);
-      g.fillRoundedRect(66, 62, 10, 26, 5);
-
-      // Deep chest and barrel.
-      g.fillStyle(FUR, 1);
-      g.fillRoundedRect(26, 38, 52, 30, 14);
-      g.fillCircle(70, 52, 18);
-      g.fillCircle(34, 52, 16);
-
-      // Lowered head, shoulders up.
-      poly(g, [
-        { x: 38, y: 40 },
-        { x: 22, y: 26 },
-        { x: 8, y: 38 },
-        { x: 28, y: 56 },
-      ]);
-      g.fillRoundedRect(8, 22, 30, 22, 9);
-      g.fillStyle(PALE, 1);
-      poly(g, [
-        { x: 16, y: 30 },
-        { x: 16, y: 42 },
-        { x: -2, y: 38 },
-      ]);
-      g.fillStyle(0x14181d, 1);
-      g.fillCircle(1, 36, 3.2);
-      // A hint of bared teeth.
-      g.fillStyle(0xfdfdfd, 1);
-      poly(g, [
-        { x: 6, y: 39 },
-        { x: 10, y: 39 },
-        { x: 8, y: 44 },
-      ]);
-
-      // Ears: shorter and rounder than the fox's.
-      g.fillStyle(FUR, 1);
-      poly(g, [
-        { x: 14, y: 24 },
-        { x: 12, y: 8 },
-        { x: 24, y: 21 },
-      ]);
-      poly(g, [
-        { x: 26, y: 23 },
-        { x: 31, y: 8 },
-        { x: 36, y: 22 },
-      ]);
-      g.fillStyle(0x39414b, 1);
-      poly(g, [
-        { x: 15, y: 22 },
-        { x: 14, y: 13 },
-        { x: 20, y: 21 },
-      ]);
-      poly(g, [
-        { x: 27.5, y: 21 },
-        { x: 30, y: 13 },
-        { x: 33, y: 21 },
-      ]);
-
-      // Yellow eye, pale ruff.
-      g.fillStyle(PALE, 1);
-      g.fillEllipse(24, 44, 14, 10);
-      g.fillEllipse(30, 60, 12, 18);
-      g.fillStyle(0xffe066, 1);
-      g.fillCircle(24, 31, 3.6);
-      g.fillStyle(0x14181d, 1);
-      g.fillCircle(23, 31, 2.2);
-
-      // Near legs.
-      g.fillStyle(FUR, 1);
-      g.fillRoundedRect(30, 62, 11, 26, 5);
-      g.fillRoundedRect(70, 62, 11, 26, 5);
-      g.fillStyle(DARK, 1);
-      g.fillRoundedRect(30, 79, 11, 9, 4);
-      g.fillRoundedRect(70, 79, 11, 9, 4);
-
-      g.generateTexture("bq-wolf", 108, 88);
       g.clear();
     }
 

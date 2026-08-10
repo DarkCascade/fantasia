@@ -139,12 +139,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   turns around and trots off left, and only then does the panel land, so the dim
   doesn't cover the one bit worth watching. Keep that framing for anything that
   ends a run. Best routed count in `localStorage` (`bark-quest-best`).
-  The fox and wolf are drawn from primitives, but **Miles is the exception to
-  the no-external-assets rule**: both stances are hand-authored pixel art at
-  `src/bark-quest/miles-idle.png` and `miles-bark.png` (and the squirrel at
-  `squirrel.png`), loaded in the scene's
-  `preload()`. They ship for free because the workflow already does
-  `cp -r src _site/`. He is a red doberman with **cropped ears and a docked
+  Only the fox is still drawn from primitives — **Bark Quest is the exception
+  to the no-external-assets rule**: Miles' two stances are hand-authored pixel
+  art at `src/bark-quest/miles-idle.png` and `miles-bark.png`, and the squirrel
+  and wolf are cut-out PNGs (`squirrel.png`, `wolf.png`), all loaded in the
+  scene's `preload()`. They ship for free because the workflow already does
+  `cp -r src _site/`. **Every foe PNG is drawn at its natural size** — nothing
+  scales it — and is placed at `GROUND_Y - half`, so a foe canvas must be
+  exactly `2 * half` tall with the art bottom-aligned on it or the feet stop
+  meeting the ground (wolf 108x88 / `half: 44`, squirrel 84x84 / `half: 42`).
+  Foes face **left** by default (`setFlipX(true)` is the flee turn), so foe art
+  must be authored facing left. He is a red doberman with **cropped ears and a docked
   tail** — check the tail on any replacement art. Both stances are the same
   112x104 canvas with the paws on the same row (98), which is why `MILES_Y` is
   `GROUND_Y - 46` and why swapping texture mid-bark can neither move nor resize
@@ -210,7 +215,7 @@ src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
 src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
-src/bark-quest/         Miles' two stances + the squirrel (the art not drawn at runtime)
+src/bark-quest/         Miles' two stances + the squirrel and wolf (art not drawn at runtime)
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
