@@ -201,6 +201,32 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     applied together (heal + fuse reset + fuse stall at once). The bonus is what
     makes overflowing a reward rather than a consolation — spending the same
     charge as separate barks is strictly worse.
+- **Indie Grind** (`src/indie-grind.js`) — an incremental/idle game on the third
+  slot of menu page 2, replacing the old Combat Sim. The player is a developer
+  trying to break into the games industry: click **Write GameObject** to code
+  one at a time (a fill bar paces each write at `writeTime()` seconds); once
+  the inventory holds at least `SELL_MIN_OBJECTS` (3), **Create Game!** lights
+  up and sells the whole inventory in one shot. A sale rolls a **review score**
+  (`reviewRange()`, widened by the QA upgrade track, or a guaranteed 95-99 if
+  the Lucky Commit buff is armed) and pays `sold × saleValue() × (score / 70)`
+  — so a 70 is neutral, better reviews are a real multiplier, not just
+  flavour. Four **permanent upgrade tracks** (`TRACKS`), each five tiers of
+  increasing cost, are bought with money and never expire: Coding Speed
+  (`writeTime()`), Game Polish (`saleValue()`), Team Hires (`autoRate()` —
+  auto-writes GameObjects on a `tick()` accumulator, no clicking required),
+  and Quality Assurance (`reviewRange()`). The **shop** sells `SHOP_ITEMS`,
+  timed buffs bought with money that stack multiplicatively with the
+  permanent tracks while active — Coffee (2x speed), Energy Drink (2x auto
+  output), Investor Pitch (1.5x sale value) — plus Lucky Commit, which isn't
+  timed-effect but timed-*arming*: it consumes on the next sale or expires
+  unused. `MILESTONES` fire one-time flavour log lines as lifetime money
+  crosses thresholds. Like Gloom Hollow 3D, this is a **DOM overlay** (an
+  `#ig-root` div injected into `#game-container`, styled via `<style
+  id="ig-style">`), not a Phaser scene — the whole game is numbers, buttons
+  and panels, so a canvas buys nothing. `window.indieGrindGame.destroy()`
+  takes no arguments (same convention as `gloom3DGame`) since there's no
+  Phaser instance to tear down, just a `clearInterval` and a DOM removal. No
+  `localStorage` persistence — a run resets when the game is torn down.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -214,7 +240,7 @@ src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchA
 src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
 src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
-src/combat-sim.js      Combat Sim turn-based battle; window.launchCombatSim()
+src/indie-grind.js     Indie Grind incremental dev-studio game; window.launchIndieGrind()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
 src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
@@ -301,15 +327,15 @@ vendor/three.module.min.js  three.js r160 ES module (vendored; imported on deman
   the decorative title font renders well; it is the first screen. No game
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
-  `launchArrowRush`, `launchCosmicDash`, `launchCombatSim`, `launchGloomHollow`,
+  `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchBarkQuest`); the menu buttons call these to
   create the chosen game (once) into `#game-container`, and
   `window.returnToMenu()` tears down whichever game is running (`window.game` /
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
-  `combatGame` / `gloomGame` / `gloom3DGame` / `barkQuestGame`) and re-shows
+  `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame`) and re-shows
   the menu. All of those are Phaser
-  instances torn down with `destroy(true)` except `gloom3DGame`, whose handle
-  takes a plain `destroy()`.
+  instances torn down with `destroy(true)` except `gloom3DGame` and
+  `indieGrindGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The

@@ -353,8 +353,8 @@
           <button id="btn-gloom" class="menu-btn menu-btn--secondary" type="button">
             Gloom Hollow
           </button>
-          <button id="btn-combat" class="menu-btn menu-btn--secondary" type="button">
-            Combat Sim
+          <button id="btn-indiegrind" class="menu-btn menu-btn--secondary" type="button">
+            Indie Grind
           </button>
           <button id="btn-gloom3d" class="menu-btn menu-btn--secondary" type="button">
             Gloom Hollow 3D
@@ -387,7 +387,7 @@
   <script src="src/star-catcher.js"></script>
   <script src="src/arrow-rush.js"></script>
   <script src="src/cosmic-dash.js"></script>
-  <script src="src/combat-sim.js"></script>
+  <script src="src/indie-grind.js"></script>
   <script src="src/gloom-hollow.js"></script>
   <script src="src/bark-quest.js"></script>
   <!-- three.js is NOT loaded here: src/gloom-hollow-3d.js imports
@@ -436,9 +436,9 @@
         menu.dataset.page = "1";
       });
 
-      document.getElementById("btn-combat").addEventListener("click", function () {
+      document.getElementById("btn-indiegrind").addEventListener("click", function () {
         hideMenu();
-        if (typeof window.launchCombatSim === "function") window.launchCombatSim();
+        if (typeof window.launchIndieGrind === "function") window.launchIndieGrind();
       });
 
       document.getElementById("btn-gloom").addEventListener("click", function () {
@@ -483,12 +483,13 @@
           if (window.starCatcherGame) { try { window.starCatcherGame.destroy(true); } catch (e) {} window.starCatcherGame = null; }
           if (window.arrowGame) { try { window.arrowGame.destroy(true); } catch (e) {} window.arrowGame = null; }
           if (window.cosmicDashGame) { try { window.cosmicDashGame.destroy(true); } catch (e) {} window.cosmicDashGame = null; }
-          if (window.combatGame) { try { window.combatGame.destroy(true); } catch (e) {} window.combatGame = null; }
           if (window.gloomGame) { try { window.gloomGame.destroy(true); } catch (e) {} window.gloomGame = null; }
           if (window.barkQuestGame) { try { window.barkQuestGame.destroy(true); } catch (e) {} window.barkQuestGame = null; }
-          // Gloom Hollow 3D isn't a Phaser game: its handle owns a three.js
-          // renderer plus its own DOM overlay, and destroy() takes no arguments.
+          // Gloom Hollow 3D and Indie Grind aren't Phaser games: they're DOM
+          // overlays (three.js renderer / plain HTML+CSS respectively), and
+          // their handles' destroy() takes no arguments.
           if (window.gloom3DGame) { try { window.gloom3DGame.destroy(); } catch (e) {} window.gloom3DGame = null; }
+          if (window.indieGrindGame) { try { window.indieGrindGame.destroy(); } catch (e) {} window.indieGrindGame = null; }
         }, 0);
       };
     })();
