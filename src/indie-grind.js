@@ -229,7 +229,7 @@
     ".ig-panel h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#ffe7a3;opacity:.9;margin-bottom:10px;}" +
     ".ig-list{display:flex;flex-direction:column;gap:8px;}" +
     ".ig-card{position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:11px;" +
-    "border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);}" +
+    "border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);transition:border-color .2s ease,box-shadow .2s ease;}" +
     ".ig-card-icon{font-size:20px;flex:0 0 auto;width:30px;text-align:center;}" +
     ".ig-card-body{flex:1 1 auto;min-width:0;}" +
     ".ig-card-name{font-size:13px;font-weight:700;color:#fff0d0;}" +
@@ -242,6 +242,15 @@
     "@keyframes ig-flash{0%{filter:brightness(1);}40%{filter:brightness(1.7);}100%{filter:brightness(1);}}" +
     ".ig-card-bar{position:absolute;left:0;bottom:0;height:3px;background:linear-gradient(90deg,#9dffd0,#5aa7ff);width:0%;transition:width .2s linear;}" +
     ".ig-card.ig-armed{border-color:#7fd858;box-shadow:0 0 12px rgba(127,216,88,.5);}" +
+    /* Affordability is the dominant signal: a buyable card/button glows and
+       pulses green, a maxed one turns gold-solid — both read at a glance,
+       distinct from the plain/disabled default for "not yet affordable". */
+    ".ig-card.ig-afford{border-color:rgba(157,255,157,.6);box-shadow:0 0 12px rgba(157,255,157,.22);}" +
+    ".ig-card.ig-maxed{border-color:rgba(255,210,63,.5);}" +
+    ".ig-card-btn.ig-buy-ready{background:linear-gradient(180deg,#c8ffc8,#4fbf4f);color:#0c3a0c;" +
+    "box-shadow:0 3px 0 #1f6b1f,0 0 10px rgba(157,255,157,.55);animation:ig-buy-pulse 1.4s ease-in-out infinite;}" +
+    "@keyframes ig-buy-pulse{0%,100%{box-shadow:0 3px 0 #1f6b1f,0 0 8px rgba(157,255,157,.35);}50%{box-shadow:0 3px 0 #1f6b1f,0 0 18px rgba(157,255,157,.9);}}" +
+    ".ig-card-btn.ig-maxed-btn{background:linear-gradient(180deg,#ffe7a3,#c99a2e)!important;color:#3a2500!important;filter:none!important;opacity:1!important;}" +
     ".ig-log{width:100%;max-width:920px;display:flex;flex-direction:column;gap:5px;}" +
     ".ig-log-entry{font-size:12px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.04);border-left:3px solid #5aa7ff;color:#d7cfff;" +
     "animation:ig-log-in .25s ease;}" +
@@ -405,6 +414,7 @@
       } else {
         this.updateShopTimers();
       }
+      this.updateUpgradeAffordability();
       this.updateWriteSub();
     }
 
@@ -602,26 +612,55 @@
         const maxed = level >= track.tiers.length;
         const card = document.createElement("div");
         card.className = "ig-card";
+        card.style.borderLeft = "3px solid " + track.color;
         const currentDesc = this.trackCurrentDesc(track, level);
         const next = maxed ? null : track.tiers[level];
+        const afford = !maxed && this.money >= next.cost;
         card.innerHTML =
           '<div class="ig-card-icon">' + track.icon + "</div>" +
           '<div class="ig-card-body">' +
           '<div class="ig-card-name">' + track.label + " — Lv" + level + "/" + track.tiers.length + "</div>" +
           '<div class="ig-card-desc">' + currentDesc + (maxed ? "" : " · next: " + next.name) + "</div>" +
           "</div>" +
-          '<button class="ig-card-btn" type="button">' + (maxed ? "MAX" : fmtMoney(next.cost)) + "</button>";
+          '<button class="ig-card-btn" type="button">' +
+          (maxed ? "✓ MAX" : (afford ? "Buy " : "") + fmtMoney(next.cost)) +
+          "</button>";
         const btn = card.querySelector("button");
-        btn.style.background = "linear-gradient(180deg," + track.color + ",#20304a)";
-        btn.style.color = "#fff";
-        btn.style.boxShadow = "0 3px 0 rgba(0,0,0,.4)";
         if (maxed) {
           btn.disabled = true;
+          btn.classList.add("ig-maxed-btn");
+          card.classList.add("ig-maxed");
         } else {
-          btn.disabled = this.money < next.cost;
+          btn.disabled = !afford;
+          btn.classList.toggle("ig-buy-ready", afford);
+          card.classList.toggle("ig-afford", afford);
           btn.addEventListener("click", () => this.buyTrack(track));
         }
         box.appendChild(card);
+      });
+    }
+
+    // Buffs re-render on their own change; upgrades don't, since buying one
+    // is the only event that used to refresh this list — so a sale that
+    // makes a tier newly affordable left its button stuck looking disabled
+    // until the player happened to buy something else. Called every tick to
+    // keep "can I afford this" live instead of stale.
+    updateUpgradeAffordability() {
+      const cards = this.el.upgradeList.children;
+      TRACKS.forEach((track, i) => {
+        const card = cards[i];
+        if (!card) return;
+        const level = this.levels[track.id];
+        if (level >= track.tiers.length) return; // maxed cards don't change
+        const next = track.tiers[level];
+        const afford = this.money >= next.cost;
+        const btn = card.querySelector(".ig-card-btn");
+        if (btn.disabled === afford) {
+          btn.disabled = !afford;
+          btn.textContent = (afford ? "Buy " : "") + fmtMoney(next.cost);
+          btn.classList.toggle("ig-buy-ready", afford);
+          card.classList.toggle("ig-afford", afford);
+        }
       });
     }
 
@@ -669,16 +708,20 @@
         card.className = "ig-card";
         const active = item.kind === "arm" ? this.lucky.armed : this.buffActive(item.id);
         if (active) card.classList.add("ig-armed");
+        const afford = this.money >= item.cost;
+        card.classList.toggle("ig-afford", afford && !active);
         card.innerHTML =
           '<div class="ig-card-icon">' + item.icon + "</div>" +
           '<div class="ig-card-body">' +
           '<div class="ig-card-name">' + item.name + (active ? " — active" : "") + "</div>" +
           '<div class="ig-card-desc">' + item.desc + "</div>" +
           "</div>" +
-          '<button class="ig-card-btn" type="button">' + fmtMoney(item.cost) + "</button>" +
+          '<button class="ig-card-btn' + (afford ? " ig-buy-ready" : "") + '" type="button">' +
+          (afford ? "Buy " : "") + fmtMoney(item.cost) +
+          "</button>" +
           '<div class="ig-card-bar"></div>';
         const btn = card.querySelector("button");
-        btn.disabled = this.money < item.cost;
+        btn.disabled = !afford;
         btn.addEventListener("click", () => this.buyBuff(item, btn));
         box.appendChild(card);
       });
@@ -724,7 +767,16 @@
         } else {
           bar.style.width = "0%";
         }
-        if (btn) btn.disabled = this.money < item.cost;
+        if (btn) {
+          const afford = this.money >= item.cost;
+          if (btn.disabled === afford) {
+            btn.disabled = !afford;
+            btn.textContent = (afford ? "Buy " : "") + fmtMoney(item.cost);
+            btn.classList.toggle("ig-buy-ready", afford);
+          }
+          const active = item.kind === "arm" ? this.lucky.armed : this.buffActive(item.id);
+          card.classList.toggle("ig-afford", afford && !active);
+        }
       });
     }
 
