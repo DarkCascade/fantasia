@@ -1,4 +1,4 @@
-import{t as e}from"./shaderStore-D-XQlhUT.js";import{G as t,K as n,_t as r,a as i,b as a,w as o,x as s,y as c}from"./index-DedpuuKT.js";var l=`gaussianSplattingPixelShader`,u=`#include<clipPlaneFragmentDeclaration>
+import{t as e}from"./shaderStore-D-XQlhUT.js";import{G as t,K as n,_t as r,a as i,b as a,w as o,x as s,y as c}from"./index-B7Qity4A.js";var l=`gaussianSplattingPixelShader`,u=`#include<clipPlaneFragmentDeclaration>
 #include<logDepthDeclaration>
 #include<fogFragmentDeclaration>
 #ifdef GPUPICKER_DEPTH

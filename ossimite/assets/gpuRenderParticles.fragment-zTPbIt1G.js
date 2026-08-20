@@ -1,4 +1,4 @@
-import{t as e}from"./shaderStore-D-XQlhUT.js";import{A as t,D as n,E as r,H as i,J as a,N as o,O as s,V as c,k as l}from"./index-DedpuuKT.js";var u=`gpuRenderParticlesPixelShader`,d=`var diffuseSamplerSampler: sampler;var diffuseSampler: texture_2d<f32>;varying vUV: vec2f;varying vColor: vec4f;
+import{t as e}from"./shaderStore-D-XQlhUT.js";import{A as t,D as n,E as r,H as i,J as a,N as o,O as s,V as c,k as l}from"./index-B7Qity4A.js";var u=`gpuRenderParticlesPixelShader`,d=`var diffuseSamplerSampler: sampler;var diffuseSampler: texture_2d<f32>;varying vUV: vec2f;varying vColor: vec4f;
 #include<clipPlaneFragmentDeclaration>
 #include<imageProcessingDeclaration>
 #include<logDepthDeclaration>
