@@ -2,13 +2,18 @@
  * Indie Grind — an incremental game about being a professional developer
  * trying to break into the games industry.
  *
- * Click "Write GameObject" to code one GameObject at a time (a fill bar
- * paces each write). Once at least three are banked, "Create Game!" sells
- * the whole inventory in one go: a review score rolls, and the payout is
- * inventory x per-object value x a multiplier derived from that score.
- * Money buys permanent upgrade tiers (faster writes, better polish, junior
- * hires that auto-write, QA that improves reviews) and temporary shop buffs
- * (coffee, energy drinks, an investor pitch, a one-shot lucky commit).
+ * Each GameObject is written in one of four categories (Gameplay, Audio,
+ * Visual, Juice) — pick a category card to start that write; a fill bar
+ * paces it at that category's own base time. Every category also carries a
+ * Caliber bonus, and a game's total Caliber (the sum of every banked
+ * GameObject's category bonus, plus a 1.0 base) is a flat multiplier on the
+ * sale. Once at least three GameObjects are banked, "Create Game!" sells the
+ * whole inventory in one go through a modal that breaks the payout down:
+ * base value, each category's contribution, the combined Caliber, and the
+ * final total. Money buys permanent upgrade tiers (faster writes, better
+ * polish, junior hires that auto-write a random category, QA that improves
+ * reviews) and temporary shop buffs (coffee, energy drinks, an investor
+ * pitch, a one-shot lucky commit).
  *
  * Unlike the Phaser games, this is a DOM overlay (like Gloom Hollow 3D's
  * HUD) — the whole "game" is numbers, buttons and panels, so a canvas buys
@@ -21,20 +26,35 @@
 
   /* ---------- tuning ---------- */
 
-  const BASE_WRITE_TIME = 2.0; // seconds per manual GameObject
   const BASE_VALUE = 8; // $ per GameObject before upgrades
+  const BASE_CALIBER = 1.0; // every game starts at this multiplier before category bonuses
   const BASE_REVIEW = { min: 35, max: 90 };
   const SELL_MIN_OBJECTS = 3;
   const TICK_MS = 100;
   const MAX_ICONS_SHOWN = 10;
   const LOG_MAX = 6;
 
+  // Base creation time (seconds) and Caliber bonus per category. Coding
+  // Speed / Coffee scale all four proportionally via speedMult().
+  const CATEGORIES = [
+    { id: "gameplay", label: "Gameplay", icon: "🎮", color: "#ff6b5a", dark: "#7a2f26", caliber: 1.75, baseTime: 3.0 },
+    { id: "audio", label: "Audio", icon: "🎵", color: "#3ddad0", dark: "#1a6b66", caliber: 1.3, baseTime: 2.6 },
+    { id: "visual", label: "Visual", icon: "🎨", color: "#e074f0", dark: "#6a3573", caliber: 1.4, baseTime: 2.8 },
+    { id: "juice", label: "Juice", icon: "✨", color: "#ffcf3f", dark: "#7a5f1a", caliber: 2.0, baseTime: 4.0 },
+  ];
+  const CATEGORY_MAP = {};
+  CATEGORIES.forEach((c) => {
+    CATEGORY_MAP[c.id] = c;
+  });
+
+  // Fractions of a category's base time, not absolute seconds, so one speed
+  // track scales all four categories proportionally.
   const SPEED_TIERS = [
-    { cost: 20, time: 1.55, name: "Touch Typing" },
-    { cost: 55, time: 1.15, name: "Dual Monitors" },
-    { cost: 150, time: 0.85, name: "Mechanical Keyboard" },
-    { cost: 400, time: 0.62, name: "Vim Mastery" },
-    { cost: 950, time: 0.45, name: "AI Autocomplete" },
+    { cost: 20, mult: 0.78, name: "Touch Typing" },
+    { cost: 55, mult: 0.58, name: "Dual Monitors" },
+    { cost: 150, mult: 0.43, name: "Mechanical Keyboard" },
+    { cost: 400, mult: 0.31, name: "Vim Mastery" },
+    { cost: 950, mult: 0.23, name: "AI Autocomplete" },
   ];
 
   const VALUE_TIERS = [
@@ -119,6 +139,14 @@
     return Math.floor(min + Math.random() * (max - min + 1));
   }
 
+  function hexToRgba(hex, alpha) {
+    const v = hex.replace("#", "");
+    const r = parseInt(v.substring(0, 2), 16);
+    const g = parseInt(v.substring(2, 4), 16);
+    const b = parseInt(v.substring(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+
   function scoreColor(score) {
     if (score >= 90) return "#ffd23f";
     if (score >= 75) return "#7fd858";
@@ -147,11 +175,7 @@
     '<div class="ig-inv-head"><span class="ig-inv-label">GameObjects</span><span class="ig-inv-count" id="ig-inv-count">0</span></div>' +
     '<div class="ig-inv-icons" id="ig-inv-icons"></div>' +
     "</div>" +
-    '<button class="ig-write-btn" id="ig-write-btn" type="button">' +
-    '<span class="ig-write-label">Write GameObject</span>' +
-    '<span class="ig-write-sub" id="ig-write-sub">click to code · 2.00s</span>' +
-    '<div class="ig-write-progress"><div class="ig-write-progress-fill" id="ig-write-fill"></div></div>' +
-    "</button>" +
+    '<div class="ig-cat-grid" id="ig-cat-grid"></div>' +
     '<button class="ig-create-btn" id="ig-create-btn" type="button" disabled>' +
     '<span class="ig-create-label">🚀 Create Game!</span>' +
     '<span class="ig-create-sub" id="ig-create-sub">Need 3 GameObjects</span>' +
@@ -170,7 +194,12 @@
     '<div class="ig-log" id="ig-log"></div>' +
     "</div>" +
     '<div class="ig-fx-layer" id="ig-fx-layer"></div>' +
-    '<div class="ig-review-layer" id="ig-review-layer"></div>' +
+    '<div class="ig-modal-backdrop" id="ig-modal-backdrop">' +
+    '<div class="ig-modal" id="ig-modal">' +
+    '<button class="ig-modal-close" id="ig-modal-close" type="button" aria-label="Close">×</button>' +
+    '<div id="ig-modal-body"></div>' +
+    "</div>" +
+    "</div>" +
     "</div>";
 
   const CSS =
@@ -204,16 +233,23 @@
     "display:flex;align-items:center;justify-content:center;font-size:12px;animation:ig-icon-in .28s cubic-bezier(.34,1.56,.64,1);}" +
     ".ig-inv-icon.ig-overflow{background:linear-gradient(160deg,#ffd98f,#d08a4a);font-size:11px;font-weight:700;color:#3a2500;}" +
     "@keyframes ig-icon-in{0%{transform:scale(0) rotate(-30deg);opacity:0;}70%{transform:scale(1.2) rotate(6deg);opacity:1;}100%{transform:scale(1) rotate(0);}}" +
-    ".ig-write-btn{position:relative;overflow:hidden;padding:16px 18px;border-radius:16px;border:2px solid #8fbfff;cursor:pointer;text-align:center;" +
-    "background:linear-gradient(180deg,#4a7fd0 0%,#2a4f96 100%);box-shadow:0 6px 0 #17305e,0 12px 22px rgba(0,0,0,.4);transition:transform .06s ease,box-shadow .06s ease;}" +
-    ".ig-write-btn:active:not(:disabled){transform:translateY(4px);box-shadow:0 2px 0 #17305e,0 6px 14px rgba(0,0,0,.35);}" +
-    ".ig-write-btn:disabled{cursor:default;filter:saturate(.6);}" +
-    ".ig-write-label{display:block;font-size:clamp(17px,4.6vw,21px);font-weight:800;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.35);}" +
-    ".ig-write-sub{display:block;margin-top:2px;font-size:12px;color:#d7e6ff;opacity:.85;}" +
-    ".ig-write-progress{margin-top:10px;height:8px;border-radius:6px;background:rgba(0,0,0,.35);overflow:hidden;}" +
-    ".ig-write-progress-fill{height:100%;width:0%;border-radius:6px;background:linear-gradient(90deg,#9dffd0,#5aa7ff,#9dffd0);background-size:200% 100%;" +
-    "animation:ig-shimmer 1.1s linear infinite;transition:width .1s linear;}" +
-    "@keyframes ig-shimmer{to{background-position:-200% 0;}}" +
+    ".ig-cat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}" +
+    ".ig-cat-card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:4px;padding:11px 11px 10px;border-radius:14px;" +
+    "border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.04);transition:box-shadow .2s ease,opacity .2s ease;}" +
+    ".ig-cat-card.ig-cat-busy{opacity:.5;}" +
+    ".ig-cat-card.ig-cat-active{animation:ig-cat-pulse 1s ease-in-out infinite;}" +
+    "@keyframes ig-cat-pulse{0%,100%{box-shadow:0 0 12px var(--cat-glow,rgba(255,255,255,.4));}50%{box-shadow:0 0 26px var(--cat-glow,rgba(255,255,255,.7));}}" +
+    ".ig-cat-top{display:flex;align-items:center;gap:8px;}" +
+    ".ig-cat-icon{font-size:20px;line-height:1;}" +
+    ".ig-cat-name{font-weight:800;font-size:13px;}" +
+    ".ig-cat-caliber{font-size:10px;opacity:.8;margin-top:1px;}" +
+    ".ig-cat-time{font-size:16px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;}" +
+    ".ig-cat-progress{margin-top:2px;height:6px;border-radius:4px;background:rgba(0,0,0,.35);overflow:hidden;}" +
+    ".ig-cat-progress-fill{height:100%;width:0%;border-radius:4px;transition:width .1s linear;}" +
+    ".ig-cat-btn{margin-top:6px;padding:8px;border-radius:9px;border:none;font-weight:800;font-size:12px;cursor:pointer;color:#fff;" +
+    "text-shadow:0 1px 2px rgba(0,0,0,.5);box-shadow:0 3px 0 rgba(0,0,0,.4);transition:transform .06s ease,box-shadow .06s ease;}" +
+    ".ig-cat-btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4);}" +
+    ".ig-cat-btn:disabled{cursor:default;filter:grayscale(.5) saturate(.4);opacity:.55;}" +
     ".ig-create-btn{padding:14px 18px;border-radius:16px;border:2px solid #ffe9ad;cursor:pointer;text-align:center;" +
     "background:linear-gradient(180deg,#5a4b1a 0%,#332608 100%);box-shadow:0 6px 0 #1c1404;transition:transform .06s ease,box-shadow .06s ease,filter .2s ease;filter:saturate(.5);}" +
     ".ig-create-btn:not(:disabled){filter:saturate(1);background:linear-gradient(180deg,#ffe7a3 0%,#f0b94a 100%);box-shadow:0 6px 0 #8a5a12,0 0 26px rgba(255,210,63,.55);animation:ig-ready-glow 1.6s ease-in-out infinite;}" +
@@ -257,22 +293,41 @@
     ".ig-log-entry.ig-log-sale{border-left-color:#ffd23f;color:#ffe7a3;}" +
     ".ig-log-entry.ig-log-milestone{border-left-color:#7fd858;color:#d8ffd0;font-weight:700;}" +
     "@keyframes ig-log-in{0%{opacity:0;transform:translateY(-6px);}100%{opacity:1;transform:translateY(0);}}" +
-    ".ig-fx-layer,.ig-review-layer{position:absolute;inset:0;pointer-events:none;z-index:40;overflow:hidden;}" +
+    ".ig-fx-layer{position:absolute;inset:0;pointer-events:none;z-index:40;overflow:hidden;}" +
     ".ig-particle{position:absolute;width:8px;height:8px;border-radius:2px;will-change:transform,opacity;animation:ig-particle-fly .8s ease-out forwards;}" +
     "@keyframes ig-particle-fly{0%{transform:translate(0,0) rotate(0deg) scale(1);opacity:1;}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(.4);opacity:0;}}" +
     ".ig-float-text{position:absolute;transform:translate(-50%,0);font-weight:800;font-size:16px;white-space:nowrap;text-shadow:0 2px 4px rgba(0,0,0,.6);" +
     "animation:ig-float-up .9s ease-out forwards;}" +
     "@keyframes ig-float-up{0%{opacity:0;transform:translate(-50%,0) scale(.7);}15%{opacity:1;transform:translate(-50%,-6px) scale(1.1);}100%{opacity:0;transform:translate(-50%,-52px) scale(1);}}" +
-    ".ig-review-popup{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) scale(.4);text-align:center;padding:18px 26px;border-radius:16px;" +
-    "background:rgba(10,7,26,.92);border:2px solid rgba(255,255,255,.25);box-shadow:0 20px 50px rgba(0,0,0,.6);animation:ig-review-pop 1.9s ease forwards;}" +
-    "@keyframes ig-review-pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.4);}12%{opacity:1;transform:translate(-50%,-50%) scale(1.08);}20%{transform:translate(-50%,-50%) scale(1);}" +
-    "80%{opacity:1;transform:translate(-50%,-50%) scale(1);}100%{opacity:0;transform:translate(-50%,-62%) scale(.9);}}" +
-    ".ig-review-score{font-size:38px;font-weight:900;}" +
-    ".ig-review-title{font-size:14px;font-weight:700;margin-top:2px;}" +
-    ".ig-review-payout{margin-top:6px;font-size:20px;font-weight:800;color:#9dff9d;}" +
     ".ig-shake{animation:ig-shake .35s ease;}" +
     "@keyframes ig-shake{0%,100%{transform:translate(0,0);}20%{transform:translate(-4px,2px);}40%{transform:translate(4px,-2px);}60%{transform:translate(-3px,1px);}80%{transform:translate(3px,-1px);}}" +
-    "@media(max-width:520px){.ig-topbar{padding:8px 10px;}.ig-body{padding:12px 10px 26px;gap:14px;}}";
+    /* Sale modal: a real overlay, dismissed by its × or a click/tap on the
+       backdrop itself (not anything inside the card, since that's not
+       "outside" it). */
+    ".ig-modal-backdrop{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:5vw;" +
+    "background:rgba(4,2,14,.72);}" +
+    ".ig-modal-backdrop.ig-open{display:flex;}" +
+    ".ig-modal{position:relative;max-width:420px;width:100%;max-height:86vh;overflow-y:auto;padding:28px 22px 22px;border-radius:20px;text-align:center;" +
+    "background:linear-gradient(180deg,#241d54 0%,#120e28 100%);border:2px solid rgba(255,255,255,.22);box-shadow:0 24px 60px rgba(0,0,0,.65);" +
+    "animation:ig-modal-pop .3s cubic-bezier(.34,1.56,.64,1);}" +
+    "@keyframes ig-modal-pop{0%{opacity:0;transform:scale(.82) translateY(14px);}100%{opacity:1;transform:scale(1) translateY(0);}}" +
+    ".ig-modal-close{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;" +
+    "background:rgba(255,255,255,.12);color:#fff0d0;font-size:18px;line-height:1;}" +
+    ".ig-modal-close:active{transform:scale(.9);}" +
+    ".ig-review-score{font-size:38px;font-weight:900;}" +
+    ".ig-review-title{font-size:14px;font-weight:700;margin-top:2px;opacity:.9;}" +
+    ".ig-breakdown{margin-top:16px;display:flex;flex-direction:column;gap:6px;text-align:left;}" +
+    ".ig-bd-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;padding:7px 10px;border-radius:9px;" +
+    "background:rgba(255,255,255,.05);border-left:3px solid rgba(255,255,255,.25);opacity:0;animation:ig-bd-in .3s ease forwards;}" +
+    ".ig-bd-row span:first-child{opacity:.9;}" +
+    ".ig-bd-row span:last-child{font-weight:700;font-variant-numeric:tabular-nums;}" +
+    ".ig-bd-base{font-weight:700;}" +
+    ".ig-bd-caliber{font-weight:800;color:#ffd23f;border-left-color:#ffd23f;margin-top:2px;background:rgba(255,210,63,.08);}" +
+    ".ig-bd-final{font-weight:900;font-size:15px;color:#9dff9d;border-left-color:#9dff9d;margin-top:6px;padding-top:10px;" +
+    "border-top:1px dashed rgba(255,255,255,.25);background:rgba(157,255,157,.08);}" +
+    "@keyframes ig-bd-in{0%{opacity:0;transform:translateX(-10px);}100%{opacity:1;transform:translateX(0);}}" +
+    "@media(max-width:520px){.ig-topbar{padding:8px 10px;}.ig-body{padding:12px 10px 26px;gap:14px;}}" +
+    "@media(max-width:360px){.ig-cat-grid{grid-template-columns:1fr;}}";
 
   /* ---------- game class ---------- */
 
@@ -280,11 +335,11 @@
     constructor(root) {
       this.root = root;
       this.money = 0;
-      this.gameObjects = 0;
+      this.inventory = { gameplay: 0, audio: 0, visual: 0, juice: 0 };
       this.levels = { speed: 0, value: 0, auto: 0, review: 0 };
       this.buffs = {}; // id -> expiresAt (ms epoch)
       this.lucky = { armed: false, expiresAt: 0 };
-      this.writing = false;
+      this.writingCat = null;
       this.writeElapsed = 0;
       this.autoAccum = 0;
       this.milestoneIdx = 0;
@@ -296,27 +351,31 @@
         flavor: root.querySelector("#ig-flavor"),
         invCount: root.querySelector("#ig-inv-count"),
         invIcons: root.querySelector("#ig-inv-icons"),
-        writeBtn: root.querySelector("#ig-write-btn"),
-        writeSub: root.querySelector("#ig-write-sub"),
-        writeFill: root.querySelector("#ig-write-fill"),
+        catGrid: root.querySelector("#ig-cat-grid"),
         createBtn: root.querySelector("#ig-create-btn"),
         createSub: root.querySelector("#ig-create-sub"),
         upgradeList: root.querySelector("#ig-upgrade-list"),
         shopList: root.querySelector("#ig-shop-list"),
         log: root.querySelector("#ig-log"),
         fx: root.querySelector("#ig-fx-layer"),
-        reviewLayer: root.querySelector("#ig-review-layer"),
+        modalBackdrop: root.querySelector("#ig-modal-backdrop"),
+        modalBody: root.querySelector("#ig-modal-body"),
+        modalClose: root.querySelector("#ig-modal-close"),
       };
 
-      this.el.writeBtn.addEventListener("click", () => this.startWrite());
       this.el.createBtn.addEventListener("click", () => this.sellAll());
+      this.el.modalClose.addEventListener("click", () => this.closeModal());
+      this.el.modalBackdrop.addEventListener("click", (e) => {
+        if (e.target === this.el.modalBackdrop) this.closeModal();
+      });
       root.querySelector('[data-act="menu"]').addEventListener("click", () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       });
 
+      this.renderCategoryCards();
       this.renderUpgrades();
       this.renderShop();
-      this.updateWriteSub();
+      this.updateCreateSub();
       this.pickFlavor(true);
       this.addLog("Day one. Time to write your first GameObject.", "");
 
@@ -325,11 +384,16 @@
 
     /* ---------- derived stats ---------- */
 
-    writeTime() {
+    speedMult() {
       const lvl = this.levels.speed;
-      let t = lvl === 0 ? BASE_WRITE_TIME : SPEED_TIERS[lvl - 1].time;
-      if (this.buffActive("coffee")) t *= 0.5;
-      return Math.max(0.15, t);
+      let m = lvl === 0 ? 1 : SPEED_TIERS[lvl - 1].mult;
+      if (this.buffActive("coffee")) m *= 0.5;
+      return m;
+    }
+
+    writeTimeFor(catId) {
+      const cat = CATEGORY_MAP[catId];
+      return Math.max(0.15, cat.baseTime * this.speedMult());
     }
 
     saleValue() {
@@ -355,6 +419,14 @@
       return !!this.buffs[id] && this.buffs[id] > Date.now();
     }
 
+    totalInventory() {
+      return CATEGORIES.reduce((sum, c) => sum + (this.inventory[c.id] || 0), 0);
+    }
+
+    currentCaliber() {
+      return CATEGORIES.reduce((sum, c) => sum + (this.inventory[c.id] || 0) * c.caliber, BASE_CALIBER);
+    }
+
     /* ---------- main loop ---------- */
 
     tick() {
@@ -377,28 +449,30 @@
         this.addLog("Your Lucky Commit went stale.", "");
       }
 
-      // auto production
+      // auto production — each hire writes a random category, same as a human would
       const rate = this.autoRate();
       if (rate > 0) {
         this.autoAccum += rate * dt;
         while (this.autoAccum >= 1) {
           this.autoAccum -= 1;
-          this.addGameObject(false);
+          const randCat = CATEGORIES[randInt(0, CATEGORIES.length - 1)].id;
+          this.addGameObject(randCat, false);
         }
       }
 
       // manual write progress
-      if (this.writing) {
+      if (this.writingCat) {
         this.writeElapsed += dt;
-        const target = this.writeTime();
+        const target = this.writeTimeFor(this.writingCat);
         const pct = Math.min(1, this.writeElapsed / target);
-        this.el.writeFill.style.width = pct * 100 + "%";
+        const els = this.catEls[this.writingCat];
+        els.fill.style.width = pct * 100 + "%";
         if (pct >= 1) {
-          this.writing = false;
+          const cat = this.writingCat;
+          this.writingCat = null;
           this.writeElapsed = 0;
-          this.el.writeBtn.disabled = false;
-          this.el.writeFill.style.width = "0%";
-          this.addGameObject(true);
+          this.finishWriteUI(cat);
+          this.addGameObject(cat, true);
         }
       }
 
@@ -411,11 +485,11 @@
 
       if (buffsChanged) {
         this.renderShop();
+        this.updateCategoryTimes();
       } else {
         this.updateShopTimers();
       }
       this.updateUpgradeAffordability();
-      this.updateWriteSub();
     }
 
     pickFlavor(force) {
@@ -425,56 +499,119 @@
       }
     }
 
-    /* ---------- writing / inventory ---------- */
+    /* ---------- categories / writing / inventory ---------- */
 
-    startWrite() {
-      if (this.writing) return;
-      this.writing = true;
+    renderCategoryCards() {
+      const box = this.el.catGrid;
+      box.innerHTML = "";
+      this.catEls = {};
+      CATEGORIES.forEach((cat) => {
+        const card = document.createElement("div");
+        card.className = "ig-cat-card";
+        card.style.borderColor = hexToRgba(cat.color, 0.55);
+        card.style.setProperty("--cat-glow", hexToRgba(cat.color, 0.55));
+        card.innerHTML =
+          '<div class="ig-cat-top">' +
+          '<span class="ig-cat-icon">' + cat.icon + "</span>" +
+          "<div>" +
+          '<div class="ig-cat-name">' + cat.label + "</div>" +
+          '<div class="ig-cat-caliber">+' + cat.caliber.toFixed(2) + " Caliber</div>" +
+          "</div>" +
+          "</div>" +
+          '<div class="ig-cat-time">' + this.writeTimeFor(cat.id).toFixed(2) + "s</div>" +
+          '<div class="ig-cat-progress"><div class="ig-cat-progress-fill"></div></div>' +
+          '<button class="ig-cat-btn" type="button">Write</button>';
+        const fill = card.querySelector(".ig-cat-progress-fill");
+        fill.style.background = "linear-gradient(90deg," + cat.dark + "," + cat.color + ")";
+        const btn = card.querySelector(".ig-cat-btn");
+        btn.style.background = "linear-gradient(180deg," + cat.color + "," + cat.dark + ")";
+        btn.addEventListener("click", () => this.startWrite(cat.id));
+        box.appendChild(card);
+        this.catEls[cat.id] = { card: card, btn: btn, fill: fill, time: card.querySelector(".ig-cat-time") };
+      });
+    }
+
+    updateCategoryTimes() {
+      CATEGORIES.forEach((cat) => {
+        const els = this.catEls[cat.id];
+        if (els) els.time.textContent = this.writeTimeFor(cat.id).toFixed(2) + "s";
+      });
+    }
+
+    startWrite(catId) {
+      if (this.writingCat) return;
+      this.writingCat = catId;
       this.writeElapsed = 0;
-      this.el.writeBtn.disabled = true;
+      Object.keys(this.catEls).forEach((id) => {
+        const els = this.catEls[id];
+        els.btn.disabled = true;
+        if (id !== catId) els.card.classList.add("ig-cat-busy");
+      });
+      this.catEls[catId].card.classList.add("ig-cat-active");
     }
 
-    updateWriteSub() {
-      this.el.writeSub.textContent = this.writing
-        ? "coding..."
-        : "click to code · " + this.writeTime().toFixed(2) + "s";
+    finishWriteUI(catId) {
+      Object.keys(this.catEls).forEach((id) => {
+        const els = this.catEls[id];
+        els.btn.disabled = false;
+        els.card.classList.remove("ig-cat-busy");
+        els.fill.style.width = "0%";
+      });
+      this.catEls[catId].card.classList.remove("ig-cat-active");
     }
 
-    addGameObject(big) {
-      this.gameObjects += 1;
-      this.el.invCount.textContent = fmtNum(this.gameObjects);
+    addGameObject(catId, big) {
+      this.inventory[catId] = (this.inventory[catId] || 0) + 1;
+      const total = this.totalInventory();
+      this.el.invCount.textContent = fmtNum(total);
       this.el.invCount.classList.remove("ig-pop");
       void this.el.invCount.offsetWidth;
       this.el.invCount.classList.add("ig-pop");
       this.renderInvIcons();
 
       if (big) {
-        const r = this.el.writeBtn.getBoundingClientRect();
-        this.floatText(r.left + r.width / 2, r.top, "+1", "#9dffd0");
-        this.spawnParticles(r.left + r.width / 2, r.top + r.height / 2, "#5aa7ff", 8);
+        const cat = CATEGORY_MAP[catId];
+        const r = this.catEls[catId].card.getBoundingClientRect();
+        this.floatText(r.left + r.width / 2, r.top, "+1", cat.color);
+        this.spawnParticles(r.left + r.width / 2, r.top + r.height / 2, cat.color, 8);
       }
 
-      const ready = this.gameObjects >= SELL_MIN_OBJECTS;
-      this.el.createBtn.disabled = !ready;
-      this.el.createSub.textContent = ready
-        ? "Sell " + this.gameObjects + " for ~" + fmtMoney(this.gameObjects * this.saleValue())
-        : "Need " + (SELL_MIN_OBJECTS - this.gameObjects) + " more GameObject" + (SELL_MIN_OBJECTS - this.gameObjects === 1 ? "" : "s");
+      this.el.createBtn.disabled = total < SELL_MIN_OBJECTS;
+      this.updateCreateSub();
+    }
+
+    updateCreateSub() {
+      const total = this.totalInventory();
+      if (total < SELL_MIN_OBJECTS) {
+        const need = SELL_MIN_OBJECTS - total;
+        this.el.createSub.textContent = "Need " + need + " more GameObject" + (need === 1 ? "" : "s");
+        return;
+      }
+      const caliber = this.currentCaliber();
+      const est = Math.round(total * this.saleValue() * caliber);
+      this.el.createSub.textContent = "Sell " + total + " (Caliber " + caliber.toFixed(2) + ") for ~" + fmtMoney(est);
     }
 
     renderInvIcons() {
       const box = this.el.invIcons;
       box.innerHTML = "";
-      const shown = Math.min(this.gameObjects, MAX_ICONS_SHOWN);
-      for (let i = 0; i < shown; i++) {
-        const d = document.createElement("div");
-        d.className = "ig-inv-icon";
-        d.textContent = "📦";
-        box.appendChild(d);
+      const total = this.totalInventory();
+      let shown = 0;
+      for (let i = 0; i < CATEGORIES.length && shown < MAX_ICONS_SHOWN; i++) {
+        const cat = CATEGORIES[i];
+        const n = this.inventory[cat.id] || 0;
+        for (let j = 0; j < n && shown < MAX_ICONS_SHOWN; j++, shown++) {
+          const d = document.createElement("div");
+          d.className = "ig-inv-icon";
+          d.style.background = "linear-gradient(160deg," + cat.color + "," + cat.dark + ")";
+          d.textContent = cat.icon;
+          box.appendChild(d);
+        }
       }
-      if (this.gameObjects > MAX_ICONS_SHOWN) {
+      if (total > MAX_ICONS_SHOWN) {
         const d = document.createElement("div");
         d.className = "ig-inv-icon ig-overflow";
-        d.textContent = "+" + (this.gameObjects - MAX_ICONS_SHOWN);
+        d.textContent = "+" + (total - MAX_ICONS_SHOWN);
         box.appendChild(d);
       }
     }
@@ -482,13 +619,16 @@
     /* ---------- selling ---------- */
 
     sellAll() {
-      if (this.gameObjects < SELL_MIN_OBJECTS) return;
-      const sold = this.gameObjects;
-      this.gameObjects = 0;
+      const total = this.totalInventory();
+      if (total < SELL_MIN_OBJECTS) return;
+      const counts = Object.assign({}, this.inventory);
+      CATEGORIES.forEach((c) => {
+        this.inventory[c.id] = 0;
+      });
       this.el.invCount.textContent = "0";
       this.renderInvIcons();
       this.el.createBtn.disabled = true;
-      this.el.createSub.textContent = "Need " + SELL_MIN_OBJECTS + " GameObjects";
+      this.updateCreateSub();
 
       let score;
       if (this.lucky.armed) {
@@ -501,14 +641,30 @@
         score = randInt(range.min, range.max);
       }
 
-      const multiplier = score / 70;
+      const reviewMult = score / 70;
       const perObj = this.saleValue();
-      const payout = Math.max(1, Math.round(sold * perObj * multiplier));
-      this.addMoney(payout);
+      const baseValue = total * perObj * reviewMult;
+
+      const catContribs = [];
+      let caliber = BASE_CALIBER;
+      CATEGORIES.forEach((cat) => {
+        const n = counts[cat.id] || 0;
+        if (n > 0) {
+          const subtotal = n * cat.caliber;
+          caliber += subtotal;
+          catContribs.push({ cat: cat, count: n, subtotal: subtotal });
+        }
+      });
+
+      const finalValue = Math.max(1, Math.round(baseValue * caliber));
+      this.addMoney(finalValue);
 
       const reviewer = REVIEWERS[randInt(0, REVIEWERS.length - 1)];
-      this.addLog(reviewer + ": " + score + "/100 — earned " + fmtMoney(payout), "ig-log-sale");
-      this.showReviewPopup(score, payout);
+      this.addLog(
+        reviewer + ": " + score + "/100 — earned " + fmtMoney(finalValue) + " (Caliber " + caliber.toFixed(2) + ")",
+        "ig-log-sale"
+      );
+      this.showSaleModal(score, baseValue, catContribs, caliber, finalValue);
 
       const r = this.el.createBtn.getBoundingClientRect();
       this.spawnParticles(r.left + r.width / 2, r.top + r.height / 2, scoreColor(score), 22);
@@ -519,16 +675,35 @@
       this.checkMilestones();
     }
 
-    showReviewPopup(score, payout) {
-      const d = document.createElement("div");
-      d.className = "ig-review-popup";
-      d.style.color = scoreColor(score);
-      d.innerHTML =
-        '<div class="ig-review-score">' + score + "/100</div>" +
+    showSaleModal(score, baseValue, catContribs, caliber, finalValue) {
+      const step = 70;
+      let delay = 0;
+      let rows = "";
+
+      rows += '<div class="ig-bd-row ig-bd-base" style="animation-delay:' + delay + 'ms"><span>Base Value</span><span>' + fmtMoney(baseValue) + "</span></div>";
+      delay += step;
+      rows += '<div class="ig-bd-row" style="border-left-color:rgba(255,255,255,.4);animation-delay:' + delay + 'ms"><span>Base Caliber</span><span>×' + BASE_CALIBER.toFixed(2) + "</span></div>";
+      delay += step;
+      catContribs.forEach((c) => {
+        rows +=
+          '<div class="ig-bd-row" style="border-left-color:' + c.cat.color + ";animation-delay:" + delay + 'ms">' +
+          "<span>" + c.cat.icon + " " + c.cat.label + " ×" + c.count + "</span><span>+" + c.subtotal.toFixed(2) + "</span></div>";
+        delay += step;
+      });
+      rows += '<div class="ig-bd-row ig-bd-caliber" style="animation-delay:' + delay + 'ms"><span>Caliber</span><span>×' + caliber.toFixed(2) + "</span></div>";
+      delay += step;
+      rows += '<div class="ig-bd-row ig-bd-final" style="animation-delay:' + delay + 'ms"><span>Final Value</span><span>' + fmtMoney(finalValue) + "</span></div>";
+
+      this.el.modalBody.innerHTML =
+        '<div class="ig-review-score" style="color:' + scoreColor(score) + '">' + score + "/100</div>" +
         '<div class="ig-review-title">' + scoreTitle(score) + "</div>" +
-        '<div class="ig-review-payout">+' + fmtMoney(payout) + "</div>";
-      this.el.reviewLayer.appendChild(d);
-      setTimeout(() => d.remove(), 1950);
+        '<div class="ig-breakdown">' + rows + "</div>";
+
+      this.el.modalBackdrop.classList.add("ig-open");
+    }
+
+    closeModal() {
+      this.el.modalBackdrop.classList.remove("ig-open");
     }
 
     checkMilestones() {
@@ -666,7 +841,7 @@
 
     trackCurrentDesc(track, level) {
       if (track.id === "speed") {
-        return "writes in " + this.writeTime().toFixed(2) + "s";
+        return Math.round(this.speedMult() * 100) + "% of base write time";
       }
       if (track.id === "value") {
         return fmtMoney(this.saleValue()) + " per GameObject";
@@ -691,11 +866,8 @@
       this.levels[track.id] = level + 1;
       this.addLog("Upgraded " + track.label + ": " + tier.name + ".", "");
       this.renderUpgrades();
-      this.updateWriteSub();
-      const ready = this.gameObjects >= SELL_MIN_OBJECTS;
-      if (ready) {
-        this.el.createSub.textContent = "Sell " + this.gameObjects + " for ~" + fmtMoney(this.gameObjects * this.saleValue());
-      }
+      this.updateCategoryTimes();
+      this.updateCreateSub();
     }
 
     /* ---------- shop ---------- */
@@ -745,6 +917,8 @@
       btn.classList.add("ig-flash");
       this.renderShop();
       this.renderUpgrades();
+      this.updateCategoryTimes();
+      this.updateCreateSub();
     }
 
     updateShopTimers() {
