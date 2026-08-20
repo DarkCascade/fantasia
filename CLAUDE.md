@@ -203,18 +203,39 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     charge as separate barks is strictly worse.
 - **Indie Grind** (`src/indie-grind.js`) — an incremental/idle game on the third
   slot of menu page 2, replacing the old Combat Sim. The player is a developer
-  trying to break into the games industry: click **Write GameObject** to code
-  one at a time (a fill bar paces each write at `writeTime()` seconds); once
-  the inventory holds at least `SELL_MIN_OBJECTS` (3), **Create Game!** lights
-  up and sells the whole inventory in one shot. A sale rolls a **review score**
-  (`reviewRange()`, widened by the QA upgrade track, or a guaranteed 95-99 if
-  the Lucky Commit buff is armed) and pays `sold × saleValue() × (score / 70)`
-  — so a 70 is neutral, better reviews are a real multiplier, not just
-  flavour. Four **permanent upgrade tracks** (`TRACKS`), each five tiers of
+  trying to break into the games industry, writing **GameObjects** in one of
+  four `CATEGORIES` — Gameplay, Audio, Visual, Juice — each a colored card
+  with its own base write time and its own **Caliber** bonus (1.75 / 1.3 / 1.4
+  / 2.0). Clicking a category's Write button is the only way to start a
+  write (`startWrite(catId)` locks all four cards until it resolves — one
+  write in flight at a time); `writeTimeFor(catId)` multiplies that
+  category's base time by `speedMult()`, so upgrades/Coffee scale all four
+  proportionally and each card's displayed time stays live. Once the
+  inventory holds at least `SELL_MIN_OBJECTS` (3) across any mix of
+  categories, **Create Game!** sells the lot. **Caliber is a flat multiplier
+  on the sale**, not a per-object price: `currentCaliber()` sums every banked
+  object's category bonus on top of a `BASE_CALIBER` of 1.0, so a batch of
+  five Juice objects (Caliber 11.0) is worth far more than five Gameplay
+  ones (Caliber 9.75) even at identical `saleValue()`. `sellAll()` rolls a
+  **review score** (`reviewRange()`, widened by the QA upgrade track, or a
+  guaranteed 95-99 if Lucky Commit is armed), computes
+  `baseValue = sold × saleValue() × (score / 70)`, then
+  `finalValue = round(baseValue × caliber)` — and opens a **modal**
+  (`showSaleModal`, `#ig-modal-backdrop`/`#ig-modal`) breaking that down row
+  by row: Base Value, Base Caliber, one colored row per category present,
+  the combined Caliber multiplier, and Final Value, each row staggering in
+  on its own `animation-delay` for pop. The modal is dismissed by its × or a
+  click directly on the backdrop (`e.target === modalBackdrop`, so clicks
+  inside the card don't count as "outside"); nothing else pauses while it's
+  open. Four **permanent upgrade tracks** (`TRACKS`), each five tiers of
   increasing cost, are bought with money and never expire: Coding Speed
-  (`writeTime()`), Game Polish (`saleValue()`), Team Hires (`autoRate()` —
-  auto-writes GameObjects on a `tick()` accumulator, no clicking required),
-  and Quality Assurance (`reviewRange()`). The **shop** sells `SHOP_ITEMS`,
+  (`speedMult()`), Game Polish (`saleValue()`), Team Hires (`autoRate()` —
+  auto-writes a **random category** on a `tick()` accumulator, no clicking
+  required), and Quality Assurance (`reviewRange()`). Upgrade buttons refresh
+  every tick (`updateUpgradeAffordability()`), not just on purchase, so a
+  tier that just became affordable from a sale never sits stuck looking
+  disabled — the same live-affordability language (glowing green "Buy $X",
+  gold "✓ MAX") is shared by the shop panel. The **shop** sells `SHOP_ITEMS`,
   timed buffs bought with money that stack multiplicatively with the
   permanent tracks while active — Coffee (2x speed), Energy Drink (2x auto
   output), Investor Pitch (1.5x sale value) — plus Lucky Commit, which isn't
