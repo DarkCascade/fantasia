@@ -50,6 +50,7 @@ jobs:
           cp -r src _site/
           cp -r vendor _site/
           cp -r museum _site/
+          cp -r sirfish _site/
 
       - name: Stamp deploy version
         # Write a tiny version.json into the site so you can confirm the live
