@@ -119,8 +119,8 @@
       opacity: 0.85;
     }
 
-    /* Two-page carousel of game buttons. Pages slide horizontally; the
-       off-screen page is clipped by #menu-screen's overflow:hidden. */
+    /* Multi-page carousel of game buttons. Pages slide horizontally; the
+       off-screen pages are clipped by #menu-screen's overflow:hidden. */
     .menu-pages {
       position: relative;
       width: min(360px, 84vw);
@@ -133,27 +133,31 @@
       transition: transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* Page 1 stays in flow (gives the carousel its height); page 2 overlays it. */
+    /* Page 1 stays in flow (gives the carousel its height); later pages overlay it. */
     #page-1 {
       position: relative;
       transform: translateX(0);
     }
 
-    #page-2 {
+    #page-2,
+    #page-3 {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
-      transform: translateX(120%);
     }
 
-    #menu-screen[data-page="2"] #page-1 {
-      transform: translateX(-120%);
-    }
+    /* Default (page 1): pages 2 and 3 wait off to the right. */
+    #page-2 { transform: translateX(120%); }
+    #page-3 { transform: translateX(240%); }
 
-    #menu-screen[data-page="2"] #page-2 {
-      transform: translateX(0);
-    }
+    #menu-screen[data-page="2"] #page-1 { transform: translateX(-120%); }
+    #menu-screen[data-page="2"] #page-2 { transform: translateX(0); }
+    #menu-screen[data-page="2"] #page-3 { transform: translateX(120%); }
+
+    #menu-screen[data-page="3"] #page-1 { transform: translateX(-240%); }
+    #menu-screen[data-page="3"] #page-2 { transform: translateX(-120%); }
+    #menu-screen[data-page="3"] #page-3 { transform: translateX(0); }
 
     .menu-btn {
       font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
@@ -250,9 +254,9 @@
     .menu-arrow--left { left: clamp(16px, 5vw, 30px); }
     .menu-arrow:active { transform: scale(0.9); }
 
-    /* Show the right arrow on page 1, the left arrow on page 2. */
-    #menu-screen[data-page="2"] .menu-arrow--right,
-    #menu-screen:not([data-page="2"]) .menu-arrow--left {
+    /* Hide the right arrow on the last page, the left arrow on the first page. */
+    #menu-screen[data-page="3"] .menu-arrow--right,
+    #menu-screen:not([data-page="2"]):not([data-page="3"]) .menu-arrow--left {
       opacity: 0;
       pointer-events: none;
     }
@@ -363,6 +367,15 @@
             Star Catcher
           </button>
         </div>
+        <div class="menu-page" id="page-3" aria-hidden="true">
+          <button id="btn-sirfish" class="menu-btn menu-btn--secondary" type="button">
+            Sir Fish
+          </button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+        </div>
       </div>
     </div>
 
@@ -428,12 +441,21 @@
         if (typeof window.launchCosmicDash === "function") window.launchCosmicDash();
       });
 
-      // Page carousel: slide between the two pages of game buttons.
+      // Page carousel: step between the pages of game buttons.
+      var PAGE_COUNT = 3;
+      function currentPage() {
+        return parseInt(menu.dataset.page, 10) || 1;
+      }
       document.getElementById("page-next").addEventListener("click", function () {
-        menu.dataset.page = "2";
+        menu.dataset.page = String(Math.min(currentPage() + 1, PAGE_COUNT));
       });
       document.getElementById("page-prev").addEventListener("click", function () {
-        menu.dataset.page = "1";
+        menu.dataset.page = String(Math.max(currentPage() - 1, 1));
+      });
+
+      // Sir Fish (page 3) -> the Godot build served at sirfish/index.html.
+      document.getElementById("btn-sirfish").addEventListener("click", function () {
+        window.location.href = "sirfish/index.html";
       });
 
       document.getElementById("btn-indiegrind").addEventListener("click", function () {
