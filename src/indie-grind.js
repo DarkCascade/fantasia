@@ -9,11 +9,13 @@
  * GameObject's category bonus, plus a 1.0 base) is a flat multiplier on the
  * sale. Once at least three GameObjects are banked, "Create Game!" sells the
  * whole inventory in one go through a modal that breaks the payout down:
- * base value, each category's contribution, the combined Caliber, and the
- * final total. Money buys permanent upgrade tiers (faster writes, better
- * polish, junior hires that auto-write a random category, QA that improves
- * reviews) and temporary shop buffs (coffee, energy drinks, an investor
- * pitch, a one-shot lucky commit).
+ * base value, each category's contribution, the combined Caliber, the gross
+ * value, and then a flat 90% cut taken by a mysterious entity before the
+ * final total — a fixed, unmodifiable difficulty-curve experiment, not a
+ * normal economy lever. Money buys permanent upgrade tiers (faster writes,
+ * better polish, junior hires that auto-write a random category, QA that
+ * improves reviews) and temporary shop buffs (coffee, energy drinks, an
+ * investor pitch, a one-shot lucky commit).
  *
  * Unlike the Phaser games, this is a DOM overlay (like Gloom Hollow 3D's
  * HUD) — the whole "game" is numbers, buttons and panels, so a canvas buys
@@ -28,6 +30,11 @@
 
   const BASE_VALUE = 8; // $ per GameObject before upgrades
   const BASE_CALIBER = 1.0; // every game starts at this multiplier before category bonuses
+  // A mysterious entity takes a cut of every sale before the player sees a
+  // cent of it. There is no upgrade or buff that touches this — it's a flat
+  // difficulty-curve experiment, not a normal economy lever.
+  const ENTITY_CUT = 0.9;
+  const PLAYER_SHARE = 1 - ENTITY_CUT;
   const BASE_REVIEW = { min: 35, max: 90 };
   const SELL_MIN_OBJECTS = 3;
   const TICK_MS = 100;
@@ -323,6 +330,7 @@
     ".ig-bd-row span:last-child{font-weight:700;font-variant-numeric:tabular-nums;}" +
     ".ig-bd-base{font-weight:700;}" +
     ".ig-bd-caliber{font-weight:800;color:#ffd23f;border-left-color:#ffd23f;margin-top:2px;background:rgba(255,210,63,.08);}" +
+    ".ig-bd-cut{font-weight:800;color:#c77dff;border-left-color:#8a5cf0;margin-top:2px;background:rgba(138,92,240,.1);}" +
     ".ig-bd-final{font-weight:900;font-size:15px;color:#9dff9d;border-left-color:#9dff9d;margin-top:6px;padding-top:10px;" +
     "border-top:1px dashed rgba(255,255,255,.25);background:rgba(157,255,157,.08);}" +
     "@keyframes ig-bd-in{0%{opacity:0;transform:translateX(-10px);}100%{opacity:1;transform:translateX(0);}}" +
@@ -378,6 +386,7 @@
       this.updateCreateSub();
       this.pickFlavor(true);
       this.addLog("Day one. Time to write your first GameObject.", "");
+      this.addLog("A mysterious entity takes " + Math.round(ENTITY_CUT * 100) + "% of every sale. Nobody knows who they are.", "");
 
       this.interval = setInterval(() => this.tick(), TICK_MS);
     }
@@ -588,7 +597,7 @@
         return;
       }
       const caliber = this.currentCaliber();
-      const est = Math.round(total * this.saleValue() * caliber);
+      const est = Math.round(total * this.saleValue() * caliber * PLAYER_SHARE);
       this.el.createSub.textContent = "Sell " + total + " (Caliber " + caliber.toFixed(2) + ") for ~" + fmtMoney(est);
     }
 
@@ -656,15 +665,16 @@
         }
       });
 
-      const finalValue = Math.max(1, Math.round(baseValue * caliber));
+      const grossValue = baseValue * caliber;
+      const finalValue = Math.max(1, Math.round(grossValue * PLAYER_SHARE));
       this.addMoney(finalValue);
 
       const reviewer = REVIEWERS[randInt(0, REVIEWERS.length - 1)];
       this.addLog(
-        reviewer + ": " + score + "/100 — earned " + fmtMoney(finalValue) + " (Caliber " + caliber.toFixed(2) + ")",
+        reviewer + ": " + score + "/100 — earned " + fmtMoney(finalValue) + " (Caliber " + caliber.toFixed(2) + ", after the Entity's cut)",
         "ig-log-sale"
       );
-      this.showSaleModal(score, baseValue, catContribs, caliber, finalValue);
+      this.showSaleModal(score, baseValue, catContribs, caliber, grossValue, finalValue);
 
       const r = this.el.createBtn.getBoundingClientRect();
       this.spawnParticles(r.left + r.width / 2, r.top + r.height / 2, scoreColor(score), 22);
@@ -675,7 +685,7 @@
       this.checkMilestones();
     }
 
-    showSaleModal(score, baseValue, catContribs, caliber, finalValue) {
+    showSaleModal(score, baseValue, catContribs, caliber, grossValue, finalValue) {
       const step = 70;
       let delay = 0;
       let rows = "";
@@ -691,6 +701,10 @@
         delay += step;
       });
       rows += '<div class="ig-bd-row ig-bd-caliber" style="animation-delay:' + delay + 'ms"><span>Caliber</span><span>×' + caliber.toFixed(2) + "</span></div>";
+      delay += step;
+      rows += '<div class="ig-bd-row" style="border-left-color:rgba(255,255,255,.4);animation-delay:' + delay + 'ms"><span>Gross Value</span><span>' + fmtMoney(grossValue) + "</span></div>";
+      delay += step;
+      rows += '<div class="ig-bd-row ig-bd-cut" style="animation-delay:' + delay + 'ms"><span>👁️ The Entity\'s Cut</span><span>−' + Math.round(ENTITY_CUT * 100) + "%</span></div>";
       delay += step;
       rows += '<div class="ig-bd-row ig-bd-final" style="animation-delay:' + delay + 'ms"><span>Final Value</span><span>' + fmtMoney(finalValue) + "</span></div>";
 

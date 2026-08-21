@@ -220,14 +220,23 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   **review score** (`reviewRange()`, widened by the QA upgrade track, or a
   guaranteed 95-99 if Lucky Commit is armed), computes
   `baseValue = sold × saleValue() × (score / 70)`, then
-  `finalValue = round(baseValue × caliber)` — and opens a **modal**
-  (`showSaleModal`, `#ig-modal-backdrop`/`#ig-modal`) breaking that down row
-  by row: Base Value, Base Caliber, one colored row per category present,
-  the combined Caliber multiplier, and Final Value, each row staggering in
-  on its own `animation-delay` for pop. The modal is dismissed by its × or a
-  click directly on the backdrop (`e.target === modalBackdrop`, so clicks
-  inside the card don't count as "outside"); nothing else pauses while it's
-  open. Four **permanent upgrade tracks** (`TRACKS`), each five tiers of
+  `grossValue = baseValue × caliber`. A flat, currently-unmodifiable
+  **`ENTITY_CUT`** (0.9 — "a mysterious entity takes a cut of every sale,"
+  no upgrade or buff touches it) is applied on top:
+  `finalValue = round(grossValue × PLAYER_SHARE)` where
+  `PLAYER_SHARE = 1 - ENTITY_CUT`, i.e. the player only banks 10% of gross —
+  a deliberate difficulty-curve experiment, not a normal economy lever, so
+  don't "fix" the numbers it produces without being asked. `sellAll()` then
+  opens a **modal** (`showSaleModal`, `#ig-modal-backdrop`/`#ig-modal`)
+  breaking the whole chain down row by row: Base Value, Base Caliber, one
+  colored row per category present, the combined Caliber multiplier, Gross
+  Value, "👁️ The Entity's Cut" (−90%), and Final Value, each row staggering
+  in on its own `animation-delay` for pop — the pre-sale preview under
+  Create Game (`updateCreateSub()`) applies the same `PLAYER_SHARE` factor
+  so the estimate isn't misleadingly high. The modal is dismissed by its ×
+  or a click directly on the backdrop (`e.target === modalBackdrop`, so
+  clicks inside the card don't count as "outside"); nothing else pauses
+  while it's open. Four **permanent upgrade tracks** (`TRACKS`), each five tiers of
   increasing cost, are bought with money and never expire: Coding Speed
   (`speedMult()`), Game Polish (`saleValue()`), Team Hires (`autoRate()` —
   auto-writes a **random category** on a `tick()` accumulator, no clicking
