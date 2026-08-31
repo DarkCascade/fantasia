@@ -154,7 +154,7 @@
       rows += '<div class="line"><span>' + GOODS[id].name + '</span><b>' + S.hold[id] + ' tun</b></div>';
     }
     var used = heldTuns();
-    box.innerHTML = (any ? rows : '<p class="bt-empty">Empty. She is in ballast.</p>') +
+    box.innerHTML = (any ? rows : '<p class="bt-empty">Empty. She is sailing in ballast.</p>') +
       '<div class="bt-holdbar">' +
       meter('Stowage', used, HOLD_TUNS, 'hull', used + '/' + HOLD_TUNS + ' tun') +
       '</div>';
@@ -384,7 +384,8 @@
     var warn = [];
     if (heldTuns() === 0) warn.push('She sails in ballast — there is nothing aboard to sell.');
     if (S.ship.prov < (days + 12) * PROV_PER_DAY) {
-      warn.push('Victuals are thin for a passage of this length — the sea adds days of its own.');
+      warn.push('Victuals are thin for a passage of this length — the sea has a habit of ' +
+        'adding days of its own.');
     }
     $('bt-warn').textContent = warn.join('  ');
   }
@@ -415,7 +416,8 @@
     var cheapest = Math.min.apply(null, D.ENGLISH_GOODS.map(function (g) { return buyPrice(g.id); }));
     if (heldTuns() === 0 && S.money < cheapest) {
       S.money += 150;
-      logIt('Halliwell advanced ' + money(150) + ' against the next freight. He was not pleased about it.');
+      logIt('Halliwell advanced ' + money(150) + ' against the next freight. He was distinctly ' +
+        'not pleased about it.');
       render();
     }
 
@@ -424,8 +426,8 @@
       leg: 'out',
       goods: D.ENGLISH_GOODS.map(function (g) { return g.id; }),
       title: 'Lading at the Legal Quays',
-      sub: 'Wharfingers, lightermen and a customs officer who wants his fee. Buy what ' +
-        S.port.name + ' will want, and remember that the passage west is the long one.',
+      sub: 'Wharfingers, lightermen, and a customs officer who insists on his fee. Buy what ' +
+        S.port.name + ' will want, and do not forget that the passage west is the long one.',
       sail: 'Drop down river and sail for ' + S.port.name
     });
   }
@@ -436,8 +438,8 @@
       leg: 'home',
       goods: S.port.wares,
       title: 'Lading at ' + S.port.name,
-      sub: S.partner.name + ' has the warehouse open and the boats alongside. ' +
-        'Take on a homeward cargo — the Custom House in London will buy the lot.',
+      sub: S.partner.name + ' has the warehouse doors open and the lighters alongside. Take on ' +
+        'a homeward cargo — the Custom House in London will eagerly buy the lot.',
       sail: 'Weigh anchor and sail for London'
     });
   }
@@ -510,8 +512,8 @@
     var v = S.voyage;
     stage('<h2>At Sea</h2>' +
       '<p class="sub">' + (v.leg === 'home'
-        ? 'Homeward bound with the westerlies on the quarter.'
-        : 'Westward, close-hauled, and every mile of it argued for.') + '</p>' +
+        ? 'Homeward bound with the brisk westerlies on the quarter.'
+        : 'Westward, close-hauled, with every single mile bitterly argued for.') + '</p>' +
       '<div class="bt-totals">' +
       '<span>Passage <b id="bt-vday">day 0</b></span>' +
       '<span>Reckoned <b id="bt-vtot">' + v.baseDays + ' days</b></span>' +
@@ -704,7 +706,8 @@
     if (hungry > 0) {
       S.hunger = 0;
       S.ship.morale = clamp(S.ship.morale - 6, 0, 100);
-      logIt('Made port on short commons — ' + hungry + ' days with nothing in the bread room.');
+      logIt('Made port on desperately short commons — ' + hungry + ' days with absolutely nothing in the ' +
+        'bread room.');
     }
 
     if (v.scripted) { v.onDone(); return; }
@@ -715,7 +718,8 @@
     var html = '<div class="kicker">' + opts.kicker + '</div><h2>' + opts.title + '</h2>' +
       '<p>' + opts.text + '</p><table class="bt-ledger">';
     if (!rows.length) {
-      html += '<tr><td class="muted" colspan="2">Nothing landed. She came in with an empty hold.</td></tr>';
+      html += '<tr><td class="muted" colspan="2">Nothing landed. She came in with a hollow ' +
+        'hold.</td></tr>';
     }
     rows.forEach(function (r) {
       html += '<tr><td>' + r.name + ' <span class="muted">· ' + r.qty + ' tun at ' +
@@ -749,15 +753,15 @@
     setCaption('Come to anchor off ' + S.port.name + '.', '');
     rollMarket();
     var sale = sellHold(factorPays);
-    logIt('Came to anchor at ' + S.port.name + '. The factor took the cargo for ' +
+    logIt('Came to anchor at ' + S.port.name + '. The factor eagerly took the cargo for ' +
       money(sale.total) + '.');
     render();
 
     settlement(sale.rows, sale.total, {
       kicker: 'Landfall',
       title: S.port.name + ' Roads',
-      text: S.partner.name + ' comes off in a boat before the anchor is properly down, ' +
-        'counts the tiers, and settles for the English cargo on the spot.',
+      text: S.partner.name + ' comes off in a swift boat before the anchor is properly down, ' +
+        'eagerly counts the tiers, and settles for the English cargo right on the spot.',
       sumLabel: 'Paid by the factor',
       next: 'Go ashore and lade for home',
       onNext: function () { hideCard(); portStage(); render(); }
@@ -766,21 +770,21 @@
 
   function arriveLondon() {
     hideShip();
-    setCaption('Moored in the Pool of London.', '');
+    setCaption('Moored safely in the Pool of London.', '');
     rollMarket();
     var sale = sellHold(customHousePays);
     S.voyages++;
     var elapsed = Math.floor(S.day - S.startOfVoyage);
     var net = S.money - S.moneyAtStart;
 
-    logIt('Moored in the Pool. The Custom House settled for ' + money(sale.total) + '.');
+    logIt('Moored in the Pool. The Custom House clerks settled for ' + money(sale.total) + '.');
     render();
 
     settlement(sale.rows, sale.total, {
       kicker: 'Voyage ' + S.voyages + ' complete',
       title: 'The Custom House',
-      text: 'She warps in above Wapping with her yards squared and the funds are paid ' +
-        'over the same afternoon, less the King’s duty, which nobody mentions twice.',
+      text: 'She warps in above Wapping with her yards smartly squared, and the funds are paid ' +
+        'over the very same afternoon—less the King’s duty, which nobody mentions twice.',
       sumLabel: 'Received',
       footer: '<div class="bt-rule"></div><p class="muted" style="font-size:14px">' +
         'Voyage of <b>' + elapsed + ' days</b>. The house is ' +
@@ -809,15 +813,17 @@
     hideShip();
 
     var text = why === 'founder'
-      ? 'She opens up in the night and goes down by the head before the boats can be ' +
-        'cleared away. What the sea does not take, the underwriters argue over for a year.'
-      : 'There are not hands enough left aboard to work her. She is brought in by a ' +
-        'passing Bristol man on a salvage claim that will eat the house whole.';
+      ? 'She quietly opens up in the night and goes down by the head before the boats can even ' +
+        'be cleared away. What the hungry sea does not take, the London underwriters will ' +
+        'bitterly argue over for a year.'
+      : 'There are not enough hands left aboard to safely work her. She is brought in by a ' +
+        'passing Bristol man on a brutal salvage claim that will eat the house whole.';
 
     showCard('<div class="kicker">The end of the house</div>' +
       '<h2>The ' + S.ship.name + ' is lost</h2>' +
       '<p class="lead">' + text + '</p>' +
-      '<p>Uncle Gerard, when the news reaches him, is said to have taken it very well.</p>' +
+      '<p>Uncle Gerard, when the grim news reaches him, is said to have taken it surprisingly ' +
+        'well.</p>' +
       '<div class="bt-rule"></div>' +
       '<table class="bt-ledger">' +
       '<tr><td>Voyages completed</td><td>' + S.voyages + '</td></tr>' +
@@ -841,21 +847,21 @@
     showCard(
       '<div class="kicker">Bowgeois &amp; Co. · Thames Street · April 1687</div>' +
       '<h2>A Letter, Delivered Before Breakfast</h2>' +
-      '<p class="lead">Sir — it is my melancholy duty to inform you that your uncle, ' +
-      'Mr Gerard Bowgeois, has this fortnight past become embroiled in a scandal of ' +
-      'a most unsavoury character with a minor American family, the particulars of ' +
-      'which I decline to commit to paper.</p>' +
-      '<p>The Company of Merchants has withdrawn his licence, the partners have ' +
-      'withdrawn themselves, and the counting-house on Thames Street stands empty ' +
-      'but for a clerk and a cat. By the articles of the house, control of the whole ' +
-      'concern therefore falls to <b>you</b>.</p>' +
-      '<p>What you inherit, I should say plainly, is one ship — the <i>Marigold</i>, ' +
-      'sound enough if you do not look too hard at her — some five hundred pounds, ' +
-      'and not one trading partner anywhere in the world. Every factor your uncle ' +
-      'dealt with has burnt his correspondence.</p>' +
-      '<p>There is one door still open. A group expedition sails for the American ' +
-      'plantations within the week and will carry a ship that pays her own way. ' +
-      'A house with no partners must go and find one.</p>' +
+      '<p class="lead">Sir — It is my profound and melancholy duty to inform you that your ' +
+        'uncle, Mr. Gerard Bowgeois, has these past two weeks become thoroughly entangled in a ' +
+        'scandal of the most unsavoury nature involving a colonial family. The delicate—and ' +
+        'frankly shocking—particulars I must decline to commit to paper.</p><p>The Company of ' +
+        'Merchants has permanently withdrawn his licence, the partners have rapidly withdrawn ' +
+        'themselves, and the grand counting-house on Thames Street stands utterly empty but ' +
+        'for a nervous clerk and a cat. By the strict articles of the house, control of the ' +
+        'whole troubled concern therefore falls to ' +
+        '<b>you</b>.</p><p>What you inherit, I should say plainly, is exactly one ship—the ' +
+        '<i>Marigold</i>, sound enough if you do not look too hard at her timbers—some five ' +
+        'hundred pounds, and not a single trading partner anywhere in the world. Every factor ' +
+        'your uncle dealt with has already burnt his correspondence.</p><p>There is one door still cracked open. ' +
+        'A group expedition sails for the American plantations within the week and will carry ' +
+        'any ship that can pay her own way. A house with no partners must go and cross the ' +
+        'ocean to find one.</p>' +
       '<p class="sign">Your obedient servant,<br>J. Halliwell, attorney</p>' +
       '<div class="bt-actions"><button class="btn primary" id="bt-accept">Take the house, and sail with them</button></div>');
     onClick('bt-accept', function () { hideCard(); expedition(); });
@@ -866,8 +872,9 @@
     S.port = pick(D.PORTS);
     S.partner = makePartner(S.port);
 
-    logIt('Took control of Bowgeois &amp; Co. and joined the expedition to the plantations.');
-    setCaption('Five sail in company, standing down Channel.', '');
+    logIt('Took control of Bowgeois &amp; Co. and boldly joined the expedition to the ' +
+      'plantations.');
+    setCaption('Five sail in company, confidently standing down Channel.', '');
     render();
 
     beginScripted('out', [
@@ -875,18 +882,19 @@
         kicker: 'The expedition · outward bound',
         title: 'Down Channel in Company',
         text: 'Five sail keep loose company past the Lizard: two Bristol ships, a ' +
-          'Dutchman flying English colours with a straight face, an armed ketch, and ' +
-          'the <i>Marigold</i> astern of the lot of them. You are here on sufferance and ' +
-          'everyone aboard knows it. The commodore’s only instruction, shouted across ' +
-          'the water, was to keep up.',
+          'Dutchman flying English colours with a completely straight face, an armed ' +
+          'ketch, and the <i>Marigold</i> trailing astern of the lot of them. You are ' +
+          'here on pure sufferance and everyone aboard knows it. The commodore’s only ' +
+          'instruction, shouted across the water, was simply to keep up.',
         button: 'Keep up'
       },
       {
         kicker: 'The expedition · mid-ocean',
         title: 'Nothing But Water',
-        text: 'Three weeks of it. The ketch loses a topmast and is left to catch up; the ' +
-          'Dutchman is gone one morning and nobody says where. Your mate, who has done ' +
-          'this before, spends the evenings teaching you which of the men can be trusted ' +
+        text: 'Three relentless weeks of it. The ketch loses a topmast in a blow and is left ' +
+          'to catch up; the Dutchman vanishes one morning and nobody says where. Your mate, ' +
+          'who has survived this run before, spends the long evenings teaching you which of ' +
+          'the men can be trusted ' +
           'with a night watch, and which merely say so.',
         button: 'Stand on'
       }
@@ -907,18 +915,19 @@
       '<div class="kicker">Landfall · ' + fmtDate(S.day) + '</div>' +
       '<h2>' + S.port.name + '</h2>' +
       '<p class="lead">' + S.port.blurb + '</p>' +
-      '<p>The expedition scatters to its own business the moment the anchors are down. ' +
-      'You spend four days ashore in ' + S.port.name + ', in ' + S.port.colony +
-      ', being agreeable to people who have no particular reason to be agreeable back — ' +
-      'and on the fifth you are introduced to <b>' + S.partner.name + '</b>.</p>' +
-      '<p>' + S.partner.name.split(' ')[0] + ' wants English goods and wants them regularly, ' +
-      'has a warehouse on the water and no London house worth the name. The articles are ' +
-      'signed in a tavern and witnessed by its landlord. <b>' + S.partner.house + '</b> ' +
-      'is now the correspondent of Bowgeois &amp; Co.</p>' +
+      '<p>The expedition scatters to its own secretive business the moment the anchors are ' +
+        'properly down. You spend four exhausting days ashore in ' + S.port.name + ', in ' + S.port.colony +
+      ', being painfully agreeable to people who have no particular reason to be agreeable ' +
+        'back—and on the fifth, you are finally introduced to <b>' + S.partner.name + '</b>.</p>' +
+      '<p>' + S.partner.name.split(' ')[0] + ' wants English goods and wants them with utter ' +
+        'reliability, has a fine warehouse on the water, and no London house worth the name. ' +
+        'The binding articles are signed in a smoky tavern and witnessed by its landlord. <b>' + S.partner.house + '</b> ' +
+      'is now the sole correspondent of Bowgeois &amp; Co.</p>' +
       '<div class="bt-rule"></div>' +
       '<p class="muted" style="font-size:14px">' + S.port.name + ' ships ' +
       S.port.wares.map(function (w) { return GOODS[w].name.toLowerCase(); }).join(', ') +
-      '. The passage home runs about ' + S.port.homeDays + ' days; westward, against the ' +
+      '. The passage home runs an easy ' + S.port.homeDays + ' days; westward, fighting against ' +
+        'the ' +
       'wind, nearer ' + S.port.outDays + '.</p>' +
       '<div class="bt-actions"><button class="btn primary" id="bt-home">Sail for home</button></div>');
 
@@ -929,23 +938,25 @@
         {
           kicker: 'The expedition · homeward',
           title: 'A Fair Wind and a Signed Paper',
-          text: 'The westerlies take you home in half the time they took to fight through, ' +
-            'which is the first piece of luck the house has had this year. You spend the ' +
-            'passage doing arithmetic in the margin of the articles and arriving, each ' +
-            'time, at the same encouraging figure.',
+          text: 'The westerlies push you home in half the time they took to fight through, ' +
+            'which is the very first piece of real luck the house has had this year. You spend ' +
+            'the long passage doing eager arithmetic in the margin of the articles, arriving, ' +
+            'each time, at the exact same encouraging figure.',
           button: 'Raise the Lizard'
         }
       ], function () {
         hideShip();
-        setCaption('Home. And now there is somewhere to sail to.', '');
+        setCaption('Home. And now there is actually somewhere profitable to sail to.', '');
         showCard('<div class="kicker">Home · ' + fmtDate(S.day) + '</div>' +
           '<h2>The House Has a Trade</h2>' +
-          '<p class="lead">The <i>Marigold</i> comes up the river on the tide and moors in the ' +
-          'Pool with nothing in her hold and something rather better in the strongbox: a ' +
-          'signed correspondence with a house in ' + S.port.name + '.</p>' +
-          '<p>From here it is simply the trade. Lade her with what ' + S.port.name +
+          '<p class="lead">The <i>Marigold</i> comes up the river on the strong tide and ' +
+          'moors safely in the Pool with absolutely nothing in her hold, but something ' +
+          'rather better locked in the strongbox: a signed correspondence with a house ' +
+          'in ' + S.port.name + '.</p>' +
+          '<p>From here on, it is simply the trade. Lade her with what ' + S.port.name +
           ' wants, sail west, sell to ' + S.partner.name + ', lade her with what London ' +
-          'wants, and sail home. The ocean gets a say in it twice each way.</p>' +
+          'hungers for, and sail home. The ocean naturally gets a cruel say in it twice each ' +
+            'way.</p>' +
           '<div class="bt-actions"><button class="btn primary" id="bt-begin">Open the ledger</button></div>');
         onClick('bt-begin', function () { hideCard(); startVoyage(); });
       });
@@ -972,7 +983,8 @@
     renderPins();
     render();
     stage('<h2>Bowgeois &amp; Co.</h2>' +
-      '<p class="sub">Thames Street, London. One ship, no partners, and a letter on the mat.</p>');
+      '<p class="sub">Thames Street, London. One ship, no partners, and a very troubling ' +
+        'letter on the mat.</p>');
     theLetter();
   }
 
