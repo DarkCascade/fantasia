@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bowgeois Trader</title>
+<meta name="description" content="Run a London shipping house in 1687: win a partner on the American seaboard, lade a ship, and survive the crossing.">
+<style>
+  /* ------------------------------------------------------------------ base */
+  :root {
+    --paper: #efe2c4;
+    --paper2: #e6d6b0;
+    --paper3: #dcc99e;
+    --edge: #c3ad80;
+    --ink: #33251a;
+    --ink2: #6d5942;
+    --ink3: #8b755a;
+    --wax: #8d2f22;
+    --gold: #9a7420;
+    --sea: #c9bd94;
+    --land: #f3e5c1;
+    --good: #3c6b3a;
+    --bad: #8d2f22;
+    --shadow: 0 2px 0 rgba(51, 37, 26, .10), 0 10px 24px rgba(51, 37, 26, .14);
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #241a12;
+    color: var(--ink);
+    font-family: var(--serif);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 50% 0%, #3a2a1c 0%, #241a12 60%, #180f0a 100%);
+    padding: 14px;
+  }
+
+  .bt-app {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 40%),
+      var(--paper);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+
+  /* Faint fibre so the parchment does not read as flat card stock. */
+  .panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: 4px;
+    opacity: .35;
+    background-image:
+      repeating-linear-gradient(97deg, rgba(120, 96, 64, .05) 0 2px, transparent 2px 5px),
+      repeating-linear-gradient(3deg, rgba(120, 96, 64, .04) 0 3px, transparent 3px 7px);
+  }
+
+  h1, h2, h3 { margin: 0; font-weight: 600; }
+
+  .bt-label {
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink3);
+  }
+
+  /* ------------------------------------------------------------------ head */
+  .bt-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+
+  .bt-brand { display: flex; align-items: center; gap: 12px; }
+
+  .bt-mark {
+    width: 42px;
+    height: 42px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #b8442f, var(--wax) 60%, #632016);
+    color: #f4e4c2;
+    font-size: 20px;
+    box-shadow: inset 0 0 0 2px rgba(244, 228, 194, .25), 0 2px 6px rgba(0, 0, 0, .3);
+  }
+
+  .bt-brand h1 { font-size: 23px; letter-spacing: .04em; }
+  .bt-brand p { margin: 1px 0 0; font-size: 12px; color: var(--ink2); font-style: italic; }
+
+  .bt-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .bt-chip {
+    min-width: 106px;
+    padding: 6px 12px;
+    border: 1px solid var(--edge);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .3);
+    text-align: right;
+  }
+
+  .bt-chip b { display: block; font-size: 16px; font-weight: 600; }
+  .bt-chip span { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink3); }
+  .bt-chip.coin b { color: var(--gold); }
+
+  /* ------------------------------------------------------------------ body */
+  .bt-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 306px;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .bt-chartwrap { padding: 10px 10px 0; overflow: hidden; }
+  .bt-chartwrap svg { display: block; width: 100%; height: auto; }
+
+  .bt-chartcap {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 6px 10px;
+    border-top: 1px solid rgba(140, 116, 82, .3);
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--ink2);
+    font-style: italic;
+  }
+
+  .bt-chartcap b { font-style: normal; color: var(--ink); }
+
+  .bt-side { display: flex; flex-direction: column; gap: 12px; }
+  .bt-side .panel { padding: 12px 14px; }
+  .bt-side h3 { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }
+
+  /* meters */
+  .bt-stat { margin-bottom: 9px; }
+  .bt-stat:last-child { margin-bottom: 0; }
+
+  .bt-stat .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+    margin-bottom: 3px;
+  }
+
+  .bt-stat .row b { font-weight: 600; }
+
+  .bt-meter {
+    height: 8px;
+    border: 1px solid var(--edge);
+    background: rgba(120, 96, 64, .12);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bt-meter i {
+    display: block;
+    height: 100%;
+    background: var(--ink2);
+    transition: width .5s ease;
+  }
+
+  .bt-meter.hull i { background: linear-gradient(90deg, #7a5a34, #a37a41); }
+  .bt-meter.prov i { background: linear-gradient(90deg, #4d6b34, #6e8f42); }
+  .bt-meter.morale i { background: linear-gradient(90deg, #7a4a1e, #b58330); }
+  .bt-meter.low i { background: linear-gradient(90deg, #7c281c, #ab4030); }
+
+  /* hold */
+  .bt-holdlist { font-size: 13px; }
+  .bt-holdlist .line { display: flex; justify-content: space-between; padding: 2px 0; }
+  .bt-holdlist .line span { color: var(--ink2); }
+  .bt-empty { font-style: italic; color: var(--ink3); font-size: 13px; }
+
+  .bt-holdbar { margin-top: 8px; }
+
+  /* log */
+  .bt-logbox { max-height: 190px; overflow-y: auto; font-size: 12.5px; line-height: 1.45; }
+  .bt-logbox p { margin: 0 0 7px; padding-left: 10px; border-left: 2px solid rgba(140, 116, 82, .35); }
+  .bt-logbox p em { color: var(--ink3); font-size: 11px; display: block; letter-spacing: .06em; }
+
+  /* ----------------------------------------------------------------- stage */
+  .bt-stage { padding: 14px 16px 16px; }
+
+  .bt-stage h2 {
+    font-size: 17px;
+    letter-spacing: .03em;
+    margin-bottom: 2px;
+  }
+
+  .bt-stage .sub { font-size: 13px; color: var(--ink2); font-style: italic; margin: 0 0 12px; }
+
+  .bt-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+
+  /* buttons */
+  .btn {
+    font-family: var(--serif);
+    font-size: 14px;
+    letter-spacing: .06em;
+    padding: 9px 18px;
+    border-radius: 3px;
+    border: 1px solid var(--edge);
+    background: linear-gradient(180deg, #f6ecd4, var(--paper2));
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset, 0 2px 4px rgba(51, 37, 26, .16);
+    transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+  }
+
+  .btn:hover:not(:disabled) { background: linear-gradient(180deg, #fff5e0, #eddfbe); transform: translateY(-1px); }
+  .btn:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .btn.primary {
+    background: linear-gradient(180deg, #a63a2a, #7c2519);
+    border-color: #5e1c12;
+    color: #f7e9cd;
+    font-weight: 600;
+  }
+
+  .btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #bb4531, #8b2b1d); }
+  .btn.small { padding: 5px 11px; font-size: 13px; }
+
+  .btn.step {
+    width: 30px;
+    padding: 4px 0;
+    text-align: center;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  /* market */
+  .bt-market {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+  }
+
+  .bt-ware {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(140, 116, 82, .38);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .26);
+  }
+
+  .bt-ware .info { flex: 1; min-width: 0; }
+  .bt-ware .nm { font-size: 14px; }
+  .bt-ware .pr { font-size: 11.5px; color: var(--ink2); }
+  .bt-ware .pr b { color: var(--gold); font-weight: 600; }
+  .bt-ware .qty { width: 26px; text-align: center; font-size: 15px; font-weight: 600; }
+  .bt-ware.has { background: rgba(154, 116, 32, .12); border-color: rgba(154, 116, 32, .5); }
+
+  .bt-totals {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    align-items: baseline;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(140, 116, 82, .3);
+    font-size: 13px;
+  }
+
+  .bt-totals b { font-size: 15px; }
+
+  /* refit */
+  .bt-refit { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+  /* --------------------------------------------------------------- overlay */
+  .bt-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(24, 15, 10, .74);
+    overflow-y: auto;
+  }
+
+  .bt-overlay[hidden] { display: none; }
+
+  .bt-card {
+    width: min(660px, 100%);
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    padding: 26px 28px 24px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, 0) 30%),
+      var(--paper);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+    animation: btRise .28s ease-out;
+  }
+
+  @keyframes btRise {
+    from { opacity: 0; transform: translateY(14px) scale(.985); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .bt-card .kicker {
+    font-size: 11px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--wax);
+    margin-bottom: 6px;
+  }
+
+  .bt-card h2 { font-size: 24px; letter-spacing: .02em; margin-bottom: 12px; }
+  .bt-card p { margin: 0 0 12px; font-size: 15px; line-height: 1.62; }
+  .bt-card p.lead { font-size: 16px; }
+  .bt-card .sign { text-align: right; font-style: italic; color: var(--ink2); }
+  .bt-card .muted { color: var(--ink2); }
+
+  .bt-rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(140, 116, 82, .6), transparent);
+    margin: 16px 0;
+  }
+
+  /* event choices */
+  .bt-choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--serif);
+    font-size: 15px;
+    line-height: 1.4;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--edge);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .3);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background .12s ease, transform .08s ease, border-color .12s ease;
+  }
+
+  .bt-choice:hover { background: rgba(255, 255, 255, .62); border-color: var(--wax); transform: translateX(3px); }
+  .bt-choice::before { content: "❧ "; color: var(--wax); }
+
+  /* consequence chips */
+  .bt-fx { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; }
+
+  .bt-tag {
+    font-size: 12px;
+    letter-spacing: .04em;
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid;
+    animation: btPop .3s ease-out backwards;
+  }
+
+  .bt-tag.up { color: #2f5a2d; border-color: rgba(60, 107, 58, .5); background: rgba(60, 107, 58, .12); }
+  .bt-tag.down { color: var(--bad); border-color: rgba(141, 47, 34, .5); background: rgba(141, 47, 34, .1); }
+
+  @keyframes btPop {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ledger table (settlements) */
+  .bt-ledger { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 4px; }
+  .bt-ledger td { padding: 6px 0; border-bottom: 1px dotted rgba(140, 116, 82, .5); }
+  .bt-ledger td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .bt-ledger tr.sum td { border-bottom: none; border-top: 2px solid rgba(140, 116, 82, .6); font-size: 17px; padding-top: 10px; }
+  .bt-ledger tr.sum td b { color: var(--gold); }
+  .bt-ledger .muted { color: var(--ink2); }
+
+  /* chart bits */
+  .bt-portlabel { font: 600 13px var(--serif); fill: var(--ink); }
+  .bt-portsub { font: italic 10.5px var(--serif); fill: var(--ink2); }
+  .bt-searife { font: italic 12px var(--serif); fill: rgba(80, 62, 42, .5); letter-spacing: .3em; }
+
+  @keyframes btPulse {
+    0%, 100% { opacity: .25; transform: scale(1); }
+    50% { opacity: 0; transform: scale(2.4); }
+  }
+
+  .bt-ping { animation: btPulse 2.4s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+
+  /* ---------------------------------------------------------------- mobile */
+  @media (max-width: 880px) {
+    body { padding: 8px; }
+    .bt-body { grid-template-columns: minmax(0, 1fr); }
+    .bt-side { flex-direction: row; flex-wrap: wrap; }
+    .bt-side > .panel { flex: 1 1 260px; }
+    .bt-brand h1 { font-size: 20px; }
+    .bt-chip { min-width: 92px; padding: 5px 10px; }
+    .bt-card { padding: 20px 18px 18px; }
+    .bt-card h2 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bt-app">
+
+  <header class="panel bt-top">
+    <div class="bt-brand">
+      <div class="bt-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.2" r="2.1"/><path d="M12 6.3V21"/><path d="M7.6 9.4h8.8"/><path d="M4 14.2c0 4.3 3.6 6.8 8 6.8s8-2.5 8-6.8"/></svg></div>
+      <div>
+        <h1>Bowgeois Trader</h1>
+        <p id="bt-house">A shipping house of London</p>
+      </div>
+    </div>
+    <div class="bt-chips">
+      <div class="bt-chip"><b id="bt-date">—</b><span>Date</span></div>
+      <div class="bt-chip coin"><b id="bt-money">—</b><span>Capital</span></div>
+      <div class="bt-chip"><b id="bt-partner">None</b><span>Trading partner</span></div>
+    </div>
+  </header>
+
+  <main class="bt-body">
+
+    <section class="panel bt-chartwrap">
+      <svg viewBox="0 0 1000 560" role="img" aria-label="A chart of the North Atlantic">
+        <defs>
+          <linearGradient id="btSea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#cfc49e"/>
+            <stop offset="100%" stop-color="#c0b48a"/>
+          </linearGradient>
+          <filter id="btInk" x="-4%" y="-4%" width="108%" height="108%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="n"/>
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="2.6"/>
+          </filter>
+        </defs>
+
+        <rect x="0" y="0" width="1000" height="560" fill="url(#btSea)"/>
+
+        <!-- rhumb-line network, as on a period sea chart -->
+        <g stroke="#8a7048" stroke-width=".6" opacity=".28" id="bt-rhumbs"></g>
+
+        <!-- land -->
+        <g filter="url(#btInk)" fill="var(--land)" stroke="#6b5330" stroke-width="1.8" stroke-linejoin="round">
+          <!-- North America -->
+          <path d="M -20 0 L 62 22 L 120 44 L 154 70 L 178 96 L 172 121 L 191 147 L 200 172
+                   L 211 187 L 221 203 L 233 219 L 241 234 L 245 251 L 253 269 L 250 289
+                   L 263 301 L 271 317 L 265 337 L 271 359 L 277 385 L 283 407
+                   L 273 435 L 251 457 L 219 471 L 171 481 L 91 485 L -20 481 Z"/>
+          <!-- Newfoundland -->
+          <path d="M 194 42 L 214 34 L 232 41 L 243 57 L 235 74 L 214 82 L 197 72 L 189 56 Z"/>
+          <!-- Ireland -->
+          <path d="M 757 110 L 775 101 L 791 107 L 800 122 L 796 143 L 782 156
+                   L 763 155 L 752 140 L 750 123 Z"/>
+          <!-- Britain: Scotland tapering north, the Channel coast at London -->
+          <path d="M 812 56 L 828 46 L 841 58 L 836 76 L 849 82 L 859 70 L 871 86
+                   L 864 108 L 879 121 L 875 145 L 861 160 L 843 174 L 823 169
+                   L 810 152 L 818 133 L 805 116 L 812 94 L 803 74 Z"/>
+          <!-- France and the Low Countries -->
+          <path d="M 874 148 L 906 138 L 950 145 L 1000 150 L 1020 162 L 1020 246
+                   L 984 259 L 956 250 L 946 284 L 914 300 L 888 286 L 872 254
+                   L 864 212 L 868 176 Z"/>
+          <!-- Iberia -->
+          <path d="M 864 290 L 906 285 L 936 305 L 941 340 L 916 366 L 872 369
+                   L 848 341 L 846 310 Z"/>
+          <!-- the Barbary coast -->
+          <path d="M 898 396 L 958 380 L 1020 376 L 1020 524 L 936 524 L 902 464
+                   L 890 424 Z"/>
+        </g>
+
+        <!-- the Western Islands: the Azores, where a leaky ship goes for stores -->
+        <g fill="var(--land)" stroke="#6f5734" stroke-width="1.1">
+          <ellipse cx="612" cy="292" rx="9" ry="5"/>
+          <ellipse cx="637" cy="304" rx="6" ry="4"/>
+          <ellipse cx="592" cy="309" rx="5" ry="3.5"/>
+        </g>
+        <text x="612" y="332" text-anchor="middle" class="bt-portsub">The Western Islands</text>
+
+        <text x="500" y="112" text-anchor="middle" class="bt-searife">MARE ATLANTICVM</text>
+
+        <!-- compass rose -->
+        <g transform="translate(556 438)" opacity=".8">
+          <circle r="44" fill="none" stroke="#6f5734" stroke-width="1"/>
+          <circle r="33" fill="none" stroke="#6f5734" stroke-width=".6"/>
+          <g fill="#6f5734">
+            <path d="M 0 -44 L 7 -8 L 0 0 L -7 -8 Z" fill="var(--wax)"/>
+            <path d="M 0 44 L 7 8 L 0 0 L -7 8 Z"/>
+            <path d="M 44 0 L 8 7 L 0 0 L 8 -7 Z"/>
+            <path d="M -44 0 L -8 7 L 0 0 L -8 -7 Z"/>
+            <path d="M 31 -31 L 8 -4 L 4 -8 Z" opacity=".7"/>
+            <path d="M -31 31 L -8 4 L -4 8 Z" opacity=".7"/>
+            <path d="M 31 31 L 8 4 L 4 8 Z" opacity=".7"/>
+            <path d="M -31 -31 L -8 -4 L -4 -8 Z" opacity=".7"/>
+          </g>
+          <text x="0" y="-50" text-anchor="middle" class="bt-portsub" style="fill:var(--wax)">N</text>
+        </g>
+
+        <!-- the sailed track, drawn by the game -->
+        <path id="bt-wake" d="" fill="none" stroke="var(--wax)" stroke-width="2.4" opacity=".55" stroke-linecap="round"/>
+        <path id="bt-route" d="" fill="none" stroke="#6f5734" stroke-width="1.6"
+              stroke-dasharray="7 7" opacity=".75" stroke-linecap="round"/>
+
+        <!-- port pins, drawn by the game -->
+        <g id="bt-pins"></g>
+
+        <!-- the ship -->
+        <g id="bt-ship" style="display:none">
+          <g transform="scale(1.15)">
+            <path d="M -11 3 L 11 3 L 8 9 L -8 9 Z" fill="#5d4526"/>
+            <path d="M 0 3 L 0 -13" stroke="#5d4526" stroke-width="1.6"/>
+            <path d="M 0 -12 L 9 -2 L 0 -2 Z" fill="#f4ead0" stroke="#5d4526" stroke-width="1"/>
+            <path d="M 0 -12 L -8 -3 L 0 -3 Z" fill="#e8dcbe" stroke="#5d4526" stroke-width="1"/>
+          </g>
+        </g>
+      </svg>
+
+      <div class="bt-chartcap">
+        <span id="bt-chartcap">A chart of the western ocean. The house has no partner beyond it — yet.</span>
+        <b id="bt-chartstat"></b>
+      </div>
+    </section>
+
+    <aside class="bt-side">
+      <div class="panel">
+        <h3 id="bt-shipname">The Ship</h3>
+        <div id="bt-stats"></div>
+      </div>
+
+      <div class="panel">
+        <h3>The Hold</h3>
+        <div id="bt-hold" class="bt-holdlist"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Ship's Log</h3>
+        <div id="bt-log" class="bt-logbox"></div>
+      </div>
+    </aside>
+
+  </main>
+
+  <section class="panel bt-stage" id="bt-stage"></section>
+
+</div>
+
+<div class="bt-overlay" id="bt-overlay" hidden>
+  <div class="bt-card" id="bt-cardbody"></div>
+</div>
+
+<script src="data.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
