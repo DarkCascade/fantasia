@@ -396,9 +396,25 @@
   .bt-ledger .muted { color: var(--ink2); }
 
   /* chart bits */
-  .bt-portlabel { font: 600 13px var(--serif); fill: var(--ink); }
-  .bt-portsub { font: italic 10.5px var(--serif); fill: var(--ink2); }
-  .bt-searife { font: italic 12px var(--serif); fill: rgba(80, 62, 42, .5); letter-spacing: .3em; }
+  /* Port labels sit on top of a busy engraving, so each is given a parchment
+     halo (stroke painted under the fill) or the coastline hatching eats it. */
+  .bt-portlabel {
+    font: 600 13px var(--serif);
+    fill: var(--ink);
+    paint-order: stroke;
+    stroke: rgba(244, 233, 206, .92);
+    stroke-width: 3.5px;
+    stroke-linejoin: round;
+  }
+
+  .bt-portsub {
+    font: italic 10.5px var(--serif);
+    fill: var(--ink2);
+    paint-order: stroke;
+    stroke: rgba(244, 233, 206, .88);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
 
   @keyframes btPulse {
     0%, 100% { opacity: .25; transform: scale(1); }
@@ -448,82 +464,36 @@
             <stop offset="0%" stop-color="#cfc49e"/>
             <stop offset="100%" stop-color="#c0b48a"/>
           </linearGradient>
-          <filter id="btInk" x="-4%" y="-4%" width="108%" height="108%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="n"/>
-            <feDisplacementMap in="SourceGraphic" in2="n" scale="2.6"/>
-          </filter>
         </defs>
 
         <rect x="0" y="0" width="1000" height="560" fill="url(#btSea)"/>
 
-        <!-- rhumb-line network, as on a period sea chart -->
-        <g stroke="#8a7048" stroke-width=".6" opacity=".28" id="bt-rhumbs"></g>
+        <!-- The chart itself IS the geography now, not a texture behind it.
+             The engraving spans the same water the game does — the American
+             seaboard down the left (labelled FRANCIA in the north, for New
+             France), the ocean and its compass rose in the middle, Ireland and
+             ANGLIA on the right — so it maps 1:1 onto the viewBox and every
+             port pin is placed on real drawn coastline. The source is 712x396
+             against a 1000x560 box, near-identical aspects, so "none" stretches
+             it by well under a percent and keeps the mapping exactly linear. -->
+        <image href="chart-bg.png" x="0" y="0" width="1000" height="560"
+               preserveAspectRatio="none"/>
 
-        <!-- land -->
-        <g filter="url(#btInk)" fill="var(--land)" stroke="#6b5330" stroke-width="1.8" stroke-linejoin="round">
-          <!-- North America -->
-          <path d="M -20 0 L 62 22 L 120 44 L 154 70 L 178 96 L 172 121 L 191 147 L 200 172
-                   L 211 187 L 221 203 L 233 219 L 241 234 L 245 251 L 253 269 L 250 289
-                   L 263 301 L 271 317 L 265 337 L 271 359 L 277 385 L 283 407
-                   L 273 435 L 251 457 L 219 471 L 171 481 L 91 485 L -20 481 Z"/>
-          <!-- Newfoundland -->
-          <path d="M 194 42 L 214 34 L 232 41 L 243 57 L 235 74 L 214 82 L 197 72 L 189 56 Z"/>
-          <!-- Ireland -->
-          <path d="M 757 110 L 775 101 L 791 107 L 800 122 L 796 143 L 782 156
-                   L 763 155 L 752 140 L 750 123 Z"/>
-          <!-- Britain: Scotland tapering north, the Channel coast at London -->
-          <path d="M 812 56 L 828 46 L 841 58 L 836 76 L 849 82 L 859 70 L 871 86
-                   L 864 108 L 879 121 L 875 145 L 861 160 L 843 174 L 823 169
-                   L 810 152 L 818 133 L 805 116 L 812 94 L 803 74 Z"/>
-          <!-- France and the Low Countries -->
-          <path d="M 874 148 L 906 138 L 950 145 L 1000 150 L 1020 162 L 1020 246
-                   L 984 259 L 956 250 L 946 284 L 914 300 L 888 286 L 872 254
-                   L 864 212 L 868 176 Z"/>
-          <!-- Iberia -->
-          <path d="M 864 290 L 906 285 L 936 305 L 941 340 L 916 366 L 872 369
-                   L 848 341 L 846 310 Z"/>
-          <!-- the Barbary coast -->
-          <path d="M 898 396 L 958 380 L 1020 376 L 1020 524 L 936 524 L 902 464
-                   L 890 424 Z"/>
-        </g>
-
-        <!-- the Western Islands: the Azores, where a leaky ship goes for stores -->
-        <g fill="var(--land)" stroke="#6f5734" stroke-width="1.1">
-          <ellipse cx="612" cy="292" rx="9" ry="5"/>
-          <ellipse cx="637" cy="304" rx="6" ry="4"/>
-          <ellipse cx="592" cy="309" rx="5" ry="3.5"/>
-        </g>
-        <text x="612" y="332" text-anchor="middle" class="bt-portsub">The Western Islands</text>
-
-        <text x="500" y="112" text-anchor="middle" class="bt-searife">MARE ATLANTICVM</text>
-
-        <!-- compass rose -->
-        <g transform="translate(556 438)" opacity=".8">
-          <circle r="44" fill="none" stroke="#6f5734" stroke-width="1"/>
-          <circle r="33" fill="none" stroke="#6f5734" stroke-width=".6"/>
-          <g fill="#6f5734">
-            <path d="M 0 -44 L 7 -8 L 0 0 L -7 -8 Z" fill="var(--wax)"/>
-            <path d="M 0 44 L 7 8 L 0 0 L -7 8 Z"/>
-            <path d="M 44 0 L 8 7 L 0 0 L 8 -7 Z"/>
-            <path d="M -44 0 L -8 7 L 0 0 L -8 -7 Z"/>
-            <path d="M 31 -31 L 8 -4 L 4 -8 Z" opacity=".7"/>
-            <path d="M -31 31 L -8 4 L -4 8 Z" opacity=".7"/>
-            <path d="M 31 31 L 8 4 L 4 8 Z" opacity=".7"/>
-            <path d="M -31 -31 L -8 -4 L -4 -8 Z" opacity=".7"/>
-          </g>
-          <text x="0" y="-50" text-anchor="middle" class="bt-portsub" style="fill:var(--wax)">N</text>
-        </g>
-
-        <!-- the sailed track, drawn by the game -->
-        <path id="bt-wake" d="" fill="none" stroke="var(--wax)" stroke-width="2.4" opacity=".55" stroke-linecap="round"/>
-        <path id="bt-route" d="" fill="none" stroke="#6f5734" stroke-width="1.6"
-              stroke-dasharray="7 7" opacity=".75" stroke-linecap="round"/>
+        <!-- The sailed track. Both lines carry a pale under-stroke so they stay
+             readable where they cross the engraved compass rose, which they do
+             on almost every crossing — the rose sits mid-ocean. -->
+        <path id="bt-routeHalo" d="" fill="none" stroke="rgba(246,236,212,.75)" stroke-width="5"
+              stroke-linecap="round"/>
+        <path id="bt-wake" d="" fill="none" stroke="var(--wax)" stroke-width="3" opacity=".8" stroke-linecap="round"/>
+        <path id="bt-route" d="" fill="none" stroke="#544023" stroke-width="1.8"
+              stroke-dasharray="7 7" opacity=".85" stroke-linecap="round"/>
 
         <!-- port pins, drawn by the game -->
         <g id="bt-pins"></g>
 
         <!-- the ship -->
         <g id="bt-ship" style="display:none">
+          <circle r="15" fill="rgba(246,236,212,.6)"/>
           <g transform="scale(1.15)">
             <path d="M -11 3 L 11 3 L 8 9 L -8 9 Z" fill="#5d4526"/>
             <path d="M 0 3 L 0 -13" stroke="#5d4526" stroke-width="1.6"/>

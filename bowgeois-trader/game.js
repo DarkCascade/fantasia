@@ -32,7 +32,8 @@
   var LIBERTY_COST = 45;   // a night ashore, and the only cure for a sullen crew
   var DEFAULT_PAYS = 2.1;       // what a colonial factor gives for English wares
 
-  var LONDON = { x: 843, y: 152, name: 'London' };
+  // On the engraved coast of ANGLIA, at the chart's eastern edge.
+  var LONDON = { x: 912, y: 132, name: 'London' };
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
     'August', 'September', 'October', 'November', 'December'];
 
@@ -172,30 +173,23 @@
   }
 
   /* -------------------------------------------------------------- chart --- */
-  function buildRhumbs() {
-    var g = $('bt-rhumbs'), out = '', nodes = [[556, 438], [430, 170]], i, j;
-    for (j = 0; j < nodes.length; j++) {
-      for (i = 0; i < 16; i++) {
-        var a = i * Math.PI / 8;
-        out += '<line x1="' + nodes[j][0] + '" y1="' + nodes[j][1] +
-          '" x2="' + (nodes[j][0] + Math.cos(a) * 900) +
-          '" y2="' + (nodes[j][1] + Math.sin(a) * 900) + '"/>';
-      }
-    }
-    g.innerHTML = out;
-  }
-
-  function pin(p, label, sub, cls) {
+  /* `side` flips the label to the west of its dot. London sits close to the
+   * eastern edge of the chart, so its label has to run back out over the ocean
+   * or it would be clipped; the American ports all read east into open water. */
+  function pin(p, label, sub, cls, side) {
+    var left = side === 'left';
+    var tx = left ? p.x - 12 : p.x + 12;
+    var anchor = left ? ' text-anchor="end"' : '';
     return '<g>' +
       '<circle cx="' + p.x + '" cy="' + p.y + '" r="9" fill="var(--wax)" opacity=".28" class="' + (cls || '') + '"/>' +
       '<circle cx="' + p.x + '" cy="' + p.y + '" r="4.5" fill="var(--wax)" stroke="#f3e6c8" stroke-width="1.4"/>' +
-      '<text x="' + (p.x + 12) + '" y="' + (p.y + 1) + '" class="bt-portlabel">' + label + '</text>' +
-      (sub ? '<text x="' + (p.x + 12) + '" y="' + (p.y + 14) + '" class="bt-portsub">' + sub + '</text>' : '') +
+      '<text x="' + tx + '" y="' + (p.y + 1) + '"' + anchor + ' class="bt-portlabel">' + label + '</text>' +
+      (sub ? '<text x="' + tx + '" y="' + (p.y + 14) + '"' + anchor + ' class="bt-portsub">' + sub + '</text>' : '') +
       '</g>';
   }
 
   function renderPins() {
-    var out = pin(LONDON, 'London', 'the Pool, below the Bridge');
+    var out = pin(LONDON, 'London', 'the Pool, below the Bridge', '', 'left');
     if (S.revealed) out += pin(S.port, S.port.name, S.port.colony, 'bt-ping');
     $('bt-pins').innerHTML = out;
   }
@@ -211,6 +205,7 @@
   function setRoute(leg) {
     var d = leg === 'home' ? routeD(S.port, LONDON, -118) : routeD(LONDON, S.port, 126);
     $('bt-route').setAttribute('d', d);
+    $('bt-routeHalo').setAttribute('d', d);
     var wake = $('bt-wake');
     wake.setAttribute('d', d);
     var len = wake.getTotalLength();
@@ -235,6 +230,7 @@
     $('bt-ship').style.display = 'none';
     $('bt-wake').setAttribute('d', '');
     $('bt-route').setAttribute('d', '');
+    $('bt-routeHalo').setAttribute('d', '');
   }
 
   /* ------------------------------------------------------------- overlay -- */
@@ -978,7 +974,6 @@
   /* ----------------------------------------------------------------- boot - */
   function boot() {
     newGame();
-    buildRhumbs();
     hideShip();
     renderPins();
     render();

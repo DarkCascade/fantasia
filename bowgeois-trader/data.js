@@ -51,7 +51,17 @@
   ];
 
   /* ---------------------------------------------------------------- ports --
-   * x / y are positions on the chart in `index.html` (viewBox 0 0 1000 560).
+   * x / y are positions on the chart in `index.html` (viewBox 0 0 1000 560),
+   * traced onto the real engraved coastline of chart-bg.png rather than
+   * invented. The seaboard runs diagonally on that chart, north-east to
+   * south-west, roughly along:
+   *   (300,95) (265,112) (240,130) (222,150) (205,172) (187,193) (168,213)
+   *   (150,232) (135,250) (120,268) (110,288) (100,307) (92,330) (80,350)
+   *   (66,370) (55,388) (48,405)
+   * Each port sits a few units seaward of that line so the pin reads as
+   * standing at the water's edge and its label runs out over open ocean.
+   * Move a port and you must re-check it against the drawing, not just the
+   * numbers.
    * outDays is the westward passage — beating against the prevailing
    * westerlies, so it is long; homeDays rides the Gulf Stream back and is much
    * shorter. That asymmetry is real and it is the reason the return leg feels
@@ -60,70 +70,70 @@
   var PORTS = [
     {
       id: 'boston', name: 'Boston', colony: 'the Massachusetts Bay', founded: 1630,
-      x: 214, y: 188, outDays: 46, homeDays: 30,
+      x: 260, y: 118, outDays: 46, homeDays: 30,
       blurb: 'A stern, crowded harbor bristling with wharves, where half the town holds a share in some merchant hull or other.',
       pays: { salt: 2.9, ironware: 2.5, brandy: 2.0, books: 2.6, broadcloth: 2.3 },
       wares: ['cod', 'staves', 'whaleoil', 'timber']
     },
     {
       id: 'salem', name: 'Salem', colony: 'the Massachusetts Bay', founded: 1626,
-      x: 206, y: 176, outDays: 45, homeDays: 30,
+      x: 303, y: 95, outDays: 45, homeDays: 30,
       blurb: 'Endless racks of drying fish scent the air, while a strict meeting-house keeps a watchful eye on every soul.',
       pays: { salt: 3.0, tools: 2.5, physic: 2.4, glass: 2.3 },
       wares: ['cod', 'sassafras', 'beaver', 'staves']
     },
     {
       id: 'newport', name: 'Newport', colony: 'the Rhode Island colony', founded: 1639,
-      x: 224, y: 204, outDays: 46, homeDays: 31,
+      x: 235, y: 142, outDays: 46, homeDays: 31,
       blurb: 'A deep, tolerant anchorage that asks refreshingly few questions about a man’s cargo, and even fewer about his creed.',
       pays: { brandy: 2.6, pewter: 2.4, broadcloth: 2.3, powder: 2.4 },
       wares: ['whaleoil', 'molasses', 'staves', 'salpork']
     },
     {
       id: 'newhaven', name: 'New Haven', colony: 'the Connecticut colony', founded: 1638,
-      x: 230, y: 217, outDays: 47, homeDays: 32,
+      x: 211, y: 168, outDays: 47, homeDays: 32,
       blurb: 'Nine tidy squares laid out by ambitious men who meant to build a second London and settled for a very good one.',
       pays: { ironware: 2.6, books: 2.7, tools: 2.5, salt: 2.6 },
       wares: ['timber', 'salpork', 'beaver', 'maize']
     },
     {
       id: 'newyork', name: 'New York', colony: 'the Province of New York', founded: 1624,
-      x: 239, y: 231, outDays: 48, homeDays: 32,
+      x: 187, y: 196, outDays: 48, homeDays: 32,
       blurb: 'A bustling mix of Dutch gables and English customs men, fed by a mighty river carrying wealth from the deep interior.',
       pays: { broadcloth: 2.5, pewter: 2.5, glass: 2.4, brandy: 2.3 },
       wares: ['beaver', 'flour', 'deerskin', 'timber']
     },
     {
       id: 'philadelphia', name: 'Philadelphia', colony: 'the province of Pennsylvania', founded: 1682,
-      x: 247, y: 251, outDays: 50, homeDays: 33,
+      x: 161, y: 224, outDays: 50, homeDays: 33,
       blurb: 'Barely five years old and rigorously gridded, yet already loading more grain than anyone thought the Delaware could bear.',
       pays: { tools: 2.8, ironware: 2.6, glass: 2.5, books: 2.4 },
       wares: ['flour', 'staves', 'salpork', 'maize']
     },
     {
       id: 'annapolis', name: 'Anne Arundel Town', colony: 'the province of Maryland', founded: 1649,
-      x: 253, y: 277, outDays: 51, homeDays: 34,
+      x: 136, y: 252, outDays: 51, homeDays: 34,
       blurb: 'A prime landing at the head of the bay, where endless hogsheads of the sweet-scented leaf roll down from the plantations.',
       pays: { broadcloth: 2.6, physic: 2.5, pewter: 2.4, brandy: 2.4 },
       wares: ['tobacco', 'pigiron', 'maize', 'staves']
     },
     {
       id: 'jamestown', name: 'Jamestown', colony: 'the colony of Virginia', founded: 1607,
-      x: 262, y: 299, outDays: 52, homeDays: 34,
+      x: 117, y: 280, outDays: 52, homeDays: 34,
       blurb: 'The oldest of them all, half-burnt twice over, yet still the heart of where Virginia cargoes are fiercely haggled upon.',
       pays: { tools: 2.6, physic: 2.6, ironware: 2.4, powder: 2.5 },
       wares: ['tobacco', 'sassafras', 'timber', 'maize']
     },
     {
       id: 'norfolk', name: 'Norfolk', colony: 'the colony of Virginia', founded: 1680,
-      x: 268, y: 314, outDays: 52, homeDays: 34,
+      x: 103, y: 308, outDays: 52, homeDays: 34,
       blurb: 'A raw new town on a deep roadstead, wringing its wealth from the endless pine barrens and boiling pitch.',
       pays: { salt: 2.8, powder: 2.5, brandy: 2.4, ironware: 2.4 },
       wares: ['pitch', 'timber', 'tobacco', 'staves']
     },
     {
       id: 'charlestown', name: 'Charles Town', colony: 'the province of Carolina', founded: 1670,
-      x: 272, y: 370, outDays: 55, homeDays: 36,
+      x: 63, y: 380, outDays: 55, homeDays: 36,
       blurb: 'Hot, low-lying, and rich; where the rugged deerskin trade of the interior meets elegant ships bound for the world.',
       pays: { broadcloth: 2.2, powder: 2.7, physic: 2.7, glass: 2.5 },
       wares: ['deerskin', 'rice', 'indigo', 'pitch']
