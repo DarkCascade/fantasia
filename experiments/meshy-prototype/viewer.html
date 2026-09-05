@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Meshy Prototype Viewer</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1a1a1e; overflow: hidden; }
+    canvas { display: block; }
+    #hint {
+      position: fixed; bottom: 12px; left: 12px;
+      font: 13px system-ui, sans-serif; color: #ccc;
+      background: rgba(0,0,0,0.4); padding: 6px 10px; border-radius: 6px;
+    }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      font: 16px system-ui, sans-serif; color: #eee;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "../../vendor/three.module.min.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="loading">Loading model&hellip;</div>
+  <div id="hint">drag to orbit &middot; scroll to zoom</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from '../../vendor/jsm/loaders/GLTFLoader.js';
+    import { OrbitControls } from '../../vendor/jsm/controls/OrbitControls.js';
+
+    const MODEL_URL = new URLSearchParams(location.search).get('model') || './models/snowman-lowpoly.glb';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a1e);
+
+    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(2.5, 2, 3.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.8, 0);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    key.position.set(3, 5, 2);
+    key.castShadow = true;
+    scene.add(key);
+
+    const grid = new THREE.GridHelper(10, 20, 0x444444, 0x2a2a2e);
+    scene.add(grid);
+
+    const loader = new GLTFLoader();
+    loader.load(
+      MODEL_URL,
+      (gltf) => {
+        const model = gltf.scene;
+        model.traverse((n) => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+
+        // Center and ground the model regardless of its native scale/pivot.
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.x -= center.x;
+        model.position.z -= center.z;
+        model.position.y -= box.min.y;
+
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        const scale = 2 / maxDim;
+        model.scale.setScalar(scale);
+
+        scene.add(model);
+        document.getElementById('loading').remove();
+      },
+      undefined,
+      (err) => {
+        document.getElementById('loading').textContent = 'Failed to load model — see console.';
+        console.error(err);
+      }
+    );
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+  </script>
+</body>
+</html>
