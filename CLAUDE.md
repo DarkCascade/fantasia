@@ -257,6 +257,44 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   takes no arguments (same convention as `gloom3DGame`) since there's no
   Phaser instance to tear down, just a `clearInterval` and a DOM removal. No
   `localStorage` persistence — a run resets when the game is torn down.
+- **Nova Merge** (`src/nova-merge/nova-merge.js`) — a physics merge/stacking
+  arcade game (Suika/2048-style) on page 3 of the menu, the one game here built
+  specifically as an answer to "no more idlers": no numbers tick up on their
+  own, every point comes from a drag-and-release you make. Drag left/right to
+  aim a small falling body, release to drop it into a glass silo (**Matter**
+  physics, like Annoyed Avians); two touching bodies of the same tier fuse
+  into the next tier up (`TIERS`, 7 of them: Asteroid → Moon → Comet → Ocean
+  Planet → Ringed Planet → Gas Giant → Nova), scoring `TIERS[tier].value`.
+  Merges landing within `CHAIN_WINDOW` (700ms) of each other chain into a
+  rising score multiplier shown as e.g. "COMBO ×1.5" (the label prints the
+  real multiplier, not the raw chain count — those diverge since the
+  multiplier is `1 + 0.5×(chain−1)`). `SWAP_CHARGES_START` (3) lets the
+  player trade the current body for the next one queued; unlike a one-shot
+  resource, charges **regenerate** every `SWAP_REGEN_EVERY` (6) merges up to
+  `SWAP_CHARGES_MAX` (4), so banking a swap for the right moment stays a live
+  decision for the whole run rather than something spent early and forgotten.
+  Merging two Nova-tier bodies triggers a supernova instead of a 10th tier:
+  it clears everything within `SUPERNOVA_RADIUS` for bonus points. The tier
+  ladder is deliberately only 7 deep (not 9) and the silo (`SILO_LEFT/RIGHT`,
+  `SILO_TOP`, `FLOOR_Y`) and top-tier radii are sized so **two Nova bodies
+  can just barely coexist** — reaching tier *N* costs roughly 2^N small
+  bodies merged all the way up, so at 9 tiers a supernova was effectively
+  unreachable in a normal run; cutting to 7 (and shrinking the top tiers a
+  little) puts it within reach of committed play without making it routine.
+  The run ends when a settled body's top stays above the danger line
+  (`dangerLineY()`) for `OVER_MS` (1.5s) — and that line is **not** fixed at
+  `SILO_TOP`: past `DANGER_CREEP_START` (150) merges it creeps steadily
+  toward (and past) the floor. This is load-bearing, not flavor — merging
+  two same-tier bodies barely shrinks their combined footprint (the tier
+  radii ratio is close to `sqrt(2)`, i.e. area-preserving), so a disciplined
+  "always match, never stack tall" strategy keeps the board's occupied area
+  roughly constant *forever*; without a floor that eventually rises to meet
+  it, a good enough run simply never ends. A capped, partial creep isn't
+  enough either — flawless play just finds a new equilibrium at the
+  easier-but-still-sustainable line and stalls there indefinitely (confirmed
+  by bot-testing during development), which is why `DANGER_CREEP_MAX`
+  deliberately exceeds the full `SILO_TOP`-to-`FLOOR_Y` span rather than
+  stopping partway. Best score in `localStorage` (`nova-merge-best`).
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -275,6 +313,7 @@ src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHoll
 src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
 src/bark-quest/         Miles' two stances + the three foe cut-outs (art not drawn at runtime)
+src/nova-merge/nova-merge.js  Nova Merge physics merge game; window.launchNovaMerge()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
@@ -358,11 +397,13 @@ vendor/three.module.min.js  three.js r160 ES module (vendored; imported on deman
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
-  `launchGloomHollow3D`, `launchBarkQuest`); the menu buttons call these to
+  `launchGloomHollow3D`, `launchBarkQuest`, `launchNovaMerge`); the menu buttons
+  call these to
   create the chosen game (once) into `#game-container`, and
   `window.returnToMenu()` tears down whichever game is running (`window.game` /
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
-  `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame`) and re-shows
+  `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
+  `novaMergeGame`) and re-shows
   the menu. All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame` and
   `indieGrindGame`, whose handles take a plain `destroy()`.

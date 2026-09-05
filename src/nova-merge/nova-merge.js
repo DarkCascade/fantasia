@@ -28,9 +28,11 @@
   const W = 400;
   const H = 600;
 
-  // The silo: a glass jar the orbs stack up inside. SILO_TOP doubles as the
-  // danger line — a resting orb whose top pokes above it for too long ends
-  // the run. RAIL_Y is where the "current" orb hovers while you aim it.
+  // The silo: a glass jar the orbs stack up inside. SILO_TOP is where the
+  // walls start and the run's initial danger line sits — a resting orb whose
+  // top pokes above the CURRENT line (see dangerLineY(), which creeps below
+  // SILO_TOP over a long run) for too long ends the run. RAIL_Y is where the
+  // "current" orb hovers while you aim it.
   const SILO_LEFT = 75;
   const SILO_RIGHT = 325;
   const SILO_TOP = 210;
@@ -48,13 +50,35 @@
   const SWAP_REGEN_EVERY = 6; // merges between earning a fresh swap charge
   const SUPERNOVA_RADIUS = 80;
 
+  // A "match tiers, never stack tall" strategy keeps total occupied area
+  // roughly constant forever (merging two same-tier bodies barely shrinks
+  // their combined footprint), so without this, a sufficiently disciplined
+  // run has no natural end. Past DANGER_CREEP_START merges the loss line
+  // creeps down toward the floor. DANGER_CREEP_MAX deliberately exceeds the
+  // full SILO_TOP-to-FLOOR_Y span: a cap that only *shrinks* the safe zone
+  // to a smaller-but-still-sustainable height just lets flawless play find
+  // a new equilibrium there and run forever again one level down (confirmed
+  // by testing -- a capped creep bought a higher ceiling, not a real one).
+  // Only a creep that can reach/exceed the floor guarantees termination
+  // regardless of how well a run is played.
+  const DANGER_CREEP_START = 150;
+  const DANGER_CREEP_PER_MERGE = 3.0;
+  const DANGER_CREEP_MAX = 400;
+
   const HS_KEY = "nova-merge-best";
 
   // Only the first three tiers are ever handed to the player to drop; every
-  // bigger body only ever appears as the result of a merge. Weighted toward
-  // the smallest so the board doesn't fill with mid-size bodies too fast.
+  // bigger body only ever appears as the result of a merge. Early on the
+  // weights favor the smallest so the board doesn't fill with mid-size
+  // bodies too fast; they drift toward SPAWN_WEIGHTS_LATE as merges pile up
+  // over a run, so a run that's going well (merging efficiently, never
+  // approaching the danger line) still runs into rising space pressure
+  // instead of coasting indefinitely -- without this, a simple "match tiers,
+  // don't stack tall" strategy has no natural end.
   const SPAWN_POOL = [0, 1, 2];
-  const SPAWN_WEIGHTS = [55, 30, 15];
+  const SPAWN_WEIGHTS_EARLY = [55, 30, 15];
+  const SPAWN_WEIGHTS_LATE = [30, 40, 30];
+  const SPAWN_RAMP_MERGES = 150; // merges over which the ramp completes
 
   // Seven tiers, not nine: reaching the top tier takes 2^(N-1) small bodies
   // merged all the way up, so every tier cut roughly halves how many drops a
@@ -76,15 +100,6 @@
     return "#" + n.toString(16).padStart(6, "0");
   }
 
-  function rollTier() {
-    const roll = Math.random() * 100;
-    let acc = 0;
-    for (let i = 0; i < SPAWN_POOL.length; i++) {
-      acc += SPAWN_WEIGHTS[i];
-      if (roll < acc) return SPAWN_POOL[i];
-    }
-    return SPAWN_POOL[SPAWN_POOL.length - 1];
-  }
 
   // A tiny cartoon face — only bodies big enough to read one get it, so the
   // smallest asteroids stay plain rubble.
@@ -136,7 +151,7 @@
         })
         .setDepth(40);
 
-      this.queue = [rollTier(), rollTier(), rollTier()];
+      this.queue = [this.rollTier(), this.rollTier(), this.rollTier()];
       this.spawnCurrentOrb();
       this.refreshQueueDisplay();
       this.updateScoreText();
@@ -309,9 +324,13 @@
       g.lineStyle(4, 0x6a5acd, 0.9);
       g.strokeRoundedRect(SILO_LEFT - 8, SILO_TOP - 4, SILO_RIGHT - SILO_LEFT + 16, FLOOR_Y - SILO_TOP + 30, 18);
 
+      // Drawn at local y=0 so animating the line later (see dangerLineY()) is
+      // just moving this object's y, not re-drawing the dashes each time.
       const dl = this.add.graphics().setDepth(3);
+      dl.y = SILO_TOP;
       dl.lineStyle(2, 0xff5555, 0.85);
-      for (let x = SILO_LEFT; x < SILO_RIGHT; x += 14) dl.lineBetween(x, SILO_TOP, x + 7, SILO_TOP);
+      for (let x = SILO_LEFT; x < SILO_RIGHT; x += 14) dl.lineBetween(x, 0, x + 7, 0);
+      this.dangerLineGfx = dl;
 
       this.hint = this.add
         .text(
@@ -418,6 +437,20 @@
 
     /* ---------- current orb & input ---------- */
 
+    // Weights drift from SPAWN_WEIGHTS_EARLY toward SPAWN_WEIGHTS_LATE as
+    // mergeCount climbs, so a long, well-played run faces rising space
+    // pressure instead of coasting on an unchanging supply of small bodies.
+    rollTier() {
+      const t = Math.min(this.mergeCount / SPAWN_RAMP_MERGES, 1);
+      const roll = Math.random() * 100;
+      let acc = 0;
+      for (let i = 0; i < SPAWN_POOL.length; i++) {
+        acc += SPAWN_WEIGHTS_EARLY[i] + (SPAWN_WEIGHTS_LATE[i] - SPAWN_WEIGHTS_EARLY[i]) * t;
+        if (roll < acc) return SPAWN_POOL[i];
+      }
+      return SPAWN_POOL[SPAWN_POOL.length - 1];
+    }
+
     spawnCurrentOrb() {
       this.currentOrb = this.add.image(this.aimX, RAIL_Y, "nm-orb-" + this.queue[0]).setDepth(9);
     }
@@ -483,7 +516,7 @@
       this.activeOrbs.push(orb);
 
       this.queue.shift();
-      this.queue.push(rollTier());
+      this.queue.push(this.rollTier());
       this.spawnCurrentOrb();
       this.refreshQueueDisplay();
       this.updateSwapButton();
@@ -626,14 +659,21 @@
 
     /* ---------- danger line & game over ---------- */
 
+    dangerLineY() {
+      const over = Math.max(this.mergeCount - DANGER_CREEP_START, 0);
+      return SILO_TOP + Math.min(over * DANGER_CREEP_PER_MERGE, DANGER_CREEP_MAX);
+    }
+
     update(time) {
       if (this.over) return;
+      const lineY = this.dangerLineY();
+      this.dangerLineGfx.y = lineY;
       for (const orb of this.activeOrbs) {
         if (orb.merging) continue;
         const body = orb.body;
         const speed = Math.abs(body.velocity.x) + Math.abs(body.velocity.y);
         const topY = orb.y - TIERS[orb.tier].r;
-        if (speed < SETTLE_EPS && topY < SILO_TOP) {
+        if (speed < SETTLE_EPS && topY < lineY) {
           if (orb.overSince == null) orb.overSince = time;
           else if (time - orb.overSince > OVER_MS) {
             this.gameOver();
