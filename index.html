@@ -371,7 +371,9 @@
           <button id="btn-sirfish" class="menu-btn menu-btn--secondary" type="button">
             Sir Fish
           </button>
-          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button id="btn-novamerge" class="menu-btn menu-btn--secondary" type="button">
+            Nova Merge
+          </button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
@@ -403,6 +405,7 @@
   <script src="src/indie-grind.js"></script>
   <script src="src/gloom-hollow.js"></script>
   <script src="src/bark-quest.js"></script>
+  <script src="src/nova-merge/nova-merge.js"></script>
   <!-- three.js is NOT loaded here: src/gloom-hollow-3d.js imports
        vendor/three.module.min.js on demand, the first time that game is picked. -->
   <script src="src/gloom-hollow-3d.js"></script>
@@ -458,6 +461,11 @@
         window.location.href = "sirfish/index.html";
       });
 
+      document.getElementById("btn-novamerge").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchNovaMerge === "function") window.launchNovaMerge();
+      });
+
       document.getElementById("btn-indiegrind").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchIndieGrind === "function") window.launchIndieGrind();
@@ -507,6 +515,7 @@
           if (window.cosmicDashGame) { try { window.cosmicDashGame.destroy(true); } catch (e) {} window.cosmicDashGame = null; }
           if (window.gloomGame) { try { window.gloomGame.destroy(true); } catch (e) {} window.gloomGame = null; }
           if (window.barkQuestGame) { try { window.barkQuestGame.destroy(true); } catch (e) {} window.barkQuestGame = null; }
+          if (window.novaMergeGame) { try { window.novaMergeGame.destroy(true); } catch (e) {} window.novaMergeGame = null; }
           // Gloom Hollow 3D and Indie Grind aren't Phaser games: they're DOM
           // overlays (three.js renderer / plain HTML+CSS respectively), and
           // their handles' destroy() takes no arguments.
