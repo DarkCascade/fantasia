@@ -298,6 +298,20 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   `vendor/jsm/controls/OrbitControls.js` (used by the standalone prototype
   viewer, not the game), and `vendor/jsm/utils/BufferGeometryUtils.js`
   (a GLTFLoader dependency).
+  **Mobile WebGL failures are handled, not just hoped away**: touch devices
+  (`matchMedia("(pointer: coarse)")`) get `antialias: false`, `powerPreference:
+  "default"` instead of `"high-performance"`, a pixel-ratio cap of 1.5 instead
+  of 2, and shadow maps skipped entirely — that combination (full-res AA +
+  a forced discrete GPU + a shadow map) is what silently fails WebGL context
+  creation on some budget/older phones, which Chrome/mobile Safari show as a
+  small broken-context glyph on an otherwise blank canvas with **no
+  catchable JS error**. `setupRenderer()` throws explicitly if
+  `renderer.getContext()` comes back null so that path *is* catchable, and a
+  `webglcontextlost` listener on the canvas catches the other failure mode —
+  a context that dies asynchronously well after creation (thermal
+  throttling, backgrounding the tab) — since that also fires with no
+  exception. Both paths land on the same `showFatalError()` dead-end screen
+  (a message plus a Menu button) rather than leaving a stuck blank canvas.
 - **Nova Merge** (`src/nova-merge/nova-merge.js`) — a physics merge/stacking
   arcade game (Suika/2048-style) on page 3 of the menu, the one game here built
   specifically as an answer to "no more idlers": no numbers tick up on their

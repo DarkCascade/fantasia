@@ -121,6 +121,13 @@
 }
 .sm-btn--again { color: #3a2500; background: linear-gradient(180deg, #ffe7a3 0%, #f0b94a 100%); }
 .sm-btn--menu { color: #ffe7a3; background: rgba(255,255,255,0.08); }
+.sm-fatal {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 24px; text-align: center; background: #1d232a;
+  font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #eaf0ff;
+}
+.sm-fatal-card { max-width: 320px; }
+.sm-fatal-card p { margin: 0 0 18px; opacity: 0.85; font-weight: 400; font-size: 14px; }
 `;
 
   const HUD_HTML = `
@@ -165,6 +172,23 @@
     }
   }
 
+  // Shared dead-end screen for both "never started" (WebGL context couldn't
+  // be created) and "died mid-run" (context lost after the fact) — either
+  // way the canvas is unusable and the only way out is back to the menu.
+  function showFatalError(root, message) {
+    root.innerHTML =
+      '<div class="sm-fatal"><div class="sm-fatal-card"><h2>Can&rsquo;t ski right now</h2>' +
+      "<p>" +
+      message +
+      '</p><button class="sm-btn sm-btn--menu" type="button" data-sm-fatal-menu>Menu</button></div></div>';
+    const btn = root.querySelector("[data-sm-fatal-menu]");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        if (typeof window.returnToMenu === "function") window.returnToMenu();
+      });
+    }
+  }
+
   /* ---------- the game ---------- */
 
   class SlopeRun {
@@ -202,11 +226,33 @@
     /* ---------- renderer / scene ---------- */
 
     setupRenderer() {
-      this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      this.renderer.shadowMap.enabled = true;
+      // Touch devices skew toward weaker/older GPUs, and "high-performance" +
+      // antialias + a shadow map is exactly the combination that fails WebGL
+      // context creation on some budget/older phones (Chrome/mobile Safari
+      // paint a small broken-context glyph into the canvas and leave it blank
+      // rather than throwing a catchable error). Ask for less there.
+      const lowPower = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: !lowPower,
+        powerPreference: lowPower ? "default" : "high-performance",
+        failIfMajorPerformanceCaveat: false,
+      });
+      if (!this.renderer.getContext()) {
+        throw new Error("WebGL context could not be created");
+      }
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPower ? 1.5 : 2));
+      this.renderer.shadowMap.enabled = !lowPower;
       this.canvas = this.renderer.domElement;
       this.root.insertBefore(this.canvas, this.root.firstChild);
+
+      // A context can also die asynchronously, well after creation succeeded
+      // (thermal throttling, another app claiming GPU memory, backgrounding
+      // the tab) — with no exception to catch, so this is the only hook.
+      this.listen(this.canvas, "webglcontextlost", (e) => {
+        e.preventDefault();
+        this.onContextLost();
+      });
 
       this.scene = new THREE.Scene();
       const skyColor = 0xbfe3ff;
@@ -223,14 +269,17 @@
       this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9bbf, 1.1));
       const sun = new THREE.DirectionalLight(0xfff3d6, 1.6);
       sun.position.set(6, 12, 4);
-      sun.castShadow = true;
-      sun.shadow.mapSize.set(1024, 1024);
-      sun.shadow.camera.left = -10;
-      sun.shadow.camera.right = 10;
-      sun.shadow.camera.top = 10;
-      sun.shadow.camera.bottom = -10;
-      sun.shadow.camera.near = 1;
-      sun.shadow.camera.far = 30;
+      if (!lowPower) {
+        sun.castShadow = true;
+        const shadowRes = lowPower ? 512 : 1024;
+        sun.shadow.mapSize.set(shadowRes, shadowRes);
+        sun.shadow.camera.left = -10;
+        sun.shadow.camera.right = 10;
+        sun.shadow.camera.top = 10;
+        sun.shadow.camera.bottom = -10;
+        sun.shadow.camera.near = 1;
+        sun.shadow.camera.far = 30;
+      }
       this.scene.add(sun);
 
       this.resize();
@@ -552,6 +601,18 @@
       }
     }
 
+    onContextLost() {
+      if (this.destroyed) return;
+      this.destroyed = true; // stop tick() from touching a dead GL context
+      if (this.raf) cancelAnimationFrame(this.raf);
+      if (this.hintTimer) clearTimeout(this.hintTimer);
+      this.listeners.forEach(([target, type, fn, opts]) => target.removeEventListener(type, fn, opts));
+      showFatalError(
+        this.root,
+        "This device dropped 3D graphics mid-run — try closing other tabs/apps, or just head back."
+      );
+    }
+
     destroy() {
       this.destroyed = true;
       if (this.raf) cancelAnimationFrame(this.raf);
@@ -615,8 +676,8 @@
         handle.game = new SlopeRun(root);
       })
       .catch((err) => {
-        const loading = root.querySelector(".sm-loading");
-        if (loading) loading.textContent = "Could not load three.js";
+        if (handle.cancelled) return;
+        showFatalError(root, "This device couldn't start 3D graphics for this game.");
         console.error("The Abominable Slopeman failed to start:", err);
       });
 
