@@ -257,6 +257,47 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   takes no arguments (same convention as `gloom3DGame`) since there's no
   Phaser instance to tear down, just a `clearInterval` and a DOM removal. No
   `localStorage` persistence — a run resets when the game is torn down.
+- **The Abominable Slopeman** (`src/slopeman.js`) — a downhill dodging game on
+  the second slot of menu page 3, built on **three.js** like Gloom Hollow 3D
+  (a real 3D scene, DOM HUD overlay, three imported on demand). The snowman is
+  fixed at the origin; trees and rocks — built from primitives at runtime,
+  same as everything else — spawn at random x offsets and random intervals
+  far up the slope and march toward the camera along +z, so "downhill motion"
+  is entirely obstacles-approaching-player plus a scrolling snow texture,
+  never the player's own z. A big arrow button glued to each bottom corner
+  (`.sm-arrow--left` / `--right`) nudges the snowman sideways on hold; arrow
+  keys/WASD do the same. Score is just elapsed survival time, shown live and
+  saved as a float to `localStorage` (`slopeman-best-seconds`); both the
+  forward speed (`BASE_FORWARD_SPEED` → `MAX_FORWARD_SPEED`) and the spawn
+  interval (`BASE_SPAWN_MS` → `MIN_SPAWN_MS`) ramp with elapsed time, and past
+  `CLUSTER_RAMP_SEC` a spawn sometimes brings a second obstacle offset to the
+  far side (`CLUSTER_MIN_GAP`) so a gap always survives. Collision is a flat
+  x-distance check once an obstacle's z is within 1.1 units of the player's.
+  **The snowman is Fantasia's second exception to the "no external assets"
+  rule** (after Bark Quest's PNGs): he's a Meshy-generated `.glb`
+  (`src/slopeman/snowman-lowpoly.glb`) from a weekend experiment in
+  `experiments/meshy-prototype/`. The file Meshy returns is **not** actually
+  low-poly — it came back at ~970K vertices / ~1.94M triangles, which measured
+  well under 1 fps in headless software rendering and would still choke real
+  mobile GPUs — so it's decimated before shipping (`trimesh` +
+  `simplify_quadric_decimation`, `pip install trimesh pygltflib
+  fast-simplification`) down to 12,000 faces (~212 KB), which reads as
+  visually identical at game scale and measured ~40x faster. Re-running the
+  Meshy pipeline for a different model means repeating that decimation step —
+  don't ship whatever Meshy returns directly. The mesh also ships with no
+  material/UVs/normals (geometry only), so `computeVertexNormals()` is called
+  per-mesh and it's rendered in one flat matte snow-white
+  `MeshStandardMaterial` — unlike Bark Quest there's no way to recolor parts
+  (hat, scarf) separately since it's a single unindexed mesh. Because the
+  vendored `GLTFLoader.js` (three r160 examples, same vintage as
+  `vendor/three.module.min.js`) does a bare `import ... from "three"`, an
+  **import map** mapping `"three"` to `./vendor/three.module.min.js` lives
+  in `index.html`'s `<head>` — needed document-wide before any module
+  resolves it, even though three itself still only loads on demand. Also
+  vendored for this: `vendor/jsm/loaders/GLTFLoader.js`,
+  `vendor/jsm/controls/OrbitControls.js` (used by the standalone prototype
+  viewer, not the game), and `vendor/jsm/utils/BufferGeometryUtils.js`
+  (a GLTFLoader dependency).
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -275,9 +316,13 @@ src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHoll
 src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
 src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
 src/bark-quest/         Miles' two stances + the three foe cut-outs (art not drawn at runtime)
+src/slopeman.js        The Abominable Slopeman downhill dodger (three.js); window.launchSlopeman()
+src/slopeman/          Decimated snowman .glb (art not drawn at runtime)
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
+vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitControls, BufferGeometryUtils)
+experiments/           Scratch prototypes kept out of the deploy's copy step; never shipped
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
 
@@ -358,14 +403,16 @@ vendor/three.module.min.js  three.js r160 ES module (vendored; imported on deman
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
-  `launchGloomHollow3D`, `launchBarkQuest`); the menu buttons call these to
+  `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`); the menu buttons
+  call these to
   create the chosen game (once) into `#game-container`, and
   `window.returnToMenu()` tears down whichever game is running (`window.game` /
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
-  `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame`) and re-shows
+  `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
+  `slopemanGame`) and re-shows
   the menu. All of those are Phaser
-  instances torn down with `destroy(true)` except `gloom3DGame` and
-  `indieGrindGame`, whose handles take a plain `destroy()`.
+  instances torn down with `destroy(true)` except `gloom3DGame`,
+  `indieGrindGame` and `slopemanGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The

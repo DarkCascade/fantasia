@@ -8,6 +8,13 @@
   />
   <meta name="theme-color" content="#140f33" />
   <title>Fantasia</title>
+  <!-- The Abominable Slopeman's vendored GLTFLoader.js imports the bare
+       specifier "three"; an import map has to be present before any module
+       resolves it, so it's declared here even though three.js itself is only
+       ever imported on demand, by URL, once a 3D game is actually picked. -->
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js" } }
+  </script>
   <style>
     * {
       margin: 0;
@@ -371,7 +378,9 @@
           <button id="btn-sirfish" class="menu-btn menu-btn--secondary" type="button">
             Sir Fish
           </button>
-          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button id="btn-slopeman" class="menu-btn menu-btn--secondary" type="button">
+            The Abominable Slopeman
+          </button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
@@ -406,6 +415,8 @@
   <!-- three.js is NOT loaded here: src/gloom-hollow-3d.js imports
        vendor/three.module.min.js on demand, the first time that game is picked. -->
   <script src="src/gloom-hollow-3d.js"></script>
+  <!-- Also imports three.js on demand, same as gloom-hollow-3d.js. -->
+  <script src="src/slopeman.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -478,6 +489,11 @@
         if (typeof window.launchBarkQuest === "function") window.launchBarkQuest();
       });
 
+      document.getElementById("btn-slopeman").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchSlopeman === "function") window.launchSlopeman();
+      });
+
       // Underfoot (page 2) -> "under construction" modal.
       var ucModal = document.getElementById("uc-modal");
       document.getElementById("btn-underfoot").addEventListener("click", function () {
@@ -512,6 +528,7 @@
           // their handles' destroy() takes no arguments.
           if (window.gloom3DGame) { try { window.gloom3DGame.destroy(); } catch (e) {} window.gloom3DGame = null; }
           if (window.indieGrindGame) { try { window.indieGrindGame.destroy(); } catch (e) {} window.indieGrindGame = null; }
+          if (window.slopemanGame) { try { window.slopemanGame.destroy(); } catch (e) {} window.slopemanGame = null; }
         }, 0);
       };
     })();
