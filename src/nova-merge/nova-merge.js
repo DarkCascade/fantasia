@@ -31,9 +31,9 @@
   // The silo: a glass jar the orbs stack up inside. SILO_TOP doubles as the
   // danger line — a resting orb whose top pokes above it for too long ends
   // the run. RAIL_Y is where the "current" orb hovers while you aim it.
-  const SILO_LEFT = 96;
-  const SILO_RIGHT = 304;
-  const SILO_TOP = 254;
+  const SILO_LEFT = 75;
+  const SILO_RIGHT = 325;
+  const SILO_TOP = 210;
   const FLOOR_Y = 540;
   const RAIL_Y = 118;
 
@@ -44,7 +44,9 @@
   const SETTLE_EPS = 0.12; // matter body speed considered "at rest"
   const DROP_COOLDOWN = 260; // ms debounce so a double-tap can't stack two drops
   const SWAP_CHARGES_START = 3;
-  const SUPERNOVA_RADIUS = 110;
+  const SWAP_CHARGES_MAX = 4;
+  const SWAP_REGEN_EVERY = 6; // merges between earning a fresh swap charge
+  const SUPERNOVA_RADIUS = 80;
 
   const HS_KEY = "nova-merge-best";
 
@@ -54,16 +56,19 @@
   const SPAWN_POOL = [0, 1, 2];
   const SPAWN_WEIGHTS = [55, 30, 15];
 
+  // Seven tiers, not nine: reaching the top tier takes 2^(N-1) small bodies
+  // merged all the way up, so every tier cut roughly halves how many drops a
+  // run needs before two top-tier bodies (a supernova) are actually in reach.
+  // At nine tiers that ceiling was well past what a ~150-300 drop run could
+  // realistically produce; at seven it's a real, if still rare, payoff.
   const TIERS = [
     { name: "Asteroid", r: 13, color: 0x9a97a6, dark: 0x716f7c, value: 10 },
     { name: "Moon", r: 18, color: 0xd7d6e6, dark: 0xa9a8bd, value: 20 },
     { name: "Comet", r: 24, color: 0xbdeeff, dark: 0x8fd0ee, value: 40 },
-    { name: "Rocky Planet", r: 31, color: 0xc2652f, dark: 0x8f431d, value: 80 },
-    { name: "Ocean Planet", r: 39, color: 0x2f8fd1, dark: 0x2f9e52, value: 160 },
-    { name: "Ringed Planet", r: 48, color: 0xd9b877, dark: 0xb08f52, value: 320 },
-    { name: "Gas Giant", r: 58, color: 0xe08a3c, dark: 0xb5651f, value: 640 },
-    { name: "Star", r: 69, color: 0xfff2a8, dark: 0xffd23f, value: 1280 },
-    { name: "Nova", r: 80, color: 0xffffff, dark: 0xfff2a8, value: 2560 },
+    { name: "Ocean Planet", r: 32, color: 0x2f8fd1, dark: 0x2f9e52, value: 80 },
+    { name: "Ringed Planet", r: 38, color: 0xd9b877, dark: 0xb08f52, value: 160 },
+    { name: "Gas Giant", r: 44, color: 0xe08a3c, dark: 0xb5651f, value: 320 },
+    { name: "Nova", r: 50, color: 0xffffff, dark: 0xfff2a8, value: 640 },
   ];
   const MAX_TIER = TIERS.length - 1;
 
@@ -108,6 +113,7 @@
       this.chainCount = 0;
       this.lastMergeAt = -99999;
       this.swapCharges = SWAP_CHARGES_START;
+      this.mergeCount = 0;
       this.activeOrbs = [];
       this.aiming = false;
       this.aimX = W / 2;
@@ -228,15 +234,7 @@
           g.fillCircle(c - r * 0.25, c - r * 0.25, r * 0.35);
           drawFace(g, c, c, r);
           break;
-        case 3: // Rocky Planet
-          g.fillStyle(t.color, 1);
-          g.fillCircle(c, c, r);
-          g.fillStyle(t.dark, 0.55);
-          g.fillEllipse(c - r * 0.3, c - r * 0.2, r * 0.9, r * 0.5);
-          g.fillEllipse(c + r * 0.35, c + r * 0.3, r * 0.7, r * 0.4);
-          drawFace(g, c, c, r);
-          break;
-        case 4: // Ocean Planet
+        case 3: // Ocean Planet
           g.fillStyle(t.color, 1);
           g.fillCircle(c, c, r);
           g.fillStyle(t.dark, 0.85);
@@ -244,7 +242,7 @@
           g.fillEllipse(c + r * 0.3, c + r * 0.25, r * 0.6, r * 0.5);
           drawFace(g, c, c, r);
           break;
-        case 5: // Ringed Planet
+        case 4: // Ringed Planet
           g.lineStyle(Math.max(2, r * 0.12), t.dark, 0.9);
           g.strokeEllipse(c, c, r * 2.7, r * 0.9);
           g.fillStyle(t.color, 1);
@@ -253,7 +251,7 @@
           g.fillEllipse(c, c - r * 0.1, r * 1.6, r * 0.5);
           drawFace(g, c, c, r);
           break;
-        case 6: // Gas Giant
+        case 5: // Gas Giant
           g.fillStyle(t.color, 1);
           g.fillCircle(c, c, r);
           for (let by = -1; by <= 1; by++) {
@@ -266,30 +264,7 @@
           g.fillEllipse(c + r * 0.3, c - r * 0.15, r * 0.4, r * 0.24);
           drawFace(g, c, c, r);
           break;
-        case 7: // Star
-          g.fillStyle(t.color, 0.25);
-          g.fillCircle(c, c, r * 1.45);
-          g.fillStyle(t.color, 0.5);
-          g.fillCircle(c, c, r * 1.2);
-          g.fillStyle(t.dark, 1);
-          g.fillCircle(c, c, r);
-          g.fillStyle(0xffffff, 0.9);
-          g.fillCircle(c, c, r * 0.55);
-          for (let k = 0; k < 8; k++) {
-            const a = (k * Math.PI) / 4;
-            g.fillStyle(t.color, 0.55);
-            g.fillTriangle(
-              c + Math.cos(a) * r * 1.5,
-              c + Math.sin(a) * r * 1.5,
-              c + Math.cos(a + 0.08) * r * 0.9,
-              c + Math.sin(a + 0.08) * r * 0.9,
-              c + Math.cos(a - 0.08) * r * 0.9,
-              c + Math.sin(a - 0.08) * r * 0.9
-            );
-          }
-          drawFace(g, c, c, r * 0.95);
-          break;
-        case 8: // Nova
+        case 6: // Nova
           g.fillStyle(0xfff2a8, 0.2);
           g.fillCircle(c, c, r * 1.55);
           g.fillStyle(0xffe08a, 0.4);
@@ -396,13 +371,16 @@
         this.add.image(W / 2 + 14, 70, "nm-orb-0").setDisplaySize(24, 24).setDepth(30),
       ];
 
-      this.swapButton = this.makeButton(W - 46, H - 26, "⇄ SWAP ×3", () => this.doSwap());
-      this.makeButton(46, H - 26, "≡ Menu", () => {
+      this.swapButton = this.makeButton(W - 10, H - 26, "⇄ SWAP ×3", () => this.doSwap(), 1);
+      this.makeButton(10, H - 26, "≡ Menu", () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
-      });
+      }, 0);
     }
 
-    makeButton(x, y, label, onClick) {
+    // originX lets a button anchor to a screen edge (0 = left, 1 = right)
+    // instead of assuming its label is short enough to fit centered — a
+    // longer label (e.g. "⇄ SWAP ×3") can otherwise run past the canvas edge.
+    makeButton(x, y, label, onClick, originX) {
       const t = this.add
         .text(x, y, label, {
           fontFamily: "Arial, sans-serif",
@@ -412,7 +390,7 @@
           padding: { x: 10, y: 6 },
           fontStyle: "bold",
         })
-        .setOrigin(0.5)
+        .setOrigin(originX === undefined ? 0.5 : originX, 0.5)
         .setDepth(31)
         .setInteractive({ useHandCursor: true });
       t.on("pointerdown", (p, lx, ly, e) => {
@@ -524,6 +502,12 @@
     }
 
     processMerge(a, b) {
+      // A merge whose collision was already queued (via delayedCall) the
+      // instant the run ended must not still land after the game-over panel
+      // has frozen and displayed a score -- guard it here rather than trust
+      // every call site to check first.
+      if (this.over) return;
+
       const tier = a.tier;
       const x = (a.x + b.x) / 2;
       const y = (a.y + b.y) / 2;
@@ -536,6 +520,13 @@
       if (now - this.lastMergeAt <= CHAIN_WINDOW) this.chainCount++;
       else this.chainCount = 1;
       this.lastMergeAt = now;
+
+      this.mergeCount++;
+      if (this.mergeCount % SWAP_REGEN_EVERY === 0 && this.swapCharges < SWAP_CHARGES_MAX) {
+        this.swapCharges++;
+        this.updateSwapButton();
+        this.floatingText(this.swapButton.x - 60, this.swapButton.y - 22, "+1 SWAP", 0x7fffd4, false);
+      }
 
       if (tier === MAX_TIER) {
         this.triggerSupernova(x, y);
@@ -550,7 +541,7 @@
       this.spawnMergedOrb(newTier, x, y);
       this.burst(x, y, 8 + tier * 2);
       this.floatingText(x, y - 10, "+" + awarded, TIERS[newTier].color, false);
-      if (this.chainCount >= 2) this.showCombo(x, y - 34, this.chainCount);
+      if (this.chainCount >= 2) this.showCombo(x, y - 34, this.chainCount, mult);
     }
 
     spawnMergedOrb(tier, x, y) {
@@ -613,11 +604,12 @@
       });
     }
 
-    showCombo(x, y, chain) {
+    showCombo(x, y, chain, mult) {
       const label = chain >= 5 ? "MEGA CHAIN" : chain >= 3 ? "SUPER CHAIN" : "COMBO";
       const col = chain >= 5 ? 0xff5040 : chain >= 3 ? 0xff9a3c : 0xffe066;
+      const multStr = (Math.round(mult * 10) / 10).toString();
       const t = this.add
-        .text(x, y, label + " ×" + chain, {
+        .text(x, y, label + " ×" + multStr, {
           fontFamily: "Arial, sans-serif",
           fontSize: 16 + chain * 2 + "px",
           color: hex(col),
@@ -656,6 +648,7 @@
     gameOver() {
       if (this.over) return;
       this.over = true;
+      this.matter.world.pause(); // freeze the pile exactly as shown on the panel
       this.saveHigh();
       this.updateSwapButton();
       const isBest = this.score > this.startBest;
