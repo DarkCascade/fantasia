@@ -326,7 +326,10 @@
 
       // Drawn at local y=0 so animating the line later (see dangerLineY()) is
       // just moving this object's y, not re-drawing the dashes each time.
-      const dl = this.add.graphics().setDepth(3);
+      // Depth 9 (above orbs at depth 8): the line creeps down into pile
+      // height over a long run, and must stay visible once it gets there —
+      // sitting behind the orbs would hide it exactly when it matters most.
+      const dl = this.add.graphics().setDepth(9);
       dl.y = SILO_TOP;
       dl.lineStyle(2, 0xff5555, 0.85);
       for (let x = SILO_LEFT; x < SILO_RIGHT; x += 14) dl.lineBetween(x, 0, x + 7, 0);

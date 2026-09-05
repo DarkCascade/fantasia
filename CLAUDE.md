@@ -294,7 +294,11 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   easier-but-still-sustainable line and stalls there indefinitely (confirmed
   by bot-testing during development), which is why `DANGER_CREEP_MAX`
   deliberately exceeds the full `SILO_TOP`-to-`FLOOR_Y` span rather than
-  stopping partway. Best score in `localStorage` (`nova-merge-best`).
+  stopping partway. The queue's spawn weights ramp too, over the same
+  window (`SPAWN_WEIGHTS_EARLY` → `SPAWN_WEIGHTS_LATE` across
+  `SPAWN_RAMP_MERGES`), so a long run also faces less-forgiving incoming
+  bodies, not just a lower ceiling. Best score in `localStorage`
+  (`nova-merge-best`).
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
