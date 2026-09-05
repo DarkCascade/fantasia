@@ -394,7 +394,7 @@
       ];
 
       this.swapButton = this.makeButton(W - 10, H - 26, "⇄ SWAP ×3", () => this.doSwap(), 1);
-      this.makeButton(10, H - 26, "≡ Menu", () => {
+      this.menuButton = this.makeButton(10, H - 26, "≡ Menu", () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       }, 0);
     }
@@ -693,7 +693,8 @@
       this.over = true;
       this.matter.world.pause(); // freeze the pile exactly as shown on the panel
       this.saveHigh();
-      this.updateSwapButton();
+      this.swapButton.setVisible(false);
+      this.menuButton.setVisible(false);
       const isBest = this.score > this.startBest;
 
       this.add.rectangle(W / 2, H / 2, W, H, 0x05030f, 0.72).setDepth(60);
