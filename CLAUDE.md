@@ -405,6 +405,24 @@ experiments/           Scratch prototypes kept out of the deploy's copy step; ne
 
 ## Session lessons / environment gotchas
 
+- **Mobile WebGL bugs can't be diagnosed from this sandbox** — there's no real
+  device or GPU driver here, and mobile Chromium forks (Opera GX, Samsung
+  Internet, etc.) routinely lock their `about:`/`opera://` internal pages, so
+  asking a user to open `chrome://gpu` equivalent is often a dead end.
+  `webgl-check.html` (repo root, shipped to the live site, not linked from the
+  menu) is the workaround: a self-contained page with no dependency on
+  internal browser UI that reports environment info, WEBGL_debug_renderer_info
+  (renderer/vendor strings — reveals a device silently falling back to
+  software rendering, e.g. "SwiftShader"), the exact renderer options
+  `slopeman.js` requests (both the high-power and low-power/coarse-pointer
+  branches), an end-to-end GLTFLoader load of the real shipped snowman
+  `.glb`, and a 3-second render loop that compares first-second vs
+  last-second fps to catch throttling (a phone's RAM/CPU limiter, battery
+  saver, or thermal throttling kicking in mid-run rather than failing
+  outright). A "Copy report" button dumps it all as plain text the user can
+  paste back — this is the only channel to a real device's diagnostics
+  from here, so don't rely on remote debugging (`chrome://inspect`) as the
+  only option; it needs a computer and USB access the user may not have handy.
 - **The live `*.github.io` site is NOT reachable from the sandbox** (network
   policy blocks it). Do **not** verify deploys by curling the live URL — it will
   hang/000. Instead check the **GitHub Actions run** (status/conclusion) via the

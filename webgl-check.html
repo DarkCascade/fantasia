@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Fantasia WebGL diagnostic</title>
+<!-- Same import map index.html carries, so the "three" module-resolution
+     test below reflects the real game's setup exactly. -->
+<script type="importmap">
+  { "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: #14171c; color: #e8ecf1;
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #9aa4b2; font-size: 13px; }
+  section { margin-bottom: 18px; padding: 12px 14px; background: #1d232b; border-radius: 10px; border: 1px solid #2c3542; }
+  h2 { font-size: 14px; margin: 0 0 8px; color: #ffd27a; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid #262e38; font-size: 13px; }
+  .row:last-child { border-bottom: none; }
+  .row .k { color: #9aa4b2; }
+  .row .v { text-align: right; word-break: break-word; max-width: 65%; }
+  .pass { color: #7ee08a; }
+  .fail { color: #ff8a8a; }
+  .warn { color: #ffd27a; }
+  #copyBtn {
+    display: block; width: 100%; padding: 12px; margin-top: 8px; border: none; border-radius: 10px;
+    background: #ffd27a; color: #2a2100; font-weight: 700; font-size: 15px;
+  }
+  #copyStatus { text-align: center; margin-top: 8px; font-size: 13px; color: #7ee08a; min-height: 18px; }
+  textarea {
+    width: 100%; height: 120px; margin-top: 10px; background: #10141a; color: #ccd6e0;
+    border: 1px solid #2c3542; border-radius: 8px; font: 12px/1.4 monospace; padding: 8px;
+  }
+</style>
+</head>
+<body>
+  <h1>Fantasia WebGL diagnostic</h1>
+  <p class="sub">Runs entirely on this page — no internal browser pages needed. Scroll down and tap "Copy report" when it's done, then send that text back.</p>
+
+  <section id="sec-env"><h2>Environment</h2><div id="env"></div></section>
+  <section id="sec-webgl"><h2>WebGL context</h2><div id="webgl"></div></section>
+  <section id="sec-game"><h2>Game renderer settings (mirrors src/slopeman.js)</h2><div id="game"></div></section>
+  <section id="sec-esm"><h2>ES module / import map (needed by GLTFLoader)</h2><div id="esm"></div></section>
+  <section id="sec-model"><h2>Full pipeline: load the real snowman .glb</h2><div id="model"></div></section>
+  <section id="sec-fps"><h2>3-second render loop (checks throttling)</h2><div id="fps"></div></section>
+
+  <button id="copyBtn" type="button">Copy report</button>
+  <div id="copyStatus"></div>
+  <textarea id="reportText" readonly></textarea>
+
+<script>
+(function () {
+  "use strict";
+  const lines = [];
+  function row(container, key, value, cls) {
+    const el = document.createElement("div");
+    el.className = "row";
+    el.innerHTML = '<span class="k"></span><span class="v ' + (cls || "") + '"></span>';
+    el.querySelector(".k").textContent = key;
+    el.querySelector(".v").textContent = value;
+    document.getElementById(container).appendChild(el);
+    lines.push(key + ": " + value);
+  }
+
+  // ---------- environment ----------
+  row("env", "User agent", navigator.userAgent);
+  row("env", "Platform", navigator.platform || "(unknown)");
+  row("env", "Hardware concurrency", String(navigator.hardwareConcurrency || "(unknown)"));
+  row("env", "Device memory (GB)", "deviceMemory" in navigator ? String(navigator.deviceMemory) : "(not exposed)");
+  row("env", "Device pixel ratio", String(window.devicePixelRatio || 1));
+  row("env", "Viewport", window.innerWidth + "x" + window.innerHeight);
+  row("env", "Pointer", window.matchMedia("(pointer: coarse)").matches ? "coarse (touch)" : "fine (mouse)");
+  row("env", "Reduced motion", window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "yes" : "no");
+  if (performance.memory) {
+    row("env", "JS heap limit (MB)", (performance.memory.jsHeapSizeLimit / 1048576).toFixed(0));
+    row("env", "JS heap used (MB)", (performance.memory.usedJSHeapSize / 1048576).toFixed(0));
+  } else {
+    row("env", "JS heap info", "(not exposed — non-Chrome or restricted)");
+  }
+
+  // ---------- plain WebGL context + renderer string ----------
+  function tryContext(canvas, type, opts) {
+    try {
+      const gl = canvas.getContext(type, opts);
+      return { gl, error: null };
+    } catch (e) {
+      return { gl: null, error: e.message };
+    }
+  }
+
+  const probeCanvas = document.createElement("canvas");
+  let probe = tryContext(probeCanvas, "webgl2", {});
+  let ctxType = "webgl2";
+  if (!probe.gl) {
+    probe = tryContext(probeCanvas, "webgl", {});
+    ctxType = "webgl";
+  }
+  if (probe.gl) {
+    row("webgl", ctxType + " context", "created OK", "pass");
+    const dbg = probe.gl.getExtension("WEBGL_debug_renderer_info");
+    if (dbg) {
+      row("webgl", "Renderer", probe.gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL));
+      row("webgl", "Vendor", probe.gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL));
+    } else {
+      row("webgl", "Renderer/vendor detail", "WEBGL_debug_renderer_info blocked by this browser", "warn");
+      row("webgl", "Renderer (masked)", probe.gl.getParameter(probe.gl.RENDERER));
+    }
+    row("webgl", "Max texture size", String(probe.gl.getParameter(probe.gl.MAX_TEXTURE_SIZE)));
+  } else {
+    row("webgl", ctxType + " context", "FAILED: " + (probe.error || "getContext returned null"), "fail");
+  }
+
+  // ---------- exact renderer options the game requests ----------
+  const lowPower = window.matchMedia("(pointer: coarse)").matches;
+  row("game", "Branch this device would take", lowPower ? "low-power (coarse pointer)" : "high-power (fine pointer)");
+  [
+    { label: "high-power settings", opts: { antialias: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false } },
+    { label: "low-power settings", opts: { antialias: false, powerPreference: "default", failIfMajorPerformanceCaveat: false } },
+  ].forEach(({ label, opts }) => {
+    const c = document.createElement("canvas");
+    const r = tryContext(c, "webgl2", opts);
+    const gl = r.gl || tryContext(c, "webgl", opts).gl;
+    row("game", label, gl ? "OK" : "FAILED: " + (r.error || "null context"), gl ? "pass" : "fail");
+  });
+
+  // ---------- ES module / import map ----------
+  const importMapSupported = typeof HTMLScriptElement !== "undefined" &&
+    typeof HTMLScriptElement.supports === "function" &&
+    HTMLScriptElement.supports("importmap");
+  row("esm", "type=\"importmap\" supported", importMapSupported ? "yes" : "NO — this alone would break the 3D games", importMapSupported ? "pass" : "fail");
+
+  import("three")
+    .then((mod) => {
+      row("esm", "import(\"three\")", "OK (" + (mod.REVISION ? "r" + mod.REVISION : "loaded") + ")", "pass");
+      return mod;
+    })
+    .catch((err) => {
+      row("esm", "import(\"three\")", "FAILED: " + err.message, "fail");
+      return null;
+    })
+    .then((THREE) => {
+      if (!THREE) return null;
+      return import("./vendor/jsm/loaders/GLTFLoader.js")
+        .then((mod) => {
+          row("esm", "GLTFLoader.js import", "OK", "pass");
+          return { THREE, GLTFLoader: mod.GLTFLoader };
+        })
+        .catch((err) => {
+          row("esm", "GLTFLoader.js import", "FAILED: " + err.message, "fail");
+          return null;
+        });
+    })
+    .then((mods) => {
+      if (!mods) {
+        row("model", "Skipped", "module loading failed above", "fail");
+        finish();
+        return;
+      }
+      const { THREE, GLTFLoader } = mods;
+      const t0 = performance.now();
+      const loader = new GLTFLoader();
+      loader.load(
+        "./src/slopeman/snowman-lowpoly.glb",
+        (gltf) => {
+          const ms = (performance.now() - t0).toFixed(0);
+          let verts = 0;
+          gltf.scene.traverse((n) => {
+            if (n.isMesh) verts += n.geometry.attributes.position.count;
+          });
+          row("model", "Loaded snowman-lowpoly.glb", "OK in " + ms + "ms, " + verts + " vertices", "pass");
+          runFpsTest(THREE);
+        },
+        undefined,
+        (err) => {
+          row("model", "Loaded snowman-lowpoly.glb", "FAILED: " + (err.message || err), "fail");
+          finish();
+        }
+      );
+    });
+
+  // ---------- short render-loop test: does frame pacing degrade? ----------
+  function runFpsTest(THREE) {
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: !lowPower, powerPreference: lowPower ? "default" : "high-performance" });
+    } catch (e) {
+      row("fps", "Renderer creation", "FAILED: " + e.message, "fail");
+      finish();
+      return;
+    }
+    renderer.setSize(200, 150);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPower ? 1.5 : 2));
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, 200 / 150, 0.1, 10);
+    camera.position.z = 3;
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshNormalMaterial());
+    scene.add(cube);
+
+    const frameTimes = [];
+    const start = performance.now();
+    function loop(now) {
+      cube.rotation.x += 0.02;
+      cube.rotation.y += 0.03;
+      renderer.render(scene, camera);
+      frameTimes.push(now);
+      if (now - start < 3000) {
+        requestAnimationFrame(loop);
+      } else {
+        const n = frameTimes.length;
+        const avgFps = (n / ((frameTimes[n - 1] - frameTimes[0]) / 1000)).toFixed(1);
+        // Compare first-second vs last-second fps to catch mid-run throttling.
+        const oneSecIn = frameTimes.findIndex((t) => t - start > 1000);
+        const twoSecIn = frameTimes.findIndex((t) => t - start > 2000);
+        const firstSecFps = oneSecIn > 0 ? oneSecIn.toFixed(1) : "?";
+        const lastSecFps = twoSecIn > 0 ? (n - twoSecIn).toFixed(1) : "?";
+        row("fps", "Average FPS (3s)", avgFps);
+        row("fps", "First second vs last second", firstSecFps + " fps -> " + lastSecFps + " fps");
+        if (twoSecIn > 0 && oneSecIn > 0 && (n - twoSecIn) < oneSecIn * 0.6) {
+          row("fps", "Throttling detected", "yes — fps dropped >40% within 3 seconds", "warn");
+        }
+        renderer.forceContextLoss();
+        renderer.dispose();
+        finish();
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function finish() {
+    document.getElementById("reportText").value = lines.join("\n");
+  }
+  // In case the model/fps chain never reaches finish() (e.g. all module
+  // imports failed synchronously before any async branch), still populate
+  // whatever was collected after a short delay.
+  setTimeout(() => {
+    if (!document.getElementById("reportText").value) finish();
+  }, 6000);
+
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    const text = document.getElementById("reportText").value || lines.join("\n");
+    document.getElementById("reportText").value = text;
+    const status = document.getElementById("copyStatus");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => { status.textContent = "Copied to clipboard."; },
+        () => {
+          document.getElementById("reportText").select();
+          status.textContent = "Couldn't auto-copy — text is selected, copy manually.";
+        }
+      );
+    } else {
+      document.getElementById("reportText").select();
+      status.textContent = "Text is selected — copy manually.";
+    }
+  });
+})();
+</script>
+</body>
+</html>
