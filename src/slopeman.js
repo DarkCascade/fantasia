@@ -249,8 +249,11 @@
       // A context can also die asynchronously, well after creation succeeded
       // (thermal throttling, another app claiming GPU memory, backgrounding
       // the tab) — with no exception to catch, so this is the only hook.
+      // statusMessage is the one piece of driver-provided detail browsers
+      // give for *why* — log it, since this is otherwise a black box.
       this.listen(this.canvas, "webglcontextlost", (e) => {
         e.preventDefault();
+        console.error("Slopeman: WebGL context lost.", e.statusMessage || "(no statusMessage given)");
         this.onContextLost();
       });
 
@@ -617,7 +620,17 @@
       this.destroyed = true;
       if (this.raf) cancelAnimationFrame(this.raf);
       if (this.hintTimer) clearTimeout(this.hintTimer);
+      // Listeners come off before forceContextLoss so the webglcontextlost
+      // handler above (still wired up otherwise) doesn't fire onContextLost
+      // for a loss we triggered ourselves on the way out.
       this.listeners.forEach(([target, type, fn, opts]) => target.removeEventListener(type, fn, opts));
+      // dispose() alone frees GPU-side resources but leaves the actual WebGL
+      // context to be reclaimed whenever the JS engine gets around to
+      // garbage-collecting the canvas — nondeterministic, and mobile browsers
+      // cap live contexts hard (iOS Safari: ~8-16). Forcing the loss here
+      // returns the context slot immediately, so leaving this game and
+      // starting another 3D one right after doesn't starve it out.
+      if (typeof this.renderer.forceContextLoss === "function") this.renderer.forceContextLoss();
       this.renderer.dispose();
     }
   }

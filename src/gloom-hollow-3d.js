@@ -2484,6 +2484,12 @@
       this.clearWorld();
       this.listeners.forEach((l) => l[0].removeEventListener(l[1], l[2], l[3]));
       this.listeners = [];
+      // dispose() alone leaves the actual WebGL context to be reclaimed on
+      // GC's schedule, not ours — mobile browsers cap live contexts hard, so
+      // picking another 3D game right after this one shouldn't have to wait
+      // on that. See src/slopeman.js's destroy() for the fuller version of
+      // this note.
+      if (typeof this.renderer.forceContextLoss === "function") this.renderer.forceContextLoss();
       this.renderer.dispose();
       if (this.canvas.parentNode) this.canvas.parentNode.removeChild(this.canvas);
     }
