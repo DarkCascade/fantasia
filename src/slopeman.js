@@ -456,6 +456,22 @@
       this.obstacles.push(obj);
     }
 
+    // Take an obstacle out of the world and free its GPU-side buffers.
+    // buildTree()/buildRock() allocate a fresh geometry + material per
+    // obstacle (nothing shared across trees/rocks), so world.remove() alone
+    // would silently leak VRAM for as long as the run lasts — every 260ms to
+    // 950ms, forever. On a GPU with a tight memory budget that eventually
+    // degrades the frame rate or kills the WebGL context outright.
+    drop(obj) {
+      this.world.remove(obj);
+      obj.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
+        }
+      });
+    }
+
     spawnWave() {
       const x1 = rand(-LANE_HALF_WIDTH, LANE_HALF_WIDTH);
       this.spawnOne(x1);
@@ -519,7 +535,7 @@
     /* ---------- run lifecycle ---------- */
 
     startRun() {
-      this.obstacles.forEach((o) => this.world.remove(o));
+      this.obstacles.forEach((o) => this.drop(o));
       this.obstacles = [];
       this.player.position.x = 0;
       this.elapsed = 0;
@@ -591,7 +607,7 @@
           const o = this.obstacles[i];
           o.position.z += forwardSpeed * dt;
           if (o.position.z > DESPAWN_Z) {
-            this.world.remove(o);
+            this.drop(o);
             this.obstacles.splice(i, 1);
             continue;
           }

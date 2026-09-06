@@ -312,6 +312,23 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   throttling, backgrounding the tab) — since that also fires with no
   exception. Both paths land on the same `showFatalError()` dead-end screen
   (a message plus a Menu button) rather than leaving a stuck blank canvas.
+  **Obstacles are disposed on removal, not just detached** (`drop()`,
+  mirroring Gloom Hollow 3D's `drop()`): `buildTree()`/`buildRock()` allocate
+  a fresh geometry + material per obstacle with nothing shared across
+  instances, so `world.remove()` alone would silently leak GPU memory for as
+  long as a run lasts — obstacles spawn every 260ms-950ms, forever. This was
+  a real, confirmed bug (not a browser quirk): a `webgl-check.html` report
+  from a real device (Android, Opera GX, a PowerVR mobile GPU) came back
+  completely clean — hardware-accelerated renderer, both renderer-option
+  branches OK, 117-121fps sustained with no throttling, 82MB of a 3.5GB heap
+  used — which ruled out every "browser/GPU can't handle this" theory and
+  pointed at something the game does over a longer session than the
+  diagnostic's 3-second synthetic test covers. `drop()` disposes geometry and
+  material(s) before removal at both sites obstacles leave the scene
+  (despawning off-screen, and the full clear in `startRun()`); the full
+  scene's ground/mountain/player geometry only needs disposal once, on
+  leaving the game entirely, and `forceContextLoss()` (see above) already
+  covers that by discarding the whole context.
 - **Nova Merge** (`src/nova-merge/nova-merge.js`) — a physics merge/stacking
   arcade game (Suika/2048-style) on page 3 of the menu, the one game here built
   specifically as an answer to "no more idlers": no numbers tick up on their
