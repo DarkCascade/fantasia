@@ -1,0 +1,20 @@
+{
+  "name": "poe2-build-file",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generates and validates .build files for Path of Exile 2's in-game Build Planner (passive tree + skill gem highlighting) from build descriptions given by display name.",
+  "main": "src/index.js",
+  "scripts": {
+    "fetch-data": "node scripts/fetch-data.js",
+    "build-index": "node scripts/build-index.js",
+    "refresh-data": "npm run fetch-data && npm run build-index",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.17.1"
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DarkCascade/fantasia/experiments/poe2-build-file/data/poe2-build.schema.json",
+  "title": "Path of Exile 2 Build File",
+  "description": "JSON Schema for .build files consumed by the Path of Exile 2 in-game Build Planner (added Patch 0.5). Files live in 'Documents/My Games/Path of Exile 2/BuildPlanner' and must end in '.build'. Based on the community-maintained schema at github.com/chesler410/poe2-build-forge (which cites pathofexile.com/developer/docs/game as its source), with two corrections found by cross-checking a real, game-accepted file: 'Trinket1' added to the inventory_id enum (charm slots — not just 'Charm1'), and AdditionalText's markup tags corrected to the short codes actually used (<b>, <i>, <s>, <m>) rather than full words.",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Build display name shown in-game."
+    },
+    "author": {
+      "type": "string",
+      "description": "Build author / creator name. Optional."
+    },
+    "link": {
+      "type": "string",
+      "description": "Source URL for the build (e.g. the build guide it was exported from). Optional."
+    },
+    "description": {
+      "type": "string",
+      "description": "Build description. Supports markup tags (see $defs/AdditionalText)."
+    },
+    "ascendancy": {
+      "type": "string",
+      "description": "Ascendancy class id, e.g. 'Mercenary3', 'Witch1'. See data/index/passives.json's `classes[].ascendancies[].id` for the full current list. Empty/omitted means no ascendancy hint."
+    },
+    "passives": {
+      "type": "array",
+      "description": "Passive tree allocations, in the order the player should take them. Each entry is either a string (shorthand for just the id) or a BuildPassive object.",
+      "items": {
+        "oneOf": [
+          { "type": "string", "description": "Shorthand: a PassiveSkills table id with no level interval or additional text." },
+          { "$ref": "#/$defs/BuildPassive" }
+        ]
+      }
+    },
+    "skills": {
+      "type": "array",
+      "description": "Active skill gems. Each entry is either a string (shorthand) or a BuildSkill object with optional support gems.",
+      "items": {
+        "oneOf": [
+          { "type": "string", "description": "Shorthand: a BaseItemTypes table id for a skill gem." },
+          { "$ref": "#/$defs/BuildSkill" }
+        ]
+      }
+    },
+    "inventory_slots": {
+      "type": "array",
+      "description": "Inventory slot hints shown when hovering that slot in the character panel. Does not equip actual items.",
+      "items": { "$ref": "#/$defs/BuildItem" }
+    }
+  },
+  "$defs": {
+    "LevelInterval": {
+      "type": "array",
+      "description": "Inclusive character-level range [min, max]. PoE2's level cap is 100.",
+      "items": { "type": "integer", "minimum": 0, "maximum": 100 },
+      "minItems": 2,
+      "maxItems": 2,
+      "examples": [[0, 25], [65, 100]]
+    },
+    "AdditionalText": {
+      "type": "string",
+      "description": "Hover/tooltip text shown in-game. Confirmed markup from a real game-accepted file: <b>{text} bold, <i>{text} italics, <s>{text} default/secondary body text, <m>{text} an accent/highlight colour (exact colour unconfirmed), named colours like <red>{text}/<green>{text}, and arbitrary RGB via <rgb(r, g, b)>{text}. Tags nest. Use \\r\\n or \\n for newlines (real files use \\r\\n)."
+    },
+    "BuildPassive": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A PassiveSkills table id, e.g. 'projectiles18', 'AscendancyMercenary3Notable1_', 'jewel_slot1975'. Look these up by display name via src/passives.js — do not guess: many ids carry irregular trailing underscores/suffixes with no predictable pattern."
+        },
+        "level_interval": { "$ref": "#/$defs/LevelInterval" },
+        "weapon_set": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Weapon-set this passive applies to (PoE2 supports two: 1 or 2). Used for passives near a weapon-swap jewel socket that only make sense for one of the two loadouts."
+        },
+        "unique_name": {
+          "type": "string",
+          "description": "Optional display label for this passive in the build's context (not the node's canonical name)."
+        },
+        "additional_text": { "$ref": "#/$defs/AdditionalText" }
+      }
+    },
+    "BuildSkill": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A BaseItemTypes id for an active skill gem, e.g. 'Metadata/Items/Gems/SkillGemFlameblast'.",
+          "pattern": "^Metadata/Items/Gem(s)?/.+$"
+        },
+        "level_interval": { "$ref": "#/$defs/LevelInterval" },
+        "additional_text": { "$ref": "#/$defs/AdditionalText" },
+        "support_skills": {
+          "type": "array",
+          "description": "Recommended support gems linked to this skill. Order is informational only.",
+          "items": {
+            "oneOf": [
+              { "type": "string", "description": "Shorthand: a BaseItemTypes id for a support gem." },
+              { "$ref": "#/$defs/BuildSupport" }
+            ]
+          }
+        }
+      }
+    },
+    "BuildSupport": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A BaseItemTypes id for a support gem, e.g. 'Metadata/Items/Gem/SupportGemBurgeonTwo'. Note the id path is inconsistently 'Gem' vs 'Gems' across the real data — never construct this by formula, always look it up.",
+          "pattern": "^Metadata/Items/Gem(s)?/.+$"
+        },
+        "level_interval": { "$ref": "#/$defs/LevelInterval" },
+        "additional_text": { "$ref": "#/$defs/AdditionalText" }
+      }
+    },
+    "BuildItem": {
+      "type": "object",
+      "required": ["inventory_id", "slot_x", "slot_y"],
+      "additionalProperties": false,
+      "description": "A hint attached to an inventory slot.",
+      "properties": {
+        "inventory_id": {
+          "type": "string",
+          "description": "Inventory slot identifier. Weapons: 'Weapon1' (set I), 'Weapon2' (swap set). Armour: 'Helm1', 'BodyArmour1', 'Gloves1', 'Boots1'. Jewellery: 'Amulet1', 'Belt1', 'Ring1', 'Ring2' (rings are the only category that increments). 'Charm1' for every charm slot AND/OR 'Trinket1' — a real game-accepted file uses 'Trinket1' for charm-type slots, distinguished by slot_x, so treat 'Charm1' as possibly a renamed/legacy alias of 'Trinket1' rather than a separate slot type; confirm which your patch expects before relying on either. 'Flask1' for every flask slot, distinguished by slot_x. No 'Offhand' — the game never uses it.",
+          "enum": [
+            "Weapon1", "Weapon2", "Helm1", "BodyArmour1", "Gloves1", "Boots1",
+            "Amulet1", "Belt1", "Ring1", "Ring2", "Charm1", "Trinket1", "Flask1"
+          ]
+        },
+        "slot_x": { "type": "integer", "minimum": 0, "description": "X coordinate within the inventory slot's grid (distinguishes e.g. multiple charms/flasks)." },
+        "slot_y": { "type": "integer", "minimum": 0, "description": "Y coordinate within the inventory slot's grid." },
+        "level_interval": { "$ref": "#/$defs/LevelInterval" },
+        "unique_name": {
+          "type": "string",
+          "description": "A unique item's plain display name (e.g. 'Ghostmarch', 'Darkness Enthroned') — not an internal id. Cross-check against data/index/uniques.json."
+        },
+        "additional_text": { "$ref": "#/$defs/AdditionalText" }
+      }
+    }
+  }
+}
