@@ -122,13 +122,19 @@ async function apiRequest(apiUrl, params, { retries = 4, fetchImpl = fetch } = {
     ...params,
   }).toString();
 
-  let lastErr;
+  // Always a real Error by the time we might throw it below — the 429/503
+  // and maxlag branches `continue` the loop rather than throwing, so without
+  // this a wiki that rate-limits every retry attempt would exhaust them
+  // without lastErr ever being assigned, and `throw lastErr` would throw
+  // `undefined` instead of a diagnosable error.
+  let lastErr = new Error(`apiRequest: exhausted ${retries + 1} attempt(s) against ${url} with no successful response`);
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetchImpl(url, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
       });
       if (res.status === 429 || res.status === 503) {
+        lastErr = new Error(`HTTP ${res.status} from ${url}`);
         const retryAfter = Number(res.headers.get('retry-after'));
         await sleep(retryAfter > 0 ? retryAfter * 1000 : backoff(attempt));
         continue;
@@ -144,6 +150,7 @@ async function apiRequest(apiUrl, params, { retries = 4, fetchImpl = fetch } = {
       }
       if (data.error) {
         if (data.error.code === 'maxlag') {
+          lastErr = new Error(`MediaWiki maxlag: ${data.error.info}`);
           await sleep(backoff(attempt));
           continue;
         }
@@ -323,7 +330,7 @@ async function scrapeAll({ apiUrl, titles, concurrency, delayMs, alreadyScraped,
       const content = await fetchPageContent(apiUrl, title, apiOpts);
       if (content) await onPage(content, pending.length);
     } catch (err) {
-      console.error(`  x Failed "${title}": ${err.message}`);
+      console.error(`  x Failed "${title}": ${err && err.message ? err.message : String(err)}`);
     }
     if (delayMs) await sleep(delayMs);
   });

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 
 const {
+  apiRequest,
   resolveApiUrl,
   fetchAllTitlesAndRedirects,
   fetchPageContent,
@@ -156,5 +157,75 @@ test('scrapeAll visits every pending title exactly once and skips already-scrape
     assert.deepEqual(seen, ['Fireball Skill Gem']);
   } finally {
     server.close();
+  }
+});
+
+// Regression test: a wiki that rate-limits (HTTP 429) every retry attempt
+// must surface a real Error, not `undefined` — apiRequest's retry loop only
+// used to set lastErr inside its catch block, so a run of 429s (the
+// `continue` path, not `catch`) exhausted retries without ever assigning
+// lastErr, and `throw lastErr` threw undefined. That then crashed the
+// "Failed" logger itself (reading .message off undefined) instead of
+// reporting the failure and moving on to the next page.
+test('apiRequest throws a real Error, never undefined, when every retry is rate-limited', async () => {
+  const server = http.createServer((req, res) => {
+    res.statusCode = 429;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: { code: 'ratelimited' } }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const { port } = server.address();
+    const apiUrl = `http://127.0.0.1:${port}/api.php`;
+    await assert.rejects(
+      () => apiRequest(apiUrl, { action: 'query' }, { retries: 0 }),
+      (err) => {
+        assert.ok(err instanceof Error, `expected an Error, got ${err}`);
+        assert.match(err.message, /429/);
+        return true;
+      }
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test('scrapeAll survives a title whose every retry is rate-limited and still processes the rest', async () => {
+  const { server: goodServer, apiUrl: goodApiUrl } = await startFakeWiki();
+  const rateLimited = http.createServer((req, res) => {
+    res.statusCode = 429;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: { code: 'ratelimited' } }));
+  });
+  await new Promise((resolve) => rateLimited.listen(0, '127.0.0.1', resolve));
+  try {
+    // fetchPageContent always calls apiUrl for both the rate-limited title
+    // and the good one, so point at the always-429 server directly to prove
+    // scrapeAll itself doesn't crash — startFakeWiki's real title, requested
+    // against goodApiUrl, confirms the loop keeps going afterward.
+    const seen = [];
+    const rateLimitedPort = rateLimited.address().port;
+    await scrapeAll({
+      apiUrl: `http://127.0.0.1:${rateLimitedPort}/api.php`,
+      titles: ['Anything'],
+      concurrency: 1,
+      delayMs: 0,
+      apiOpts: { retries: 0 },
+      onPage: async (content) => seen.push(content.title),
+    });
+    assert.deepEqual(seen, []); // failed, but didn't throw
+
+    const count = await scrapeAll({
+      apiUrl: goodApiUrl,
+      titles: ['Fireball Skill Gem'],
+      concurrency: 1,
+      delayMs: 0,
+      onPage: async (content) => seen.push(content.title),
+    });
+    assert.equal(count, 1);
+    assert.deepEqual(seen, ['Fireball Skill Gem']);
+  } finally {
+    goodServer.close();
+    rateLimited.close();
   }
 });
