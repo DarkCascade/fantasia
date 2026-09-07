@@ -46,21 +46,31 @@ function startFakeWiki() {
       return;
     }
 
+    // Real MediaWiki rejects redirects=1 combined with generator=allpages
+    // unless gapfilterredir=nonredirects, so content and redirect titles are
+    // enumerated with two separate gapfilterredir values (mirroring the real
+    // fetchAllPagesByRedirFilter calls), and redirect targets are resolved
+    // via a plain (non-generator) action=query&titles=...&redirects=1 call.
     if (params.get('generator') === 'allpages') {
+      const filter = params.get('gapfilterredir');
+      if (filter === 'redirects') {
+        res.end(JSON.stringify({ query: { pages: [{ title: redirectFrom }] } }));
+        return;
+      }
       const gapcontinue = params.get('gapcontinue');
       const page1 = ['Fireball Skill Gem'];
-      const page2 = ['Cast on Crit Support', 'Old Fireball Name'];
+      const page2 = ['Cast on Crit Support'];
       const batch = gapcontinue ? page2 : page1;
-      const body = {
-        query: {
-          pages: batch
-            .filter((t) => t !== redirectFrom)
-            .map((t) => ({ title: t })),
-          redirects: batch.includes(redirectFrom) ? [{ from: redirectFrom, to: redirectTo }] : [],
-        },
-      };
+      const body = { query: { pages: batch.map((t) => ({ title: t })) } };
       if (!gapcontinue) body.continue = { gapcontinue: 'batch2' };
       res.end(JSON.stringify(body));
+      return;
+    }
+
+    if (params.get('action') === 'query' && params.get('titles')) {
+      const titles = params.get('titles').split('|');
+      const redirects = titles.filter((t) => t === redirectFrom).map((t) => ({ from: t, to: redirectTo }));
+      res.end(JSON.stringify({ query: { redirects, pages: [] } }));
       return;
     }
 

@@ -34,8 +34,8 @@ function parseArgs(argv) {
     out: null,
     markdownDir: null,
     maxPages: Infinity,
-    concurrency: 2,
-    delayMs: 300,
+    concurrency: 1,
+    delayMs: 1000,
     namespaces: [0],
     resume: false,
     fromJson: null,
@@ -91,8 +91,8 @@ Options:
   --out <file>            Output JSON path (default: <host>-pages.json)
   --markdown-dir <dir>    Also write one .md file per page (+ an _index.md)
   --max-pages <n>         Stop after this many content pages (default: all)
-  --concurrency <n>       Parallel API requests (default: 2)
-  --delay <ms>            Delay between each worker's requests (default: 300)
+  --concurrency <n>       Parallel API requests (default: 1)
+  --delay <ms>            Delay between each worker's requests (default: 1000)
   --namespaces <ids>      Comma-separated MediaWiki namespace ids (default: 0)
   --resume                Skip pages already present in --out's existing file
   --from-json <file>      Skip scraping; just render an existing JSON dump to
@@ -136,7 +136,12 @@ async function apiRequest(apiUrl, params, { retries = 4, fetchImpl = fetch } = {
       if (res.status === 429 || res.status === 503) {
         lastErr = new Error(`HTTP ${res.status} from ${url}`);
         const retryAfter = Number(res.headers.get('retry-after'));
-        await sleep(retryAfter > 0 ? retryAfter * 1000 : backoff(attempt));
+        const wait = retryAfter > 0 ? retryAfter * 1000 : backoff(attempt);
+        // A retry wait can run to several seconds; without this a run looks
+        // hung rather than backing off (this is what "getting stuck" turned
+        // out to be — silent per-attempt waits, not a real freeze).
+        console.warn(`  ! HTTP ${res.status}, waiting ${wait}ms before retry ${attempt + 1}/${retries + 1}...`);
+        await sleep(wait);
         continue;
       }
       const text = await res.text();
@@ -151,7 +156,9 @@ async function apiRequest(apiUrl, params, { retries = 4, fetchImpl = fetch } = {
       if (data.error) {
         if (data.error.code === 'maxlag') {
           lastErr = new Error(`MediaWiki maxlag: ${data.error.info}`);
-          await sleep(backoff(attempt));
+          const wait = backoff(attempt);
+          console.warn(`  ! MediaWiki maxlag, waiting ${wait}ms before retry ${attempt + 1}/${retries + 1}...`);
+          await sleep(wait);
           continue;
         }
         throw new Error(`MediaWiki API error ${data.error.code}: ${data.error.info}`);
@@ -188,36 +195,60 @@ async function resolveApiUrl(origin, opts = {}) {
   );
 }
 
-// Enumerates every content page once (as generator=allpages resolves
-// redirects for us), plus the from->to map for every redirect encountered.
+// Pages in one namespace matching a gapfilterredir value ('nonredirects' or
+// 'redirects'), following gapcontinue until exhausted.
+async function fetchAllPagesByRedirFilter(apiUrl, { ns, gapfilterredir, maxPages, apiOpts = {} }) {
+  const titles = [];
+  let gapcontinue;
+  do {
+    const params = {
+      action: 'query',
+      generator: 'allpages',
+      gapnamespace: String(ns),
+      gaplimit: 'max',
+      gapfilterredir,
+      prop: 'info',
+    };
+    if (gapcontinue) params.gapcontinue = gapcontinue;
+    const data = await apiRequest(apiUrl, params, apiOpts);
+    for (const p of data?.query?.pages || []) {
+      if (!p.missing) titles.push(p.title);
+    }
+    gapcontinue = data?.continue?.gapcontinue;
+    if (maxPages && titles.length >= maxPages) gapcontinue = undefined;
+  } while (gapcontinue);
+  return titles;
+}
+
+// MediaWiki rejects `redirects=1` combined with generator=allpages unless
+// gapfilterredir=nonredirects (in which case there's nothing to resolve) —
+// its own error message is literally "Use gapfilterredir=nonredirects
+// instead of redirects when using allpages as a generator." So the from->to
+// map can't come from the same enumeration call; resolve it separately by
+// batch-querying the redirect pages' titles directly (redirects=1 is fine
+// there, since titles= isn't a generator).
+async function resolveRedirectTargets(apiUrl, redirectTitles, apiOpts = {}) {
+  const redirects = {};
+  const CHUNK = 50; // the API's default (non-bot) titles= batch limit
+  for (let i = 0; i < redirectTitles.length; i += CHUNK) {
+    const chunk = redirectTitles.slice(i, i + CHUNK);
+    const data = await apiRequest(apiUrl, { action: 'query', titles: chunk.join('|'), redirects: '1' }, apiOpts);
+    for (const r of data?.query?.redirects || []) {
+      redirects[r.from] = r.to;
+    }
+  }
+  return redirects;
+}
+
 async function fetchAllTitlesAndRedirects(apiUrl, { namespaces, maxPages, apiOpts = {} }) {
   const titles = [];
-  const redirects = {};
+  const redirectTitles = [];
   for (const ns of namespaces) {
-    let gapcontinue;
-    do {
-      const params = {
-        action: 'query',
-        generator: 'allpages',
-        gapnamespace: String(ns),
-        gaplimit: 'max',
-        gapfilterredir: 'all',
-        redirects: '1',
-        prop: 'info',
-      };
-      if (gapcontinue) params.gapcontinue = gapcontinue;
-      const data = await apiRequest(apiUrl, params, apiOpts);
-      for (const p of data?.query?.pages || []) {
-        if (!p.missing) titles.push(p.title);
-      }
-      for (const r of data?.query?.redirects || []) {
-        redirects[r.from] = r.to;
-      }
-      gapcontinue = data?.continue?.gapcontinue;
-      if (titles.length >= maxPages) gapcontinue = undefined;
-    } while (gapcontinue);
+    titles.push(...(await fetchAllPagesByRedirFilter(apiUrl, { ns, gapfilterredir: 'nonredirects', maxPages, apiOpts })));
+    redirectTitles.push(...(await fetchAllPagesByRedirFilter(apiUrl, { ns, gapfilterredir: 'redirects', apiOpts })));
   }
   const uniqueTitles = Array.from(new Set(titles)).slice(0, maxPages);
+  const redirects = await resolveRedirectTargets(apiUrl, Array.from(new Set(redirectTitles)), apiOpts);
   return { titles: uniqueTitles, redirects };
 }
 
@@ -483,6 +514,8 @@ module.exports = {
   parseArgs,
   apiRequest,
   resolveApiUrl,
+  fetchAllPagesByRedirFilter,
+  resolveRedirectTargets,
   fetchAllTitlesAndRedirects,
   fetchPageContent,
   createConverter,
