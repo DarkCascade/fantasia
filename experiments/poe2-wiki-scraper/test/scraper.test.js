@@ -6,6 +6,7 @@ const http = require('node:http');
 
 const {
   apiRequest,
+  createCircuitBreaker,
   resolveApiUrl,
   fetchAllTitlesAndRedirects,
   fetchPageContent,
@@ -239,3 +240,75 @@ test('scrapeAll survives a title whose every retry is rate-limited and still pro
     rateLimited.close();
   }
 });
+
+// Regression test: a real run against poe2wiki.net showed every title 429ing
+// from its very first attempt, even ~30s after the previous title's retries
+// had already exhausted — a real timed block, not a per-second burst limit.
+// The old code just moved on to the next title and immediately hammered the
+// server again, over and over. The circuit breaker instead pauses everything
+// after a few consecutive full-title failures.
+test('createCircuitBreaker trips after `threshold` consecutive failures and cools down', async () => {
+  const breaker = createCircuitBreaker({ threshold: 2, initialCooldownMs: 60, maxCooldownMs: 60 });
+  await breaker.waitIfCoolingDown(); // nothing recorded yet: no-op
+  breaker.recordFailure(); // 1 of 2: not tripped yet
+  const notCoolingElapsed = await timeIt(() => breaker.waitIfCoolingDown());
+  assert.ok(notCoolingElapsed < 30, `expected no wait before threshold, waited ${notCoolingElapsed}ms`);
+
+  breaker.recordFailure(); // 2 of 2: trips
+  const coolingElapsed = await timeIt(() => breaker.waitIfCoolingDown());
+  assert.ok(coolingElapsed >= 50, `expected to wait out the ~60ms cooldown, only waited ${coolingElapsed}ms`);
+});
+
+test('createCircuitBreaker resets the failure streak on success', async () => {
+  const breaker = createCircuitBreaker({ threshold: 2, initialCooldownMs: 10000, maxCooldownMs: 10000 });
+  breaker.recordFailure();
+  breaker.recordSuccess();
+  breaker.recordFailure(); // only 1 consecutive failure since the reset
+  const elapsed = await timeIt(() => breaker.waitIfCoolingDown());
+  assert.ok(elapsed < 30, `expected the streak to have reset, waited ${elapsed}ms`);
+});
+
+test('createCircuitBreaker doubles the cooldown on repeated trips, capped at maxCooldownMs', async () => {
+  const breaker = createCircuitBreaker({ threshold: 1, initialCooldownMs: 30, maxCooldownMs: 50 });
+  breaker.recordFailure(); // trips at 30ms; next cooldown would be 60, capped to 50
+  await breaker.waitIfCoolingDown();
+  breaker.recordFailure(); // trips again at the capped 50ms
+  const elapsed = await timeIt(() => breaker.waitIfCoolingDown());
+  assert.ok(elapsed >= 40 && elapsed < 200, `expected the capped ~50ms cooldown, waited ${elapsed}ms`);
+});
+
+test('scrapeAll pauses via the circuit breaker after repeated full-title failures', async () => {
+  const rateLimited = http.createServer((req, res) => {
+    res.statusCode = 429;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: { code: 'ratelimited' } }));
+  });
+  await new Promise((resolve) => rateLimited.listen(0, '127.0.0.1', resolve));
+  try {
+    const port = rateLimited.address().port;
+    const breaker = createCircuitBreaker({ threshold: 2, initialCooldownMs: 100, maxCooldownMs: 100 });
+    const elapsed = await timeIt(() =>
+      scrapeAll({
+        apiUrl: `http://127.0.0.1:${port}/api.php`,
+        titles: ['A', 'B', 'C'],
+        concurrency: 1,
+        delayMs: 0,
+        apiOpts: { retries: 0 },
+        circuitBreaker: breaker,
+        onPage: async () => {},
+      })
+    );
+    // A, then B, fail consecutively and trip the breaker; C's request has to
+    // wait out the ~100ms cooldown first, so the whole run takes noticeably
+    // longer than three near-instant failed requests would on their own.
+    assert.ok(elapsed >= 90, `expected the cooldown to add ~100ms, only took ${elapsed}ms`);
+  } finally {
+    rateLimited.close();
+  }
+});
+
+async function timeIt(fn) {
+  const start = Date.now();
+  await fn();
+  return Date.now() - start;
+}

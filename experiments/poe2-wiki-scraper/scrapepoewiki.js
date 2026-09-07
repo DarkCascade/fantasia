@@ -35,7 +35,7 @@ function parseArgs(argv) {
     markdownDir: null,
     maxPages: Infinity,
     concurrency: 1,
-    delayMs: 1000,
+    delayMs: 2000,
     namespaces: [0],
     resume: false,
     fromJson: null,
@@ -92,7 +92,7 @@ Options:
   --markdown-dir <dir>    Also write one .md file per page (+ an _index.md)
   --max-pages <n>         Stop after this many content pages (default: all)
   --concurrency <n>       Parallel API requests (default: 1)
-  --delay <ms>            Delay between each worker's requests (default: 1000)
+  --delay <ms>            Delay between each worker's requests (default: 2000)
   --namespaces <ids>      Comma-separated MediaWiki namespace ids (default: 0)
   --resume                Skip pages already present in --out's existing file
   --from-json <file>      Skip scraping; just render an existing JSON dump to
@@ -110,10 +110,46 @@ function sleep(ms) {
 }
 
 function backoff(attempt) {
-  return Math.min(1000 * 2 ** attempt, 15000);
+  return Math.min(1000 * 2 ** attempt, 6000);
 }
 
-async function apiRequest(apiUrl, params, { retries = 4, fetchImpl = fetch } = {}) {
+// Detects a real block (a wiki-side ban/limit, not just a momentary blip):
+// several *titles* in a row exhausting every retry, not merely one retried
+// request. A single title retrying through a few 429s and then succeeding
+// never trips this. When it does trip, everything pauses for a long,
+// doubling cooldown instead of continuing to hammer the block every second
+// or two — which, evidence from a real run against poe2wiki.net suggests,
+// just prolongs it rather than working around it.
+function createCircuitBreaker({ threshold = 2, initialCooldownMs = 60000, maxCooldownMs = 20 * 60000 } = {}) {
+  let consecutiveFailures = 0;
+  let cooldownMs = initialCooldownMs;
+  let cooldownUntil = 0;
+  return {
+    async waitIfCoolingDown() {
+      const wait = cooldownUntil - Date.now();
+      if (wait > 0) await sleep(wait);
+    },
+    recordSuccess() {
+      consecutiveFailures = 0;
+      cooldownMs = initialCooldownMs;
+    },
+    recordFailure() {
+      consecutiveFailures++;
+      if (consecutiveFailures >= threshold) {
+        cooldownUntil = Date.now() + cooldownMs;
+        console.warn(
+          `\n  !! ${consecutiveFailures} pages in a row were fully rate-limited — this looks like a real ` +
+            `block, not a blip. Cooling everything down for ${Math.round(cooldownMs / 1000)}s before trying ` +
+            `more pages (raise --delay or lower --concurrency if this keeps happening).\n`
+        );
+        cooldownMs = Math.min(cooldownMs * 2, maxCooldownMs);
+        consecutiveFailures = 0;
+      }
+    },
+  };
+}
+
+async function apiRequest(apiUrl, params, { retries = 2, fetchImpl = fetch } = {}) {
   const url = new URL(apiUrl);
   url.search = new URLSearchParams({
     format: 'json',
@@ -354,13 +390,17 @@ async function mapWithConcurrency(items, concurrency, worker) {
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, run));
 }
 
-async function scrapeAll({ apiUrl, titles, concurrency, delayMs, alreadyScraped, onPage, apiOpts = {} }) {
+async function scrapeAll({ apiUrl, titles, concurrency, delayMs, alreadyScraped, onPage, apiOpts = {}, circuitBreaker }) {
   const pending = titles.filter((t) => !alreadyScraped || !(t in alreadyScraped));
+  const breaker = circuitBreaker || createCircuitBreaker();
   await mapWithConcurrency(pending, concurrency, async (title) => {
+    await breaker.waitIfCoolingDown();
     try {
       const content = await fetchPageContent(apiUrl, title, apiOpts);
+      breaker.recordSuccess();
       if (content) await onPage(content, pending.length);
     } catch (err) {
+      breaker.recordFailure();
       console.error(`  x Failed "${title}": ${err && err.message ? err.message : String(err)}`);
     }
     if (delayMs) await sleep(delayMs);
@@ -513,6 +553,7 @@ async function main() {
 module.exports = {
   parseArgs,
   apiRequest,
+  createCircuitBreaker,
   resolveApiUrl,
   fetchAllPagesByRedirFilter,
   resolveRedirectTargets,
