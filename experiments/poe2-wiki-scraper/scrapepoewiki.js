@@ -20,7 +20,7 @@ const TurndownService = require('turndown');
 const { gfm } = require('turndown-plugin-gfm');
 
 const DEFAULT_WIKI_URL = 'https://www.poe2wiki.net/wiki/Path_of_Exile_2_Wiki';
-const SAVE_EVERY = 25;
+const SAVE_EVERY = 10;
 const USER_AGENT =
   'fantasia-wiki-scraper/1.0 (personal research tool; run locally by a single wiki reader, not a distributed crawl)';
 
