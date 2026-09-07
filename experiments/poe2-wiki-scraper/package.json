@@ -1,0 +1,22 @@
+{
+  "name": "poe2-wiki-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Crawls a MediaWiki-based wiki (default: the Path of Exile 2 community wiki) via its API into one JSON file of clean HTML + Markdown per page, for a downstream agent to read.",
+  "main": "scrapepoewiki.js",
+  "bin": {
+    "scrape-wiki": "./scrapepoewiki.js"
+  },
+  "scripts": {
+    "scrape": "node scrapepoewiki.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  }
+}

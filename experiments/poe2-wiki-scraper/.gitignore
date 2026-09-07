@@ -1,0 +1,12 @@
+node_modules/
+*.tmp-*
+
+# scraped output is generated, not source — regenerate anytime
+*-pages.json
+/markdown/
+
+# the repo root .gitignore excludes package.json/package-lock.json
+# everywhere (the games need no build step); this tool actually needs npm,
+# so un-ignore them for this directory.
+!package.json
+!package-lock.json
