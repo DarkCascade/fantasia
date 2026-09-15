@@ -59,9 +59,51 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   Walk orders that land off the floor are ignored rather than clamped. The nova
   draws a layered ground shockwave (bloom, thick white-hot wave, trailing ring,
   frost shards) sized to the real blast radius — a grid circle of radius R
-  projects to semi-axes `R*TW/sqrt(2)` by `R*TH/sqrt(2)`. Three
-  grunts and two brutes aggro, chase, and swing; kills sometimes drop a life
-  flask. PoE-style life / skill orbs sit at the bottom.
+  projects to semi-axes `R*TW/sqrt(2)` by `R*TH/sqrt(2)`. PoE-style life /
+  skill orbs sit at the bottom.
+
+  A **level is a small random graph of platforms** (`generateLevel`,
+  `PLATFORM_MIN`–`PLATFORM_MAX` rooms), not one arena with infinite waves —
+  every platform reuses the exact same physical arena (`buildArena()`, built
+  once at boot: floor/walls/pillars never change), so hopping between rooms
+  only ever swaps their contents (monsters/flasks/portal), never re-lays the
+  room out. The graph is grown as a random walk on a lattice (always
+  connected, since each new room attaches to one already placed) and four
+  **arrow buttons**, one per screen edge (top-center, bottom-center, and
+  left/right above the orb column so nothing overlaps the stick or the
+  orbs), light up whenever the current platform has a neighbor in that
+  direction; tapping one calls `goToPlatform(dir)`, which is instant — no
+  fade, just a camera flash — and lands the player by the matching door on
+  the far side (`edgeEntryPoint`/`DIR_OPP`: leaving north puts you at the
+  south door of the next room). Each platform rolls one **encounter type**
+  from `ENCOUNTER_WEIGHTS` when first entered: `battle` (a monster pack,
+  same composition/scaling `waveComposition`/`waveStatScale` always used,
+  just fed the dungeon level instead of a wave counter), `ambush` (looks
+  empty until `AMBUSH_DELAY_MS` after entry, then springs — leaving before
+  it fires quietly defuses it), `elite` (a single brute scaled up
+  `ELITE_HP_MULT`/`ELITE_DMG_MULT` and tinted/enlarged so it reads as
+  dangerous), `empty` (safe, maybe one flask), or `treasure` (2–3 guaranteed
+  flasks). The start platform is always forced `empty` — nobody should die
+  on their own spawn tile — and the player lands on a random floor tile in
+  it (`randomFloorTile`, a `pickSpawnPoint` that doesn't need to know where
+  the player is, used anywhere something is placed independent of them: the
+  portal, treasure flasks, an empty room's lone flask). A **portal**
+  (`hasPortal`/`portalSpot`) spawns on exactly one other random platform;
+  walking onto it (`PORTAL_R`) calls `enterNextLevel()`, which heals a
+  little, discards the whole map, and generates the next level fresh —
+  there's still no clearing your way out, only descending further. Leaving
+  a platform isn't free of consequence: `leavePlatform` snapshots every
+  monster still alive there (`savedMonsters`/`savedFlasks`, rebuilt via
+  `makeMonster` on a revisit so a room is exactly as it was left) and gives
+  any monster currently aggroed on the player a `FOLLOW_CHANCE` roll to
+  follow through the door instead of being left behind — the one place
+  "enemies traverse platforms" actually happens, rather than simulating
+  every room at once. On top of that, a roam timer
+  (`ROAM_SPAWN_MIN_MS`–`ROAM_SPAWN_MAX_MS`) can drop a fresh monster onto
+  any non-empty/treasure platform the player is currently standing on, capped
+  at `ROAM_SPAWN_CAP` — the hollow doesn't just wait for you to walk into
+  trouble. Kills sometimes drop a life flask, and clearing a platform's
+  monsters grants the same small heal the portal does.
 - **Gloom Hollow 3D** (`src/gloom-hollow-3d.js`) — the same game rebuilt on
   **three.js** instead of Phaser, on the second blank slot of menu page 2. The
   arena is real geometry on a ground plane under an **orthographic** ARPG

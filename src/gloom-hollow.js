@@ -14,16 +14,27 @@
  * monster to close on it until it's inside firing range. The frost nova goes
  * off by tapping the NOVA orb (or pressing Space / right-clicking) once its
  * cooldown is up. Life and nova orbs stack in the bottom-right, clear of the
- * stick. Everything is
- * reachable by touch alone, with the keyboard there for desktop. Monsters —
- * quick grunts and heavy brutes — roam the hollow in waves: aggro on sight,
- * chase, swing when they reach you, and once the wave is wiped a short
- * breather (with a small heal) signposts the next, larger wave before it
- * lands. Slain monsters sometimes leave a life flask you can walk over to
- * heal. There's no clearing your way out — the hollow only ever ends when
- * you hit 0 life — so the run is how far the waves push you. Your best
- * (wave reached, total kills) is kept in localStorage and shown on the HUD
- * and the end screen.
+ * stick. Everything is reachable by touch alone, with the keyboard there for
+ * desktop.
+ *
+ * Each level is a small random graph of platforms — separate rooms sharing
+ * the same physical arena — connected edge to edge. Four arrow buttons (one
+ * per screen edge) light up whenever the current platform has a neighbor in
+ * that direction; tapping one crosses straight into it, landing you by the
+ * matching door on the far side. Every platform holds one of a handful of
+ * encounters (a monster pack, a delayed ambush, a lone elite, a quiet room,
+ * or a stash of flasks) picked at random when the level is generated, except
+ * the room you start in, which is always safe. A portal to the next level
+ * spawns on one random platform somewhere in the map; walking onto it
+ * descends deeper, regenerating the whole map and its encounters. Monsters
+ * that are actively chasing you when you cross a door have a chance to
+ * follow you through, and fresh ones can wander onto an already-cleared
+ * platform on their own while you linger — the hollow doesn't stay still
+ * just because you moved rooms. Slain monsters sometimes leave a life flask
+ * you can walk over to heal. There's no clearing your way out — the hollow
+ * only ever ends when you hit 0 life — so the run is how deep the levels
+ * push you. Your best (deepest level, total kills) is kept in localStorage
+ * and shown on the HUD and the end screen.
  *
  * All art is generated at runtime from primitives, like the rest of Fantasia.
  * Created on demand via window.launchGloomHollow() so the menu stays first.
@@ -125,28 +136,169 @@
     },
   };
 
-  // ---------- waves ----------
-  // Clearing a wave doesn't end the run any more — it breathes, heals a
-  // little, signposts the next wave, and spawns it. Both axes of difficulty
-  // (how many monsters, how tough each one is) climb a fixed amount per
-  // wave rather than being hand-placed like the old SPAWNS list was, so the
-  // ramp is smooth by construction and there's no cliff waiting at wave 6.
-  // Growth is capped (WAVE_MAX_MONSTERS, WAVE_SCALE_CAP) so a long run gets
-  // brutal, not literally unbounded — and the monster cap doubles as the
-  // ceiling on how many bodies can ever be alive at once, which matters for
-  // keeping the scene's object count bounded.
-  const WAVE_BASE_MONSTERS = 3; // wave 1 — lighter than the old fixed 5, since a first wave now has ten more behind it
+  // ---------- monster scaling ----------
+  // A "wave" here is no longer a whole arena's worth of monsters gating an
+  // infinite survival loop — it's just the difficulty curve, still climbing
+  // per dungeon level: both axes (how many monsters a battle/ambush
+  // encounter spawns, how tough each one is) scale off the current level
+  // number via waveComposition/waveStatScale below, same formulas as the
+  // original wave system, just fed `this.level` instead of a wave counter.
+  // Growth is capped (WAVE_MAX_MONSTERS, WAVE_SCALE_CAP) so a deep run gets
+  // brutal, not literally unbounded.
+  const WAVE_BASE_MONSTERS = 3; // level 1's battle encounters
   const WAVE_MAX_MONSTERS = 8;
-  const WAVE_COUNT_GROWTH_EVERY = 2; // waves per +1 monster
-  const WAVE_BRUTE_FRAC_BASE = 0.15; // share of the wave that's brutes, at wave 1...
-  const WAVE_BRUTE_FRAC_PER_WAVE = 0.05; // ...climbing this much per wave...
+  const WAVE_COUNT_GROWTH_EVERY = 2; // levels per +1 monster
+  const WAVE_BRUTE_FRAC_BASE = 0.15; // share of an encounter that's brutes, at level 1...
+  const WAVE_BRUTE_FRAC_PER_WAVE = 0.05; // ...climbing this much per level...
   const WAVE_MAX_BRUTE_FRAC = 0.6; // ...until it caps here, so grunts never vanish entirely
-  const WAVE_HP_SCALE = 0.06; // +6% monster hp per wave (before the WAVE_SCALE_CAP clamp)
+  const WAVE_HP_SCALE = 0.06; // +6% monster hp per level (before the WAVE_SCALE_CAP clamp)
   const WAVE_DMG_SCALE = 0.04; // dmg climbs slower than hp — more monsters already means more incoming hits
-  const WAVE_SCALE_CAP = 20; // wave the hp/dmg ramp stops climbing past
-  const WAVE_BREATHER_MS = 2600; // signposted pause between a wave dying and the next one landing
-  const WAVE_INTRO_MS = 1600; // shorter confirmation banner once a wave actually spawns — the breather already gave the warning, this is just "it's here"
-  const WAVE_CLEAR_HEAL = 14; // partial heal on clearing a wave — keeps a careful run alive without making flasks pointless
+  const WAVE_SCALE_CAP = 20; // level the hp/dmg ramp stops climbing past
+  const WAVE_INTRO_MS = 1600; // banner duration for "LEVEL n" / a platform's encounter label
+  const WAVE_CLEAR_HEAL = 14; // partial heal on clearing a platform's monsters, or on taking the portal — keeps a careful run alive without making flasks pointless
+
+  // ---------- platforms ----------
+  // A level is a small random graph of platforms — separate rooms that all
+  // reuse the exact same physical arena (floor/walls/pillars, built once in
+  // buildArena()) — connected edge to edge on an invisible lattice. Hopping
+  // between them is instant: no re-layout, just swap the contents (monsters,
+  // flasks, portal).
+  const PLATFORM_MIN = 5;
+  const PLATFORM_MAX = 8;
+  const PLATFORM_GROWTH_EVERY = 2; // levels per +1 platform, capped at PLATFORM_MAX
+
+  // Encounter types and their relative draw weight. The start platform is
+  // always forced to 'empty' afterward — nobody should die on their own
+  // spawn tile — and the portal lands on a different platform than start.
+  const ENCOUNTER_WEIGHTS = [
+    ["battle", 4],
+    ["ambush", 2],
+    ["elite", 1],
+    ["empty", 2],
+    ["treasure", 1],
+  ];
+  const AMBUSH_DELAY_MS = 1100; // an ambush platform looks empty for this long before it springs
+  const ELITE_HP_MULT = 2.4;
+  const ELITE_DMG_MULT = 1.35;
+  const ELITE_SCALE = 1.22; // visibly bigger than a normal brute
+  const ELITE_TINT = 0xffd23f;
+  const TREASURE_FLASK_MIN = 2;
+  const TREASURE_FLASK_MAX = 3;
+  const EMPTY_FLASK_CHANCE = 0.45;
+
+  // Ambient spawns: on top of a platform's own encounter, a fresh monster can
+  // wander in on its own while you're standing on a non-empty/treasure
+  // room — the hollow doesn't just wait for you to walk into trouble.
+  const ROAM_SPAWN_MIN_MS = 9000;
+  const ROAM_SPAWN_MAX_MS = 15000;
+  const ROAM_SPAWN_CAP = 6; // stop roaming spawns once a platform is this crowded
+
+  // A monster that's actively chasing you (aggroed, not just standing
+  // around) when you cross a door has a chance to follow you through instead
+  // of being left behind — "enemies traverse platforms" without simulating
+  // every room at once.
+  const FOLLOW_CHANCE = 0.55;
+
+  const PORTAL_R = 0.6; // tiles: how close the player must walk to trigger it
+  const LEVEL_TRANSITION_MS = 1400;
+
+  const TYPE_LABEL = {
+    battle: "MONSTERS AHEAD",
+    ambush: "???",
+    elite: "ELITE FOE",
+    empty: "QUIET ROOM",
+    treasure: "TREASURE ROOM",
+  };
+
+  // Which edge of a fresh platform the player lands on, keyed by the
+  // direction they crossed — walking out a room's north door puts you by
+  // the south door of the next one.
+  const DIR_OPP = { N: "S", S: "N", E: "W", W: "E" };
+  const DIR_DELTA = { N: { dx: 0, dy: -1 }, S: { dx: 0, dy: 1 }, E: { dx: 1, dy: 0 }, W: { dx: -1, dy: 0 } };
+
+  function edgeEntryPoint(edge) {
+    const m = BODY_R + 0.6;
+    switch (edge) {
+      case "N": return { gx: GRID / 2, gy: m };
+      case "S": return { gx: GRID / 2, gy: GRID - m };
+      case "E": return { gx: GRID - m, gy: GRID / 2 };
+      case "W": return { gx: m, gy: GRID / 2 };
+      default: return { gx: GRID / 2, gy: GRID / 2 };
+    }
+  }
+
+  function pickWeighted(weights) {
+    const total = weights.reduce((sum, w) => sum + w[1], 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < weights.length; i++) {
+      if (r < weights[i][1]) return weights[i][0];
+      r -= weights[i][1];
+    }
+    return weights[0][0];
+  }
+
+  // Build a level's map: a random connected tree of platforms on a lattice —
+  // always connected, since every new room attaches to one already placed —
+  // each tagged with a random encounter type. Pure data, no scene state.
+  function generateLevel(level) {
+    const count = Phaser.Math.Clamp(
+      PLATFORM_MIN + Math.floor((level - 1) / PLATFORM_GROWTH_EVERY),
+      PLATFORM_MIN,
+      PLATFORM_MAX
+    );
+    const platforms = {};
+    const cellOf = new Map();
+    let nextId = 0;
+    const root = { id: nextId++, px: 0, py: 0, neighbors: {} };
+    platforms[root.id] = root;
+    cellOf.set("0,0", root.id);
+    const list = [root];
+
+    while (list.length < count) {
+      const candidates = [];
+      list.forEach((p) => {
+        Object.keys(DIR_DELTA).forEach((dir) => {
+          const d = DIR_DELTA[dir];
+          const key = (p.px + d.dx) + "," + (p.py + d.dy);
+          if (!cellOf.has(key)) candidates.push({ from: p, dir: dir });
+        });
+      });
+      if (!candidates.length) break;
+      const choice = candidates[Math.floor(Math.random() * candidates.length)];
+      const d = DIR_DELTA[choice.dir];
+      const np = { id: nextId++, px: choice.from.px + d.dx, py: choice.from.py + d.dy, neighbors: {} };
+      np.neighbors[DIR_OPP[choice.dir]] = choice.from.id;
+      choice.from.neighbors[choice.dir] = np.id;
+      platforms[np.id] = np;
+      cellOf.set(np.px + "," + np.py, np.id);
+      list.push(np);
+    }
+
+    const ids = Object.keys(platforms).map(Number);
+    ids.forEach((id) => {
+      const p = platforms[id];
+      p.type = pickWeighted(ENCOUNTER_WEIGHTS);
+      p.generated = false;
+      p.savedMonsters = null;
+      p.savedFlasks = null;
+      p.hasPortal = false;
+      p.portalSpot = null;
+      p.cleared = false;
+    });
+
+    const startId = ids[Math.floor(Math.random() * ids.length)];
+    platforms[startId].type = "empty";
+
+    let portalId = startId;
+    if (ids.length > 1) {
+      do {
+        portalId = ids[Math.floor(Math.random() * ids.length)];
+      } while (portalId === startId);
+    }
+    platforms[portalId].hasPortal = true;
+
+    return { platforms: platforms, startId: startId, portalId: portalId };
+  }
 
   // A fresh wave's monsters are scattered rather than hand-placed, so the
   // count can grow past the five fixed spots the old layout had. Every
@@ -233,9 +385,10 @@
     return Math.hypot(ax - bx, ay - by);
   }
 
-  // How many monsters a wave spawns, and what fraction are brutes. Kept as
-  // a pure function of the wave number (no state) so beginWave and any test
-  // driving waves directly agree on the same numbers.
+  // How many monsters a battle/ambush encounter spawns, and what fraction
+  // are brutes. Kept as a pure function of the dungeon level (no state) so
+  // spawnBattle and any test driving encounters directly agree on the same
+  // numbers.
   function waveComposition(wave) {
     const total = Math.min(
       WAVE_MAX_MONSTERS,
@@ -277,23 +430,25 @@
 
     create() {
       this.over = false;
-      this.wave = 0; // beginWave(1) below sets this to 1 before the first frame ever renders
+      this.level = 0; // enterLevel(1) below sets this to 1 before the first frame ever renders
       this.kills = 0;
       this.monsters = [];
       this.flasks = [];
       this.bolts = [];
+      this.portalSprite = null;
+      this.transitioning = false;
       this.blocked = Object.create(null);
       PILLARS.forEach((p) => {
         this.blocked[p[0] + "," + p[1]] = true;
       });
 
       this.buildTextures();
-      this.buildLevel();
+      this.buildArena();
       this.buildPlayer();
       this.startBest = this.loadBest();
       this.buildUI();
       this.bindInput();
-      this.beginWave(1);
+      this.enterLevel(1);
     }
 
     /* ---------- textures ---------- */
@@ -540,6 +695,20 @@
         g.generateTexture("gh-flask", 24, 26);
       }
 
+      // Portal to the next level: a swirl of purple light.
+      if (!this.textures.exists("gh-portal")) {
+        g.clear();
+        g.fillStyle(0x2a1a4a, 0.4);
+        g.fillCircle(28, 28, 28);
+        g.lineStyle(4, 0xb98cff, 0.9);
+        g.strokeCircle(28, 28, 22);
+        g.lineStyle(2.5, 0xe8d8ff, 0.9);
+        g.strokeCircle(28, 28, 14);
+        g.fillStyle(0xffffff, 0.9);
+        g.fillCircle(28, 28, 5);
+        g.generateTexture("gh-portal", 56, 56);
+      }
+
       g.destroy();
     }
 
@@ -561,7 +730,11 @@
       );
     }
 
-    buildLevel() {
+    // The physical arena (floor, walls, pillars) is identical for every
+    // platform in every level, so it's built exactly once here — hopping
+    // between platforms only ever swaps the contents (monsters, flasks,
+    // portal), never re-lays the room out.
+    buildArena() {
       this.add.image(0, 0, "gh-bg").setOrigin(0, 0).setDepth(-100);
 
       // Floor.
@@ -676,54 +849,343 @@
       return { gx: GRID / 2, gy: GRID / 2 }; // unreachable on this fixed 9x9 layout
     }
 
-    spawnMonsters(wave) {
-      const comp = waveComposition(wave);
-      const scale = waveStatScale(wave);
+    // Like pickSpawnPoint, but with no notion of "the player" — used to place
+    // things (the portal, treasure flasks, an empty room's lone flask) that
+    // can be positioned before, or independently of, wherever the player
+    // currently stands. `avoid`/`minClear` work the same way as the player
+    // clearance above; the final grid sweep ignores both, same rationale as
+    // pickSpawnPoint's own fallback (canStand is the only guarantee that
+    // actually matters).
+    randomFloorTile(avoid, minClear) {
+      avoid = avoid || [];
+      minClear = minClear || 0;
+      for (let i = 0; i < SPAWN_ATTEMPTS; i++) {
+        const gx = BODY_R + Math.random() * (GRID - 2 * BODY_R);
+        const gy = BODY_R + Math.random() * (GRID - 2 * BODY_R);
+        if (!this.canStand(gx, gy, BODY_R)) continue;
+        if (minClear > 0 && avoid.some((p) => dist(gx, gy, p.gx, p.gy) < minClear)) continue;
+        return { gx: gx, gy: gy };
+      }
+      for (let j = 0; j < GRID; j++) {
+        for (let i = 0; i < GRID; i++) {
+          const gx = i + 0.5;
+          const gy = j + 0.5;
+          if (this.canStand(gx, gy, BODY_R)) return { gx: gx, gy: gy };
+        }
+      }
+      return { gx: GRID / 2, gy: GRID / 2 };
+    }
+
+    // Build one live monster (fresh spawn, a revisited platform's saved
+    // state, or a follower crossing a door) and push it into this.monsters.
+    // `opts.elite` tints and enlarges it; `opts.speed` overrides the def's
+    // base speed for a rebuilt/followed monster that already had one.
+    makeMonster(def, defKey, gx, gy, maxHp, hp, dmg, opts) {
+      opts = opts || {};
+      const spr = this.add.image(0, 0, def.key).setOrigin(0.5, 0.9);
+      const m = {
+        def: def,
+        defKey: defKey,
+        sprite: spr,
+        gx: gx,
+        gy: gy,
+        hp: hp,
+        maxHp: maxHp,
+        speed: opts.speed || def.speed,
+        range: def.range,
+        cd: def.cd,
+        nextAttack: 0,
+        dmg: dmg,
+        alive: true,
+        halfH: def.halfH,
+        lunge: { x: 0, y: 0 },
+        windingUp: false,
+        windupEndsAt: 0,
+        elite: !!opts.elite,
+        baseScale: opts.elite ? ELITE_SCALE : 1,
+      };
+      spr.setScale(m.baseScale);
+      if (m.elite) spr.setTint(ELITE_TINT);
+      m.bar = this.add.graphics();
+      m.telegraphGfx = this.add.graphics();
+      this.place(m);
+      this.monsters.push(m);
+      return m;
+    }
+
+    // A battle encounter: the same composition/scaling the old infinite-wave
+    // system used, just fed the dungeon level instead of a wave counter.
+    spawnBattle() {
+      const comp = waveComposition(this.level);
+      const scale = waveStatScale(this.level);
       const order = [];
       for (let i = 0; i < comp.grunts; i++) order.push("grunt");
       for (let i = 0; i < comp.brutes; i++) order.push("brute");
       shuffle(order);
 
-      this.monsters = [];
       const placed = [];
-      order.forEach((type) => {
-        const def = MONSTERS[type];
+      order.forEach((key) => {
+        const def = MONSTERS[key];
         const spot = this.pickSpawnPoint(placed);
-        const spr = this.add.image(0, 0, def.key).setOrigin(0.5, 0.9);
         const maxHp = Math.round(def.hp * scale.hp);
-        const m = {
-          def: def,
-          sprite: spr,
-          gx: spot.gx,
-          gy: spot.gy,
-          hp: maxHp,
-          maxHp: maxHp,
-          speed: def.speed,
-          range: def.range,
-          cd: def.cd,
-          nextAttack: 0,
-          dmg: [Math.round(def.dmg[0] * scale.dmg), Math.round(def.dmg[1] * scale.dmg)],
-          alive: true,
-          halfH: def.halfH,
-          lunge: { x: 0, y: 0 },
-          windingUp: false,
-          windupEndsAt: 0,
-        };
-        m.bar = this.add.graphics();
-        m.telegraphGfx = this.add.graphics();
-        this.place(m);
-        this.monsters.push(m);
-        placed.push({ gx: m.gx, gy: m.gy });
+        const dmg = [Math.round(def.dmg[0] * scale.dmg), Math.round(def.dmg[1] * scale.dmg)];
+        this.makeMonster(def, key, spot.gx, spot.gy, maxHp, maxHp, dmg);
+        placed.push({ gx: spot.gx, gy: spot.gy });
       });
     }
 
-    // Set the current wave, spawn it, and signpost it. Shared by create()
-    // (wave 1) and onWaveCleared() (every wave after), so there's exactly
-    // one place that decides what a wave looks like.
-    beginWave(wave) {
-      this.wave = wave;
-      this.spawnMonsters(wave);
-      this.banner("WAVE " + wave, WAVE_INTRO_MS);
+    // An ambush platform looks empty at first — the pack only appears after
+    // AMBUSH_DELAY_MS, and only if the player is still on this platform when
+    // the timer fires (leaving early quietly defuses it, which is fine: an
+    // ambush you walked straight through isn't much of an ambush).
+    spawnAmbush(platform) {
+      this.time.delayedCall(AMBUSH_DELAY_MS, () => {
+        if (this.over || this.currentId !== platform.id) return;
+        this.spawnBattle();
+        this.banner("AMBUSH!", 1100);
+        this.cameras.main.shake(140, 0.007);
+      });
+    }
+
+    // A single, much tougher brute — a real threat to stand and fight,
+    // tinted and enlarged so it reads as dangerous from across the room.
+    spawnElite() {
+      const def = MONSTERS.brute;
+      const scale = waveStatScale(this.level);
+      const maxHp = Math.round(def.hp * scale.hp * ELITE_HP_MULT);
+      const dmg = [
+        Math.round(def.dmg[0] * scale.dmg * ELITE_DMG_MULT),
+        Math.round(def.dmg[1] * scale.dmg * ELITE_DMG_MULT),
+      ];
+      const spot = this.pickSpawnPoint([]);
+      this.makeMonster(def, "brute", spot.gx, spot.gy, maxHp, maxHp, dmg, { elite: true });
+    }
+
+    spawnTreasure() {
+      const n = Phaser.Math.Between(TREASURE_FLASK_MIN, TREASURE_FLASK_MAX);
+      const placed = [{ gx: this.player.gx, gy: this.player.gy }];
+      for (let i = 0; i < n; i++) {
+        const spot = this.randomFloorTile(placed, 1.0);
+        this.dropFlask(spot.gx, spot.gy);
+        placed.push(spot);
+      }
+    }
+
+    // Dispatch a freshly-entered platform's encounter by type. Called only
+    // once per platform (see enterPlatform's `!platform.generated` guard).
+    spawnEncounterFor(platform) {
+      switch (platform.type) {
+        case "battle":
+          this.spawnBattle();
+          break;
+        case "ambush":
+          this.spawnAmbush(platform);
+          break;
+        case "elite":
+          this.spawnElite();
+          break;
+        case "treasure":
+          this.spawnTreasure();
+          break;
+        case "empty":
+        default:
+          if (Math.random() < EMPTY_FLASK_CHANCE) {
+            const spot = this.randomFloorTile([{ gx: this.player.gx, gy: this.player.gy }], 1.2);
+            this.dropFlask(spot.gx, spot.gy);
+          }
+          break;
+      }
+    }
+
+    // Destroy every live sprite/graphic belonging to the CURRENT platform's
+    // contents (monsters, flasks, portal, in-flight bolts) with no fade and
+    // no state saved — used both when leaving a platform (after its state
+    // has already been snapshotted by leavePlatform) and when a whole level
+    // is being discarded for the next one (enterNextLevel), where there's
+    // nothing worth saving in the first place.
+    teardownPlatformContents() {
+      this.monsters.forEach((m) => {
+        this.tweens.killTweensOf(m.sprite);
+        this.tweens.killTweensOf(m.lunge);
+        m.sprite.destroy();
+        m.bar.destroy();
+        m.telegraphGfx.destroy();
+      });
+      this.monsters = [];
+      this.clearFlasks();
+      this.clearBolts();
+      if (this.portalSprite) {
+        this.tweens.killTweensOf(this.portalSprite);
+        this.portalSprite.destroy();
+        this.portalSprite = null;
+      }
+      this.player.target = null;
+    }
+
+    // Leaving the current platform through `dir`. Monsters actively chasing
+    // the player get a chance to follow through the door (see FOLLOW_CHANCE)
+    // instead of being left behind; everyone else is frozen in a snapshot so
+    // returning later finds the room exactly as it was left.
+    leavePlatform(dir) {
+      const platform = this.mapData.platforms[this.currentId];
+
+      const followers = [];
+      for (let i = this.monsters.length - 1; i >= 0; i--) {
+        const m = this.monsters[i];
+        if (!m.alive) continue;
+        const aggroed = dist(m.gx, m.gy, this.player.gx, this.player.gy) <= m.def.aggro;
+        if (aggroed && Math.random() < FOLLOW_CHANCE) {
+          followers.push({ defKey: m.defKey, hp: m.hp, maxHp: m.maxHp, dmg: m.dmg.slice(), speed: m.speed, elite: m.elite });
+          this.tweens.killTweensOf(m.sprite);
+          this.tweens.killTweensOf(m.lunge);
+          m.sprite.destroy();
+          m.bar.destroy();
+          m.telegraphGfx.destroy();
+          this.monsters.splice(i, 1);
+        }
+      }
+
+      platform.savedMonsters = this.monsters
+        .filter((m) => m.alive)
+        .map((m) => ({ defKey: m.defKey, gx: m.gx, gy: m.gy, hp: m.hp, maxHp: m.maxHp, dmg: m.dmg.slice(), speed: m.speed, elite: m.elite }));
+      platform.savedFlasks = this.flasks.map((f) => ({ gx: f.gx, gy: f.gy }));
+
+      this.teardownPlatformContents();
+      return followers;
+    }
+
+    // Enter platform `id`. `arriveEdge` — the edge of the NEW platform to
+    // land beside — is null only for a level's very first platform, where
+    // the player's position was already chosen by enterLevel. `followers`
+    // are monsters that crossed over from the platform just left (see
+    // leavePlatform); `announce` suppresses the encounter-type banner when
+    // enterLevel wants its own "LEVEL n" banner to take that slot instead.
+    enterPlatform(id, arriveEdge, followers, announce) {
+      this.currentId = id;
+      const platform = this.mapData.platforms[id];
+
+      if (arriveEdge) {
+        const spot = edgeEntryPoint(arriveEdge);
+        this.player.gx = spot.gx;
+        this.player.gy = spot.gy;
+      }
+      this.place(this.player);
+
+      if (!platform.generated) {
+        platform.generated = true;
+        this.spawnEncounterFor(platform);
+        if (announce !== false) this.banner(TYPE_LABEL[platform.type] || "", WAVE_INTRO_MS);
+      } else {
+        (platform.savedMonsters || []).forEach((s) => {
+          const def = MONSTERS[s.defKey];
+          this.makeMonster(def, s.defKey, s.gx, s.gy, s.maxHp, s.hp, s.dmg.slice(), { elite: s.elite, speed: s.speed });
+        });
+        (platform.savedFlasks || []).forEach((f) => this.dropFlask(f.gx, f.gy));
+      }
+
+      if (followers && followers.length) {
+        const base = arriveEdge ? edgeEntryPoint(arriveEdge) : { gx: this.player.gx, gy: this.player.gy };
+        followers.forEach((f, i) => {
+          const def = MONSTERS[f.defKey];
+          const angle = (i / followers.length) * Math.PI * 2;
+          const gx = Phaser.Math.Clamp(base.gx + Math.cos(angle) * 0.8, BODY_R, GRID - BODY_R);
+          const gy = Phaser.Math.Clamp(base.gy + Math.sin(angle) * 0.8, BODY_R, GRID - BODY_R);
+          const spot = this.canStand(gx, gy, BODY_R) ? { gx: gx, gy: gy } : base;
+          this.makeMonster(def, f.defKey, spot.gx, spot.gy, f.maxHp, f.hp, f.dmg.slice(), { elite: f.elite, speed: f.speed });
+        });
+      }
+
+      if (platform.hasPortal) this.buildPortal(platform);
+      this.updateArrowVisibility();
+    }
+
+    // Cross from the current platform into its neighbor in `dir` (one of
+    // N/S/E/W), if one exists. Instant — no async gap — so `transitioning`
+    // only needs to guard against nested calls, not a real wait.
+    goToPlatform(dir) {
+      if (this.over || this.transitioning) return;
+      const platform = this.mapData.platforms[this.currentId];
+      const targetId = platform.neighbors[dir];
+      if (targetId === undefined) return;
+      this.transitioning = true;
+      const followers = this.leavePlatform(dir);
+      this.cameras.main.flash(120, 10, 8, 20);
+      this.enterPlatform(targetId, DIR_OPP[dir], followers);
+      this.transitioning = false;
+    }
+
+    // Place (and, on a revisit, just re-find) the portal on the platform
+    // the level generator chose for it, clear of every door so it's never
+    // one step from wherever the player happens to walk in.
+    buildPortal(platform) {
+      if (!platform.portalSpot) {
+        const doors = ["N", "S", "E", "W"].map(edgeEntryPoint);
+        platform.portalSpot = this.randomFloorTile(doors, 1.1);
+      }
+      const spot = platform.portalSpot;
+      const spr = this.add
+        .image(isoX(spot.gx, spot.gy), isoY(spot.gx, spot.gy) - 4, "gh-portal")
+        .setOrigin(0.5, 0.75)
+        .setDepth(isoY(spot.gx, spot.gy) - 2);
+      this.tweens.add({ targets: spr, angle: 360, duration: 4000, repeat: -1 });
+      this.tweens.add({ targets: spr, scale: 1.08, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+      this.portalSprite = spr;
+      this.portalGx = spot.gx;
+      this.portalGy = spot.gy;
+    }
+
+    // Walking onto the portal: heal a little (same reward as clearing a
+    // platform's monsters), discard the whole map, and generate the next
+    // level fresh.
+    enterNextLevel() {
+      if (this.over || this.transitioning) return;
+      this.transitioning = true;
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + WAVE_CLEAR_HEAL);
+      this.drawOrbs();
+      this.banner("DESCENDING...", LEVEL_TRANSITION_MS);
+      this.time.delayedCall(LEVEL_TRANSITION_MS, () => {
+        if (this.over) {
+          this.transitioning = false;
+          return;
+        }
+        this.teardownPlatformContents();
+        this.enterLevel(this.level + 1);
+        this.transitioning = false;
+      });
+    }
+
+    // Show/hide the four directional buttons to match the current
+    // platform's actual doors.
+    updateArrowVisibility() {
+      const platform = this.mapData.platforms[this.currentId];
+      ["N", "S", "E", "W"].forEach((dir) => {
+        const has = platform.neighbors[dir] !== undefined;
+        const btn = this.arrowBtn[dir];
+        btn.setVisible(has);
+        if (has) btn.setInteractive({ useHandCursor: true });
+        else btn.disableInteractive();
+      });
+    }
+
+    // Generate a fresh level's map, drop the player into its (always-safe)
+    // start platform on a random floor tile, and place the portal somewhere
+    // else in the map. Shared by create() (level 1) and enterNextLevel
+    // (every level after).
+    enterLevel(level) {
+      this.level = level;
+      this.mapData = generateLevel(level);
+
+      const portalPlatform = this.mapData.platforms[this.mapData.portalId];
+      const doors = ["N", "S", "E", "W"].map(edgeEntryPoint);
+      portalPlatform.portalSpot = this.randomFloorTile(doors, 1.1);
+
+      const spot = this.randomFloorTile([], 0);
+      this.player.gx = spot.gx;
+      this.player.gy = spot.gy;
+
+      this.enterPlatform(this.mapData.startId, null, null, false);
+      this.banner("LEVEL " + level, WAVE_INTRO_MS);
+      this.roamSpawnAt = this.time.now + Phaser.Math.Between(ROAM_SPAWN_MIN_MS, ROAM_SPAWN_MAX_MS);
       this.drawOrbs();
     }
 
@@ -754,21 +1216,6 @@
         f.sprite.destroy();
       });
       this.flasks = [];
-    }
-
-    // All monsters in the current wave are dead. Breathe, heal a little,
-    // signpost the next wave, then spawn it — the run's only exit is death
-    // (endGame), not this.
-    onWaveCleared() {
-      if (this.over) return;
-      this.clearFlasks();
-      this.player.hp = Math.min(this.player.maxHp, this.player.hp + WAVE_CLEAR_HEAL);
-      this.drawOrbs();
-      this.banner("WAVE " + (this.wave + 1) + " INCOMING", WAVE_BREATHER_MS);
-      this.time.delayedCall(WAVE_BREATHER_MS, () => {
-        if (this.over) return; // the player could still die to nothing here (no monsters exist mid-breather), but returning to the menu tears the whole scene down and this guard is cheap insurance either way
-        this.beginWave(this.wave + 1);
-      });
     }
 
     drawBar(m) {
@@ -807,7 +1254,7 @@
         .setDepth(UI_DEPTH);
 
       this.hintText = this.add
-        .text(W / 2, 58, "WASD/arrows or stick to walk • tap floor to move, a monster to close in\nYou auto-fire at the nearest foe • NOVA orb (or Space) to blast", {
+        .text(W / 2, 58, "WASD/arrows or stick to walk • tap floor to move, a monster to close in\nYou auto-fire at the nearest foe • NOVA orb (or Space) to blast • ▲▼◀▶ cross platforms", {
           fontFamily: "Arial, sans-serif",
           fontSize: "12px",
           lineSpacing: 2,
@@ -902,6 +1349,23 @@
       this.makeButton(42, 26, "≡", 0x3a3358, () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       }, 18);
+
+      this.buildArrows();
+    }
+
+    // Four directional buttons, one per screen edge, clear of the stick
+    // (bottom-left) and the life/nova orbs (bottom-right): top/bottom sit on
+    // the horizontal center, left/right sit above the orb column. Visibility
+    // is set per-platform by updateArrowVisibility(), not here — a fresh
+    // platform may not have a door in every direction.
+    buildArrows() {
+      const mk = (x, y, label, dir) => this.makeButton(x, y, label, 0x2a2740, () => this.goToPlatform(dir), 20);
+      this.arrowBtn = {
+        N: mk(W / 2, 118, "▲", "N"),
+        S: mk(W / 2, H - 40, "▼", "S"),
+        W: mk(26, H / 2 - 60, "◀", "W"),
+        E: mk(W - 26, H / 2 - 60, "▶", "E"),
+      };
     }
 
     /* ---------- virtual stick ---------- */
@@ -992,8 +1456,8 @@
       ng.strokeCircle(NOVA_ORB_X, NOVA_ORB_Y, r);
       this.novaText.setText(charge >= 1 ? "NOVA" : Math.ceil(((this.novaReadyAt - this.time.now) / 1000) * 10) / 10 + "s");
 
-      this.killText.setText("Wave " + this.wave + "   ·   Slain " + this.kills);
-      this.bestText.setText(this.startBest.wave > 0 ? "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")" : "Best: —");
+      this.killText.setText("Level " + this.level + "   ·   Slain " + this.kills);
+      this.bestText.setText(this.startBest.level > 0 ? "Best: Level " + this.startBest.level + " (" + this.startBest.kills + ")" : "Best: —");
     }
 
     novaCharge() {
@@ -1395,7 +1859,7 @@
       this.tweens.killTweensOf(m.sprite);
       this.tweens.add({
         targets: m.sprite,
-        scale: MONSTER_WINDUP_SCALE,
+        scale: m.baseScale * MONSTER_WINDUP_SCALE,
         duration: MONSTER_WINDUP_MS,
         ease: "Sine.easeOut",
       });
@@ -1440,7 +1904,7 @@
       m.windingUp = false;
       m.telegraphGfx.clear();
       this.tweens.killTweensOf(m.sprite);
-      this.tweens.add({ targets: m.sprite, scale: 1, duration: 90 });
+      this.tweens.add({ targets: m.sprite, scale: m.baseScale, duration: 90 });
       this.swing(m, this.player);
 
       if (dist(m.gx, m.gy, this.player.gx, this.player.gy) > m.range) {
@@ -1529,7 +1993,7 @@
       m.telegraphGfx.clear();
       this.tweens.killTweensOf(m.sprite);
       this.tweens.killTweensOf(m.lunge);
-      m.sprite.setScale(1);
+      m.sprite.setScale(m.baseScale);
       m.lunge.x = 0;
       m.lunge.y = 0;
     }
@@ -1561,8 +2025,17 @@
       });
       if (Math.random() < FLASK_CHANCE) this.dropFlask(m.gx, m.gy);
       this.drawOrbs();
-      if (this.monsters.every((e) => !e.alive)) {
-        this.time.delayedCall(500, () => this.onWaveCleared());
+
+      // First time this platform's monsters are all down: a small heal and
+      // a flavor banner, same reward the portal gives — there's no further
+      // wave behind this one, so unlike the old system nothing more spawns
+      // here on its own (see the roam-spawn timer in update() for that).
+      const platform = this.mapData.platforms[this.currentId];
+      if (!platform.cleared && this.monsters.every((e) => !e.alive)) {
+        platform.cleared = true;
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + WAVE_CLEAR_HEAL);
+        this.drawOrbs();
+        this.banner("CLEARED", 900);
       }
     }
 
@@ -1826,6 +2299,29 @@
         }
       }
 
+      // Stepping onto the portal descends to the next level.
+      if (this.portalSprite && !this.transitioning && dist(p.gx, p.gy, this.portalGx, this.portalGy) < PORTAL_R) {
+        this.enterNextLevel();
+      }
+
+      // Ambient spawns: a fresh monster can wander onto a non-empty/treasure
+      // platform on its own, on top of whatever its own encounter already
+      // put here — the hollow doesn't wait for you to walk into trouble.
+      if (!this.transitioning && time >= this.roamSpawnAt) {
+        this.roamSpawnAt = time + Phaser.Math.Between(ROAM_SPAWN_MIN_MS, ROAM_SPAWN_MAX_MS);
+        const platform = this.mapData.platforms[this.currentId];
+        if (platform.type !== "empty" && platform.type !== "treasure" && this.monsters.filter((m) => m.alive).length < ROAM_SPAWN_CAP) {
+          const key = Math.random() < 0.7 ? "grunt" : "brute";
+          const def = MONSTERS[key];
+          const scale = waveStatScale(this.level);
+          const maxHp = Math.round(def.hp * scale.hp);
+          const dmg = [Math.round(def.dmg[0] * scale.dmg), Math.round(def.dmg[1] * scale.dmg)];
+          const placed = this.monsters.filter((m) => m.alive).map((m) => ({ gx: m.gx, gy: m.gy }));
+          const spot = this.pickSpawnPoint(placed);
+          this.makeMonster(def, key, spot.gx, spot.gy, maxHp, maxHp, dmg);
+        }
+      }
+
       // Re-project everything and re-sort by screen depth.
       this.place(p);
       this.monsters.forEach((m) => {
@@ -1872,7 +2368,7 @@
       this.tweens.killTweensOf(this.waveText);
       this.waveText.setAlpha(0);
 
-      const isBest = this.wave > this.startBest.wave || (this.wave === this.startBest.wave && this.kills > this.startBest.kills);
+      const isBest = this.level > this.startBest.level || (this.level === this.startBest.level && this.kills > this.startBest.kills);
       this.saveBest();
 
       this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0, 0).setDepth(UI_DEPTH + 20);
@@ -1888,8 +2384,8 @@
         .setOrigin(0.5)
         .setDepth(UI_DEPTH + 21);
       const summary =
-        "Wave reached: " + this.wave + "\nMonsters slain: " + this.kills + "\n" +
-        (isBest ? "★ New Best!" : "Best: Wave " + this.startBest.wave + " (" + this.startBest.kills + ")");
+        "Level reached: " + this.level + "\nMonsters slain: " + this.kills + "\n" +
+        (isBest ? "★ New Best!" : "Best: Level " + this.startBest.level + " (" + this.startBest.kills + ")");
       this.add
         .text(W / 2, H * 0.26 + 40, summary, {
           fontFamily: "Arial, sans-serif",
@@ -1917,17 +2413,17 @@
     loadBest() {
       try {
         const raw = JSON.parse(localStorage.getItem(BEST_KEY));
-        if (raw && Number.isFinite(raw.wave) && Number.isFinite(raw.kills)) return raw;
+        if (raw && Number.isFinite(raw.level) && Number.isFinite(raw.kills)) return raw;
       } catch (e) {
         /* storage unavailable, or a value from before this shape existed; ignore */
       }
-      return { wave: 0, kills: 0 };
+      return { level: 0, kills: 0 };
     }
 
     saveBest() {
       try {
-        if (this.wave > this.startBest.wave || (this.wave === this.startBest.wave && this.kills > this.startBest.kills)) {
-          localStorage.setItem(BEST_KEY, JSON.stringify({ wave: this.wave, kills: this.kills }));
+        if (this.level > this.startBest.level || (this.level === this.startBest.level && this.kills > this.startBest.kills)) {
+          localStorage.setItem(BEST_KEY, JSON.stringify({ level: this.level, kills: this.kills }));
         }
       } catch (e) {
         /* storage may be unavailable; ignore */
