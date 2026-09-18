@@ -413,6 +413,48 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   `SPAWN_RAMP_MERGES`), so a long run also faces less-forgiving incoming
   bodies, not just a lower ceiling. Best score in `localStorage`
   (`nova-merge-best`).
+- **Planetary Manufacturing Tycoon** (`src/planetary-tycoon.js`) — an
+  incremental factory-builder on the first previously-blank slot of menu
+  page 3, from a design note that specified the whole loop up front: buy
+  devices into limited, increasingly-expensive slots; devices auto-produce
+  on their own timer; a separate market clock — not the player — sells
+  whatever's piled up so far, on its own tick; and once the bank crosses a
+  threshold the current plot cashes out to fund land on a new, pricier
+  planet. `PLANETS` (5 of them) is the whole progression ladder: a
+  nondescript starting world (`baseValue` 4, no rare drop) through mining /
+  combat / forestry worlds with steadily higher `landCost`, `baseValue` and
+  a `rareName` item (Star Crystal, Combat Drone, Ironwood Heart, Auric Core)
+  that a produced unit has a `rareChance` shot at instead of the plain
+  product, worth `rareMult`× as much — the "planets have unique resources
+  that allow production of rare items for more money" and "different types
+  offer role items" notes from the source sketch. Every planet reuses the
+  same fixed **3×2 pad grid** (`MAX_SLOTS`); `slots[i]` is `null`/locked
+  (beyond the planet's `baseSlots`, buyable via `slotCost()`, cost scaling
+  `SLOT_COST_GROWTH` per purchase), `false`/unlocked-empty (tap to drop a
+  device, `deviceCost()` scaling `DEVICE_COST_GROWTH` per device already
+  owned **on this planet**), or a live device counting its own `timer` down
+  to `produceTime()`. A finished product doesn't sell itself — it tweens
+  from its pad to the crate (`spawnProductTravel`) and increments `pending`,
+  and only the independent `sellTimer` (`sellInterval()`) clears the crate,
+  rolling every pending unit for the planet's rare chance and paying out in
+  one lump (`runMarketTick`) — devices and the market are two clocks on
+  purpose, matching "products are sold every so often" rather than "every
+  product sells the instant it's made." **Research is the one thing that
+  survives a relocation**: three tracks (`RESEARCH_TRACKS` — Automation
+  cuts `produceTime()`, Logistics cuts `sellInterval()`, Machining raises
+  `qualityMult()` on every sale), five tiers each off a shared cost ladder
+  (`RESEARCH_TIER_COSTS`) independent of the current planet, so a maxed
+  track stays maxed after a `tryRelocate()` even though `buildFactoryState()`
+  wipes `slots`/`devicesOwned`/`pending` back to that planet's starting
+  layout. `tryRelocate()` is a hard sell, not a merge — nothing about the
+  old plot (devices, in-flight products) carries over, only the money spent
+  on land and the money left after paying for it. Best money reached
+  persists in `localStorage` (`planetary-tycoon-best-money`) as the one
+  cross-run record; the run itself, like Indie Grind, resets when the game
+  is torn down. All art is primitives baked once in `buildTextures()`
+  (rounded-rect pads, a padlock glyph, a generic machine body, a product
+  swatch, a crate) and tinted per-planet at runtime via `setTint()` rather
+  than re-baked, so swapping planets never regenerates a texture.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -434,6 +476,7 @@ src/bark-quest/         Miles' two stances + the three foe cut-outs (art not dra
 src/slopeman.js        The Abominable Slopeman downhill dodger (three.js); window.launchSlopeman()
 src/slopeman/          Decimated snowman .glb (art not drawn at runtime)
 src/nova-merge/nova-merge.js  Nova Merge physics merge game; window.launchNovaMerge()
+src/planetary-tycoon.js  Planetary Manufacturing Tycoon incremental factory game; window.launchPlanetaryTycoon()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)

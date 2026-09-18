@@ -384,7 +384,9 @@
           <button id="btn-slopeman" class="menu-btn menu-btn--secondary" type="button">
             The Abominable Slopeman
           </button>
-          <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
+          <button id="btn-tycoon" class="menu-btn menu-btn--secondary" type="button">
+            Planetary Manufacturing Tycoon
+          </button>
           <button class="menu-btn menu-btn--secondary menu-btn--blank" type="button" aria-hidden="true"></button>
         </div>
       </div>
@@ -420,6 +422,7 @@
   <script src="src/gloom-hollow-3d.js"></script>
   <!-- Also imports three.js on demand, same as gloom-hollow-3d.js. -->
   <script src="src/slopeman.js"></script>
+  <script src="src/planetary-tycoon.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -502,6 +505,11 @@
         if (typeof window.launchSlopeman === "function") window.launchSlopeman();
       });
 
+      document.getElementById("btn-tycoon").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchPlanetaryTycoon === "function") window.launchPlanetaryTycoon();
+      });
+
       // Underfoot (page 2) -> "under construction" modal.
       var ucModal = document.getElementById("uc-modal");
       document.getElementById("btn-underfoot").addEventListener("click", function () {
@@ -538,6 +546,7 @@
           if (window.gloom3DGame) { try { window.gloom3DGame.destroy(); } catch (e) {} window.gloom3DGame = null; }
           if (window.indieGrindGame) { try { window.indieGrindGame.destroy(); } catch (e) {} window.indieGrindGame = null; }
           if (window.slopemanGame) { try { window.slopemanGame.destroy(); } catch (e) {} window.slopemanGame = null; }
+          if (window.tycoonGame) { try { window.tycoonGame.destroy(true); } catch (e) {} window.tycoonGame = null; }
         }, 0);
       };
     })();
