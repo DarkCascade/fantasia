@@ -41,7 +41,7 @@ def aid_page(c, key: str):
     main, dark = pal[0], pal[1]
     st = S.styles(11)
     V = T.CFG
-    pack = V.pack_limit - (1 if key == "gritch" and V.gritch_pack4 else 0)
+    pack = T.GRITCH_PACK if key == "gritch" else V.pack_limit
 
     # ---- header band
     band_h = 1.75 * inch
@@ -51,7 +51,11 @@ def aid_page(c, key: str):
     c.rect(0, H - band_h, W, 0.09 * inch, fill=1, stroke=0)
     E.emblem(c, key, M + 0.72 * inch, H - band_h / 2, 0.68 * inch)
     from reportlab.pdfbase.pdfmetrics import stringWidth
-    c.setFillColor(colors.white)
+    # dark text on a light band (Old Quill's parchment), white on the rest
+    light = 0.2126 * main.red + 0.7152 * main.green + 0.0722 * main.blue > 0.6
+    on_band = S.INK if light else colors.white
+    chip_fill, chip_ink = (dark, colors.white) if light else (colors.white, dark)
+    c.setFillColor(on_band)
     name = ch["name"].upper()
     avail = W - M - (M + 1.65 * inch)
     size = 30
@@ -67,9 +71,9 @@ def aid_page(c, key: str):
     chip_w = 1.85 * inch
     cx0 = W - M - chip_w
     chip_y = H - 1.5 * inch
-    c.setFillColor(colors.white)
+    c.setFillColor(chip_fill)
     c.roundRect(cx0, chip_y, chip_w, 0.42 * inch, 0.21 * inch, fill=1, stroke=0)
-    c.setFillColor(dark)
+    c.setFillColor(chip_ink)
     c.setFont(S.LABEL_FONT, 12)
     if ch["suit"]:
         S.draw_suit(c, ch["suit"], cx0 + 0.3 * inch, chip_y + 0.21 * inch, 0.24 * inch)
@@ -77,7 +81,7 @@ def aid_page(c, key: str):
     else:
         c.drawCentredString(cx0 + chip_w / 2, chip_y + 0.15 * inch, aff.upper())
     c.setFont(S.SANS, 9)
-    c.setFillColor(colors.white)
+    c.setFillColor(on_band)
     c.drawRightString(W - M, H - 0.52 * inch, "GLIMMERDARK · PLAYER AID")
 
     # ---- ability
@@ -153,10 +157,13 @@ def aid_page(c, key: str):
     tr_h = 1.05 * inch
     _panel(c, M, tr_top - tr_h, W - 2 * M, tr_h, fill=S.PAPER, stroke=S.RULE)
     small = S.styles(9.5)
+    jack = T.QUILL_JACK if key == "quill" else V.jack_steps
     lines = [f"<b>Your turn.</b> Up to {V.actions_per_turn} actions, one card each: <b>Move</b> 1 (any card), "
-             f"<b>Mine</b> (card matches the vein; 2–6 and A take {V.low_yield}, 7–10 and faces take {V.high_yield}; A is wild), "
-             f"or a face card's <b>Event</b> (J Shortcut {V.jack_steps}, Q Pilfer, K Rouse). Refill to {V.hand_size}.",
-             "<b>The Warden.</b> After each round flip a card: A–10 = 1 step, J/Q/K = 2, Joker = Tremor. It walks "
+             f"<b>Mine</b> (card matches the vein; {T.LOW_RANKS} and A take {V.low_yield}, {T.HIGH_RANKS} and faces take "
+             f"{V.high_yield}; A is wild), or a face card's <b>Event</b> (J Shortcut {jack}, Q Pilfer, K Rouse). "
+             f"Refill to {V.hand_size}.",
+             f"<b>The Warden.</b> After each round flip a card: A–10 = {V.warden_steps_number} step, J/Q/K = "
+             f"{V.warden_steps_face}, Joker = Tremor. It walks "
              "toward the winning delver underground and crushes anyone it walks in on (drop half, retreat)."]
     _frame(c, M + 0.05 * inch, tr_top - tr_h, W - 2 * M - 0.1 * inch, tr_h, [S.P(t, small["small"]) for t in lines])
 

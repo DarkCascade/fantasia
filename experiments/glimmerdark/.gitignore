@@ -2,3 +2,5 @@ __pycache__/
 .pytest_cache/
 minis/out/
 *.pyc
+print/_build/
+results/_board_full.pdf

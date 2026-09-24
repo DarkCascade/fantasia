@@ -11,6 +11,8 @@ from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
 import content as T
+import results as RS
+from content import R
 import emblems as E
 import style as S
 
@@ -52,9 +54,22 @@ def token_page(c):
     c.setFont(S.SANS, 9)
     c.setFillColor(S.INK_SOFT)
     summary = ", ".join(f"{n} × {v}" for v, n in T.TOKENS) + ", 1 Crown (5)"
-    c.drawString(M, gy - 0.35 * inch, f"This sheet: {summary}. That covered more than 99.9% of 30,000 simulated games; "
-                 "if you ever run out, use a coin.")
+    c.drawString(M, gy - 0.35 * inch, f"This sheet: {summary}. {token_note()}")
     S.page_footer(c, W, "Glimmerdark · components · glimmer tokens")
+
+
+def token_note() -> str:
+    """How the token counts compare with what the final-rules sweep needed."""
+    need = RS.token_need(R.FINAL)
+    if not need:
+        return "If you ever run out, use a coin."
+    have = dict(T.TOKENS)
+    games = min(q["games"] for q in need.values())
+    most = " / ".join(str(need[v]["max"]) for v, _ in T.TOKENS)
+    if all(have[v] >= need[v]["max"] for v in have):
+        return f"The most any of {games:,} simulated games needed was {most}, so it has never run short in testing."
+    return (f"The most any of {games:,} simulated games needed was {most}; that's rare, and if you ever run out, "
+            "use a coin.")
 
 
 STANDEE_W, FACE_H, TAB_H = 1.45 * inch, 1.75 * inch, 0.45 * inch

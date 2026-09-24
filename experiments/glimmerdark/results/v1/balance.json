@@ -3,1351 +3,1351 @@
   "2p:mira+gritch": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.827,
+     "games": 10000,
+     "win_rate": 0.87435,
      "fair": 0.5,
-     "delta_pp": 32.699999999999996
+     "delta_pp": 37.434999999999995
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.173,
+     "games": 10000,
+     "win_rate": 0.12565,
      "fair": 0.5,
-     "delta_pp": -32.7
+     "delta_pp": -37.434999999999995
     }
    },
    "length": {
-    "turns_mean": 63.262,
+    "turns_mean": 61.1068,
     "minutes_p50": 50.0,
-    "share_30_45": 0.173
+    "share_30_45": 0.1425
    }
   },
   "2p:mira+hulda": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.788,
+     "games": 10000,
+     "win_rate": 0.7942,
      "fair": 0.5,
-     "delta_pp": 28.800000000000004
+     "delta_pp": 29.42
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.212,
+     "games": 10000,
+     "win_rate": 0.2058,
      "fair": 0.5,
-     "delta_pp": -28.800000000000004
+     "delta_pp": -29.42
     }
    },
    "length": {
-    "turns_mean": 59.092,
+    "turns_mean": 59.5064,
     "minutes_p50": 48.333333333333336,
-    "share_30_45": 0.249
+    "share_30_45": 0.1659
    }
   },
   "2p:mira+sable": {
    "chars": {
     "mira": {
-     "games": 1000,
-     "win_rate": 0.229,
+     "games": 10000,
+     "win_rate": 0.19395,
      "fair": 0.5,
-     "delta_pp": -27.1
+     "delta_pp": -30.605
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.771,
+     "games": 10000,
+     "win_rate": 0.80605,
      "fair": 0.5,
-     "delta_pp": 27.1
+     "delta_pp": 30.605000000000004
     }
    },
    "length": {
-    "turns_mean": 62.542,
+    "turns_mean": 62.0238,
     "minutes_p50": 50.0,
-    "share_30_45": 0.185
+    "share_30_45": 0.1327
    }
   },
   "2p:mira+twins": {
    "chars": {
     "mira": {
-     "games": 1000,
-     "win_rate": 0.3145,
+     "games": 10000,
+     "win_rate": 0.27155,
      "fair": 0.5,
-     "delta_pp": -18.55
+     "delta_pp": -22.845
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.6855,
+     "games": 10000,
+     "win_rate": 0.72845,
      "fair": 0.5,
-     "delta_pp": 18.55
+     "delta_pp": 22.845000000000006
     }
    },
    "length": {
-    "turns_mean": 60.41,
+    "turns_mean": 60.0364,
     "minutes_p50": 48.333333333333336,
-    "share_30_45": 0.337
+    "share_30_45": 0.2697
    }
   },
   "2p:mira+quill": {
    "chars": {
     "mira": {
-     "games": 1000,
-     "win_rate": 0.291,
+     "games": 10000,
+     "win_rate": 0.25295,
      "fair": 0.5,
-     "delta_pp": -20.900000000000002
+     "delta_pp": -24.705
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.709,
+     "games": 10000,
+     "win_rate": 0.74705,
      "fair": 0.5,
-     "delta_pp": 20.899999999999995
+     "delta_pp": 24.705
     }
    },
    "length": {
-    "turns_mean": 59.118,
+    "turns_mean": 58.653,
     "minutes_p50": 48.333333333333336,
-    "share_30_45": 0.375
+    "share_30_45": 0.3712
    }
   },
   "2p:gritch+hulda": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.535,
+     "games": 10000,
+     "win_rate": 0.5945,
      "fair": 0.5,
-     "delta_pp": 3.500000000000003
+     "delta_pp": 9.450000000000003
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.465,
+     "games": 10000,
+     "win_rate": 0.4055,
      "fair": 0.5,
-     "delta_pp": -3.4999999999999973
+     "delta_pp": -9.449999999999998
     }
    },
    "length": {
-    "turns_mean": 60.596,
-    "minutes_p50": 48.333333333333336,
-    "share_30_45": 0.296
+    "turns_mean": 58.7062,
+    "minutes_p50": 46.666666666666664,
+    "share_30_45": 0.2916
    }
   },
   "2p:gritch+sable": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.579,
+     "games": 10000,
+     "win_rate": 0.63955,
      "fair": 0.5,
-     "delta_pp": 7.899999999999996
+     "delta_pp": 13.954999999999995
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.421,
+     "games": 10000,
+     "win_rate": 0.36045,
      "fair": 0.5,
-     "delta_pp": -7.900000000000001
+     "delta_pp": -13.955
     }
    },
    "length": {
-    "turns_mean": 62.078,
-    "minutes_p50": 50.0,
-    "share_30_45": 0.266
+    "turns_mean": 59.2678,
+    "minutes_p50": 48.333333333333336,
+    "share_30_45": 0.2916
    }
   },
   "2p:gritch+twins": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.628,
+     "games": 10000,
+     "win_rate": 0.6954,
      "fair": 0.5,
-     "delta_pp": 12.8
+     "delta_pp": 19.540000000000003
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.372,
+     "games": 10000,
+     "win_rate": 0.3046,
      "fair": 0.5,
-     "delta_pp": -12.8
+     "delta_pp": -19.540000000000003
     }
    },
    "length": {
-    "turns_mean": 60.008,
-    "minutes_p50": 48.333333333333336,
-    "share_30_45": 0.411
+    "turns_mean": 57.7168,
+    "minutes_p50": 46.666666666666664,
+    "share_30_45": 0.4533
    }
   },
   "2p:gritch+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.5915,
+     "games": 10000,
+     "win_rate": 0.637,
      "fair": 0.5,
-     "delta_pp": 9.150000000000002
+     "delta_pp": 13.700000000000001
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.4085,
+     "games": 10000,
+     "win_rate": 0.363,
      "fair": 0.5,
-     "delta_pp": -9.150000000000002
+     "delta_pp": -13.700000000000001
     }
    },
    "length": {
-    "turns_mean": 58.652,
-    "minutes_p50": 46.666666666666664,
-    "share_30_45": 0.467
+    "turns_mean": 56.0382,
+    "minutes_p50": 45.0,
+    "share_30_45": 0.5536
    }
   },
   "2p:hulda+sable": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.4635,
+     "games": 10000,
+     "win_rate": 0.3876,
      "fair": 0.5,
-     "delta_pp": -3.6499999999999977
+     "delta_pp": -11.24
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.5365,
+     "games": 10000,
+     "win_rate": 0.6124,
      "fair": 0.5,
-     "delta_pp": 3.6499999999999977
+     "delta_pp": 11.240000000000006
     }
    },
    "length": {
-    "turns_mean": 60.266,
+    "turns_mean": 59.7176,
     "minutes_p50": 48.333333333333336,
-    "share_30_45": 0.261
+    "share_30_45": 0.241
    }
   },
   "2p:hulda+twins": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.5805,
+     "games": 10000,
+     "win_rate": 0.5737,
      "fair": 0.5,
-     "delta_pp": 8.05
+     "delta_pp": 7.369999999999999
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.4195,
+     "games": 10000,
+     "win_rate": 0.4263,
      "fair": 0.5,
-     "delta_pp": -8.05
+     "delta_pp": -7.369999999999999
     }
    },
    "length": {
-    "turns_mean": 57.71,
+    "turns_mean": 57.0346,
     "minutes_p50": 46.666666666666664,
-    "share_30_45": 0.463
+    "share_30_45": 0.4568
    }
   },
   "2p:hulda+quill": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.5435,
+     "games": 10000,
+     "win_rate": 0.52185,
      "fair": 0.5,
-     "delta_pp": 4.349999999999998
+     "delta_pp": 2.1850000000000036
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.4565,
+     "games": 10000,
+     "win_rate": 0.47815,
      "fair": 0.5,
-     "delta_pp": -4.349999999999998
+     "delta_pp": -2.184999999999998
     }
    },
    "length": {
-    "turns_mean": 55.762,
+    "turns_mean": 55.586,
     "minutes_p50": 45.0,
-    "share_30_45": 0.567
+    "share_30_45": 0.5518
    }
   },
   "2p:sable+twins": {
    "chars": {
     "sable": {
-     "games": 1000,
-     "win_rate": 0.577,
+     "games": 10000,
+     "win_rate": 0.5867,
      "fair": 0.5,
-     "delta_pp": 7.699999999999996
+     "delta_pp": 8.67
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.423,
+     "games": 10000,
+     "win_rate": 0.4133,
      "fair": 0.5,
-     "delta_pp": -7.700000000000001
+     "delta_pp": -8.67
     }
    },
    "length": {
-    "turns_mean": 59.988,
+    "turns_mean": 58.8666,
     "minutes_p50": 48.333333333333336,
-    "share_30_45": 0.38
+    "share_30_45": 0.3858
    }
   },
   "2p:sable+quill": {
    "chars": {
     "quill": {
-     "games": 1000,
-     "win_rate": 0.482,
+     "games": 10000,
+     "win_rate": 0.4696,
      "fair": 0.5,
-     "delta_pp": -1.8000000000000016
+     "delta_pp": -3.0399999999999983
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.518,
+     "games": 10000,
+     "win_rate": 0.5304,
      "fair": 0.5,
-     "delta_pp": 1.8000000000000016
+     "delta_pp": 3.0399999999999983
     }
    },
    "length": {
-    "turns_mean": 58.58,
+    "turns_mean": 57.1542,
     "minutes_p50": 46.666666666666664,
-    "share_30_45": 0.45
+    "share_30_45": 0.4782
    }
   },
   "2p:twins+quill": {
    "chars": {
     "quill": {
-     "games": 1000,
-     "win_rate": 0.5305,
+     "games": 10000,
+     "win_rate": 0.53545,
      "fair": 0.5,
-     "delta_pp": 3.049999999999997
+     "delta_pp": 3.544999999999998
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.4695,
+     "games": 10000,
+     "win_rate": 0.46455,
      "fair": 0.5,
-     "delta_pp": -3.0500000000000025
+     "delta_pp": -3.544999999999998
     }
    },
    "length": {
-    "turns_mean": 57.966,
+    "turns_mean": 56.2522,
     "minutes_p50": 46.666666666666664,
-    "share_30_45": 0.436
+    "share_30_45": 0.4858
    }
   },
   "3p:mira+gritch+hulda": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.4835,
+     "games": 10000,
+     "win_rate": 0.5293666666666667,
      "fair": 0.3333333333333333,
-     "delta_pp": 15.016666666666667
+     "delta_pp": 19.603333333333335
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.4005,
+     "games": 10000,
+     "win_rate": 0.3620666666666667,
      "fair": 0.3333333333333333,
-     "delta_pp": 6.71666666666667
+     "delta_pp": 2.873333333333339
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.116,
+     "games": 10000,
+     "win_rate": 0.10856666666666664,
      "fair": 0.3333333333333333,
-     "delta_pp": -21.73333333333333
+     "delta_pp": -22.476666666666667
     }
    },
    "length": {
-    "turns_mean": 55.317,
+    "turns_mean": 55.737,
     "minutes_p50": 43.5,
-    "share_30_45": 0.66
+    "share_30_45": 0.6315
    }
   },
   "3p:mira+gritch+sable": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.4648333333333334,
+     "games": 10000,
+     "win_rate": 0.5055333333333334,
      "fair": 0.3333333333333333,
-     "delta_pp": 13.150000000000006
+     "delta_pp": 17.220000000000006
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.13883333333333334,
+     "games": 10000,
+     "win_rate": 0.10968333333333335,
      "fair": 0.3333333333333333,
-     "delta_pp": -19.45
+     "delta_pp": -22.364999999999995
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.39633333333333337,
+     "games": 10000,
+     "win_rate": 0.38478333333333337,
      "fair": 0.3333333333333333,
-     "delta_pp": 6.300000000000006
+     "delta_pp": 5.145000000000005
     }
    },
    "length": {
-    "turns_mean": 56.283,
+    "turns_mean": 56.5917,
     "minutes_p50": 43.5,
-    "share_30_45": 0.615
+    "share_30_45": 0.5697
    }
   },
   "3p:mira+gritch+twins": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.5073333333333334,
+     "games": 10000,
+     "win_rate": 0.5647499999999999,
      "fair": 0.3333333333333333,
-     "delta_pp": 17.40000000000001
+     "delta_pp": 23.141666666666655
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.17633333333333334,
+     "games": 10000,
+     "win_rate": 0.12315,
      "fair": 0.3333333333333333,
-     "delta_pp": -15.699999999999998
+     "delta_pp": -21.018333333333334
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.3163333333333333,
+     "games": 10000,
+     "win_rate": 0.3121000000000001,
      "fair": 0.3333333333333333,
-     "delta_pp": -1.7000000000000015
+     "delta_pp": -2.1233333333333215
     }
    },
    "length": {
-    "turns_mean": 55.56,
+    "turns_mean": 55.2435,
     "minutes_p50": 43.5,
-    "share_30_45": 0.662
+    "share_30_45": 0.6485
    }
   },
   "3p:mira+gritch+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.4558333333333333,
+     "games": 10000,
+     "win_rate": 0.4920166666666667,
      "fair": 0.3333333333333333,
-     "delta_pp": 12.25
+     "delta_pp": 15.86833333333334
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.12483333333333332,
+     "games": 10000,
+     "win_rate": 0.10321666666666668,
      "fair": 0.3333333333333333,
-     "delta_pp": -20.849999999999998
+     "delta_pp": -23.011666666666663
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.4193333333333334,
+     "games": 10000,
+     "win_rate": 0.4047666666666667,
      "fair": 0.3333333333333333,
-     "delta_pp": 8.600000000000009
+     "delta_pp": 7.143333333333341
     }
    },
    "length": {
-    "turns_mean": 53.919,
+    "turns_mean": 53.8449,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.711
+    "share_30_45": 0.709
    }
   },
   "3p:mira+hulda+sable": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.3565,
+     "games": 10000,
+     "win_rate": 0.34306666666666674,
      "fair": 0.3333333333333333,
-     "delta_pp": 2.316666666666667
+     "delta_pp": 0.9733333333333427
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.1275,
+     "games": 10000,
+     "win_rate": 0.12216666666666667,
      "fair": 0.3333333333333333,
-     "delta_pp": -20.583333333333332
+     "delta_pp": -21.116666666666664
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.516,
+     "games": 10000,
+     "win_rate": 0.5347666666666667,
      "fair": 0.3333333333333333,
-     "delta_pp": 18.26666666666667
+     "delta_pp": 20.14333333333334
     }
    },
    "length": {
-    "turns_mean": 54.858,
+    "turns_mean": 55.2399,
     "minutes_p50": 43.5,
-    "share_30_45": 0.732
+    "share_30_45": 0.673
    }
   },
   "3p:mira+hulda+twins": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.4513333333333333,
+     "games": 10000,
+     "win_rate": 0.44505,
      "fair": 0.3333333333333333,
-     "delta_pp": 11.799999999999999
+     "delta_pp": 11.171666666666669
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.16533333333333333,
+     "games": 10000,
+     "win_rate": 0.16534999999999997,
      "fair": 0.3333333333333333,
-     "delta_pp": -16.799999999999997
+     "delta_pp": -16.798333333333336
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.3833333333333333,
+     "games": 10000,
+     "win_rate": 0.38960000000000006,
      "fair": 0.3333333333333333,
-     "delta_pp": 4.999999999999999
+     "delta_pp": 5.626666666666674
     }
    },
    "length": {
-    "turns_mean": 53.121,
+    "turns_mean": 53.7051,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.808
+    "share_30_45": 0.7677
    }
   },
   "3p:mira+hulda+quill": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.3785,
+     "games": 10000,
+     "win_rate": 0.39385000000000003,
      "fair": 0.3333333333333333,
-     "delta_pp": 4.516666666666669
+     "delta_pp": 6.051666666666672
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.1435,
+     "games": 10000,
+     "win_rate": 0.13895000000000002,
      "fair": 0.3333333333333333,
-     "delta_pp": -18.983333333333334
+     "delta_pp": -19.43833333333333
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.478,
+     "games": 10000,
+     "win_rate": 0.4672000000000001,
      "fair": 0.3333333333333333,
-     "delta_pp": 14.466666666666667
+     "delta_pp": 13.386666666666681
     }
    },
    "length": {
-    "turns_mean": 51.459,
+    "turns_mean": 52.2798,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.863
+    "share_30_45": 0.8252
    }
   },
   "3p:mira+sable+twins": {
    "chars": {
     "mira": {
-     "games": 1000,
-     "win_rate": 0.1585,
+     "games": 10000,
+     "win_rate": 0.13708333333333333,
      "fair": 0.3333333333333333,
-     "delta_pp": -17.48333333333333
+     "delta_pp": -19.624999999999996
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.5025,
+     "games": 10000,
+     "win_rate": 0.5211833333333333,
      "fair": 0.3333333333333333,
-     "delta_pp": 16.916666666666664
+     "delta_pp": 18.785
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.339,
+     "games": 10000,
+     "win_rate": 0.34173333333333333,
      "fair": 0.3333333333333333,
-     "delta_pp": 0.5666666666666709
+     "delta_pp": 0.8400000000000019
     }
    },
    "length": {
-    "turns_mean": 53.988,
-    "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.745
+    "turns_mean": 54.7338,
+    "minutes_p50": 43.5,
+    "share_30_45": 0.6868
    }
   },
   "3p:mira+sable+quill": {
    "chars": {
     "mira": {
-     "games": 1000,
-     "win_rate": 0.14583333333333331,
+     "games": 10000,
+     "win_rate": 0.12451666666666665,
      "fair": 0.3333333333333333,
-     "delta_pp": -18.75
+     "delta_pp": -20.881666666666664
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.4563333333333333,
+     "games": 10000,
+     "win_rate": 0.4386166666666666,
      "fair": 0.3333333333333333,
-     "delta_pp": 12.3
+     "delta_pp": 10.528333333333329
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.39783333333333337,
+     "games": 10000,
+     "win_rate": 0.4368666666666666,
      "fair": 0.3333333333333333,
-     "delta_pp": 6.4500000000000055
+     "delta_pp": 10.353333333333332
     }
    },
    "length": {
-    "turns_mean": 53.16,
+    "turns_mean": 53.3664,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.764
+    "share_30_45": 0.7421
    }
   },
   "3p:mira+twins+quill": {
    "chars": {
     "mira": {
-     "games": 1000,
-     "win_rate": 0.15483333333333335,
+     "games": 10000,
+     "win_rate": 0.15555,
      "fair": 0.3333333333333333,
-     "delta_pp": -17.849999999999998
+     "delta_pp": -17.778333333333332
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.47783333333333333,
+     "games": 10000,
+     "win_rate": 0.5032,
      "fair": 0.3333333333333333,
-     "delta_pp": 14.450000000000001
+     "delta_pp": 16.986666666666668
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.3673333333333333,
+     "games": 10000,
+     "win_rate": 0.34125,
      "fair": 0.3333333333333333,
-     "delta_pp": 3.3999999999999977
+     "delta_pp": 0.7916666666666683
     }
    },
    "length": {
-    "turns_mean": 51.876,
+    "turns_mean": 52.2834,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.804
+    "share_30_45": 0.7703
    }
   },
   "3p:gritch+hulda+sable": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.3508333333333334,
+     "games": 10000,
+     "win_rate": 0.3840166666666668,
      "fair": 0.3333333333333333,
-     "delta_pp": 1.750000000000007
+     "delta_pp": 5.068333333333347
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.31933333333333336,
+     "games": 10000,
+     "win_rate": 0.2585666666666667,
      "fair": 0.3333333333333333,
-     "delta_pp": -1.3999999999999957
+     "delta_pp": -7.4766666666666595
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.32983333333333337,
+     "games": 10000,
+     "win_rate": 0.35741666666666677,
      "fair": 0.3333333333333333,
-     "delta_pp": -0.34999999999999476
+     "delta_pp": 2.4083333333333456
     }
    },
    "length": {
-    "turns_mean": 55.485,
+    "turns_mean": 55.1949,
     "minutes_p50": 43.5,
-    "share_30_45": 0.672
+    "share_30_45": 0.6747
    }
   },
   "3p:gritch+hulda+twins": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.3938333333333333,
+     "games": 10000,
+     "win_rate": 0.44223333333333337,
      "fair": 0.3333333333333333,
-     "delta_pp": 6.05
+     "delta_pp": 10.890000000000006
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.3303333333333333,
+     "games": 10000,
+     "win_rate": 0.31018333333333337,
      "fair": 0.3333333333333333,
-     "delta_pp": -0.30000000000000027
+     "delta_pp": -2.314999999999995
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.2758333333333334,
+     "games": 10000,
+     "win_rate": 0.2475833333333333,
      "fair": 0.3333333333333333,
-     "delta_pp": -5.749999999999994
+     "delta_pp": -8.575000000000003
     }
    },
    "length": {
-    "turns_mean": 53.898,
+    "turns_mean": 53.8677,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.749
+    "share_30_45": 0.7473
    }
   },
   "3p:gritch+hulda+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.388,
+     "games": 10000,
+     "win_rate": 0.39505000000000007,
      "fair": 0.3333333333333333,
-     "delta_pp": 5.4666666666666694
+     "delta_pp": 6.171666666666676
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.2845,
+     "games": 10000,
+     "win_rate": 0.26139999999999997,
      "fair": 0.3333333333333333,
-     "delta_pp": -4.883333333333334
+     "delta_pp": -7.193333333333335
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3275,
+     "games": 10000,
+     "win_rate": 0.34355,
      "fair": 0.3333333333333333,
-     "delta_pp": -0.5833333333333302
+     "delta_pp": 1.0216666666666707
     }
    },
    "length": {
-    "turns_mean": 52.323,
+    "turns_mean": 52.3626,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.808
+    "share_30_45": 0.8041
    }
   },
   "3p:gritch+sable+twins": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.4126666666666666,
+     "games": 10000,
+     "win_rate": 0.4342166666666668,
      "fair": 0.3333333333333333,
-     "delta_pp": 7.933333333333331
+     "delta_pp": 10.088333333333349
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.33216666666666667,
+     "games": 10000,
+     "win_rate": 0.32781666666666676,
      "fair": 0.3333333333333333,
-     "delta_pp": -0.11666666666666492
+     "delta_pp": -0.5516666666666559
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.2551666666666667,
+     "games": 10000,
+     "win_rate": 0.23796666666666666,
      "fair": 0.3333333333333333,
-     "delta_pp": -7.816666666666661
+     "delta_pp": -9.536666666666665
     }
    },
    "length": {
-    "turns_mean": 55.044,
+    "turns_mean": 54.4722,
     "minutes_p50": 43.5,
-    "share_30_45": 0.686
+    "share_30_45": 0.7001
    }
   },
   "3p:gritch+sable+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.37533333333333335,
+     "games": 10000,
+     "win_rate": 0.3838833333333334,
      "fair": 0.3333333333333333,
-     "delta_pp": 4.200000000000004
+     "delta_pp": 5.0550000000000095
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3458333333333334,
+     "games": 10000,
+     "win_rate": 0.34058333333333335,
      "fair": 0.3333333333333333,
-     "delta_pp": 1.2500000000000067
+     "delta_pp": 0.7250000000000034
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.2788333333333333,
+     "games": 10000,
+     "win_rate": 0.27553333333333335,
      "fair": 0.3333333333333333,
-     "delta_pp": -5.449999999999999
+     "delta_pp": -5.779999999999996
     }
    },
    "length": {
-    "turns_mean": 53.757,
+    "turns_mean": 52.9812,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.733
+    "share_30_45": 0.7582
    }
   },
   "3p:gritch+twins+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.3785,
+     "games": 10000,
+     "win_rate": 0.4227666666666668,
      "fair": 0.3333333333333333,
-     "delta_pp": 4.516666666666669
+     "delta_pp": 8.943333333333348
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3835,
+     "games": 10000,
+     "win_rate": 0.35901666666666676,
      "fair": 0.3333333333333333,
-     "delta_pp": 5.016666666666669
+     "delta_pp": 2.568333333333345
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.238,
+     "games": 10000,
+     "win_rate": 0.21821666666666661,
      "fair": 0.3333333333333333,
-     "delta_pp": -9.533333333333333
+     "delta_pp": -11.51166666666667
     }
    },
    "length": {
-    "turns_mean": 52.26,
+    "turns_mean": 52.0914,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.778
+    "share_30_45": 0.7743
    }
   },
   "3p:hulda+sable+twins": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.3005,
+     "games": 10000,
+     "win_rate": 0.2944,
      "fair": 0.3333333333333333,
-     "delta_pp": -3.2833333333333323
+     "delta_pp": -3.8933333333333318
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.4165,
+     "games": 10000,
+     "win_rate": 0.4541000000000001,
      "fair": 0.3333333333333333,
-     "delta_pp": 8.316666666666666
+     "delta_pp": 12.07666666666668
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.283,
+     "games": 10000,
+     "win_rate": 0.25149999999999995,
      "fair": 0.3333333333333333,
-     "delta_pp": -5.033333333333334
+     "delta_pp": -8.183333333333337
     }
    },
    "length": {
-    "turns_mean": 52.647,
+    "turns_mean": 53.3973,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.836
+    "share_30_45": 0.7838
    }
   },
   "3p:hulda+sable+quill": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.2933333333333334,
+     "games": 10000,
+     "win_rate": 0.25730000000000003,
      "fair": 0.3333333333333333,
-     "delta_pp": -3.9999999999999925
+     "delta_pp": -7.603333333333328
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3553333333333334,
+     "games": 10000,
+     "win_rate": 0.34685000000000005,
      "fair": 0.3333333333333333,
-     "delta_pp": 2.2000000000000073
+     "delta_pp": 1.3516666666666732
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.3513333333333334,
+     "games": 10000,
+     "win_rate": 0.39585000000000004,
      "fair": 0.3333333333333333,
-     "delta_pp": 1.8000000000000071
+     "delta_pp": 6.251666666666672
     }
    },
    "length": {
-    "turns_mean": 51.381,
+    "turns_mean": 51.939,
     "minutes_p50": 41.083333333333336,
-    "share_30_45": 0.85
+    "share_30_45": 0.8285
    }
   },
   "3p:hulda+twins+quill": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.32683333333333336,
+     "games": 10000,
+     "win_rate": 0.31268333333333337,
      "fair": 0.3333333333333333,
-     "delta_pp": -0.649999999999995
+     "delta_pp": -2.0649999999999946
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3553333333333334,
+     "games": 10000,
+     "win_rate": 0.4196833333333334,
      "fair": 0.3333333333333333,
-     "delta_pp": 2.2000000000000073
+     "delta_pp": 8.635000000000009
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.31783333333333336,
+     "games": 10000,
+     "win_rate": 0.2676333333333333,
      "fair": 0.3333333333333333,
-     "delta_pp": -1.5499999999999958
+     "delta_pp": -6.570000000000004
     }
    },
    "length": {
-    "turns_mean": 50.238,
+    "turns_mean": 50.6823,
     "minutes_p50": 38.666666666666664,
-    "share_30_45": 0.876
+    "share_30_45": 0.8662
    }
   },
   "3p:sable+twins+quill": {
    "chars": {
     "quill": {
-     "games": 1000,
-     "win_rate": 0.389,
+     "games": 10000,
+     "win_rate": 0.38465,
      "fair": 0.3333333333333333,
-     "delta_pp": 5.56666666666667
+     "delta_pp": 5.131666666666668
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.358,
+     "games": 10000,
+     "win_rate": 0.3632,
      "fair": 0.3333333333333333,
-     "delta_pp": 2.466666666666667
+     "delta_pp": 2.986666666666671
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.253,
+     "games": 10000,
+     "win_rate": 0.25215000000000004,
      "fair": 0.3333333333333333,
-     "delta_pp": -8.033333333333331
+     "delta_pp": -8.118333333333327
     }
    },
    "length": {
-    "turns_mean": 51.399,
-    "minutes_p50": 38.666666666666664,
-    "share_30_45": 0.81
+    "turns_mean": 51.5109,
+    "minutes_p50": 41.083333333333336,
+    "share_30_45": 0.8091
    }
   },
   "4p:mira+gritch+hulda+sable": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.3156666666666667,
+     "games": 10000,
+     "win_rate": 0.33720833333333333,
      "fair": 0.25,
-     "delta_pp": 6.566666666666671
+     "delta_pp": 8.720833333333333
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.26983333333333337,
+     "games": 10000,
+     "win_rate": 0.240925,
      "fair": 0.25,
-     "delta_pp": 1.983333333333337
+     "delta_pp": -0.9075
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.10283333333333335,
+     "games": 10000,
+     "win_rate": 0.092525,
      "fair": 0.25,
-     "delta_pp": -14.716666666666667
+     "delta_pp": -15.7475
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.3116666666666667,
+     "games": 10000,
+     "win_rate": 0.32934166666666664,
      "fair": 0.25,
-     "delta_pp": 6.1666666666666705
+     "delta_pp": 7.934166666666664
     }
    },
    "length": {
-    "turns_mean": 48.736,
+    "turns_mean": 49.1736,
     "minutes_p50": 38.0,
-    "share_30_45": 0.993
+    "share_30_45": 0.9869
    }
   },
   "4p:mira+gritch+hulda+twins": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.365,
+     "games": 10000,
+     "win_rate": 0.3811666666666667,
      "fair": 0.25,
-     "delta_pp": 11.5
+     "delta_pp": 13.11666666666667
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.277,
+     "games": 10000,
+     "win_rate": 0.27731666666666666,
      "fair": 0.25,
-     "delta_pp": 2.7000000000000024
+     "delta_pp": 2.7316666666666656
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.10683333333333335,
+     "games": 10000,
+     "win_rate": 0.10653333333333333,
      "fair": 0.25,
-     "delta_pp": -14.316666666666666
+     "delta_pp": -14.34666666666667
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.25116666666666665,
+     "games": 10000,
+     "win_rate": 0.23498333333333335,
      "fair": 0.25,
-     "delta_pp": 0.11666666666666492
+     "delta_pp": -1.5016666666666652
     }
    },
    "length": {
-    "turns_mean": 47.556,
+    "turns_mean": 48.054,
     "minutes_p50": 38.0,
-    "share_30_45": 0.996
+    "share_30_45": 0.9904
    }
   },
   "4p:mira+gritch+hulda+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.3315,
+     "games": 10000,
+     "win_rate": 0.34994166666666676,
      "fair": 0.25,
-     "delta_pp": 8.150000000000002
+     "delta_pp": 9.994166666666676
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.2395,
+     "games": 10000,
+     "win_rate": 0.2204249999999999,
      "fair": 0.25,
-     "delta_pp": -1.050000000000001
+     "delta_pp": -2.9575000000000102
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.0955,
+     "games": 10000,
+     "win_rate": 0.08755833333333336,
      "fair": 0.25,
-     "delta_pp": -15.45
+     "delta_pp": -16.244166666666665
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3335,
+     "games": 10000,
+     "win_rate": 0.342075,
      "fair": 0.25,
-     "delta_pp": 8.350000000000001
+     "delta_pp": 9.207500000000001
     }
    },
    "length": {
-    "turns_mean": 46.192,
-    "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.993
+    "turns_mean": 46.79,
+    "minutes_p50": 38.0,
+    "share_30_45": 0.9931
    }
   },
   "4p:mira+gritch+sable+twins": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.38866666666666666,
+     "games": 10000,
+     "win_rate": 0.3654000000000001,
      "fair": 0.25,
-     "delta_pp": 13.866666666666665
+     "delta_pp": 11.540000000000012
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.12316666666666667,
+     "games": 10000,
+     "win_rate": 0.10065000000000002,
      "fair": 0.25,
-     "delta_pp": -12.683333333333332
+     "delta_pp": -14.934999999999999
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.25833333333333336,
+     "games": 10000,
+     "win_rate": 0.29683333333333334,
      "fair": 0.25,
-     "delta_pp": 0.8333333333333359
+     "delta_pp": 4.683333333333334
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.22983333333333333,
+     "games": 10000,
+     "win_rate": 0.23711666666666664,
      "fair": 0.25,
-     "delta_pp": -2.0166666666666666
+     "delta_pp": -1.2883333333333358
     }
    },
    "length": {
-    "turns_mean": 47.828,
+    "turns_mean": 48.3364,
     "minutes_p50": 38.0,
-    "share_30_45": 0.982
+    "share_30_45": 0.9843
    }
   },
   "4p:mira+gritch+sable+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.33066666666666666,
+     "games": 10000,
+     "win_rate": 0.3293583333333334,
      "fair": 0.25,
-     "delta_pp": 8.066666666666666
+     "delta_pp": 7.935833333333342
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.09533333333333334,
+     "games": 10000,
+     "win_rate": 0.078825,
      "fair": 0.25,
-     "delta_pp": -15.466666666666667
+     "delta_pp": -17.1175
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.32916666666666666,
+     "games": 10000,
+     "win_rate": 0.3451583333333334,
      "fair": 0.25,
-     "delta_pp": 7.916666666666666
+     "delta_pp": 9.51583333333334
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.24483333333333335,
+     "games": 10000,
+     "win_rate": 0.24665833333333334,
      "fair": 0.25,
-     "delta_pp": -0.5166666666666653
+     "delta_pp": -0.33416666666666595
     }
    },
    "length": {
-    "turns_mean": 46.588,
+    "turns_mean": 47.1148,
     "minutes_p50": 38.0,
-    "share_30_45": 0.991
+    "share_30_45": 0.9848
    }
   },
   "4p:mira+gritch+twins+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.32999999999999996,
+     "games": 10000,
+     "win_rate": 0.344525,
      "fair": 0.25,
-     "delta_pp": 7.9999999999999964
+     "delta_pp": 9.452500000000002
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.09733333333333333,
+     "games": 10000,
+     "win_rate": 0.09170833333333334,
      "fair": 0.25,
-     "delta_pp": -15.266666666666667
+     "delta_pp": -15.829166666666666
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.38066666666666665,
+     "games": 10000,
+     "win_rate": 0.36420833333333336,
      "fair": 0.25,
-     "delta_pp": 13.066666666666665
+     "delta_pp": 11.420833333333336
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.19200000000000003,
+     "games": 10000,
+     "win_rate": 0.19955833333333323,
      "fair": 0.25,
-     "delta_pp": -5.799999999999997
+     "delta_pp": -5.044166666666677
     }
    },
    "length": {
-    "turns_mean": 45.64,
+    "turns_mean": 46.2692,
     "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.993
+    "share_30_45": 0.9862
    }
   },
   "4p:mira+hulda+sable+twins": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.2753333333333334,
+     "games": 10000,
+     "win_rate": 0.2623666666666667,
      "fair": 0.25,
-     "delta_pp": 2.5333333333333377
+     "delta_pp": 1.2366666666666692
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.115,
+     "games": 10000,
+     "win_rate": 0.11421666666666665,
      "fair": 0.25,
-     "delta_pp": -13.5
+     "delta_pp": -13.578333333333337
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.3316666666666666,
+     "games": 10000,
+     "win_rate": 0.38123333333333337,
      "fair": 0.25,
-     "delta_pp": 8.16666666666666
+     "delta_pp": 13.123333333333337
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.278,
+     "games": 10000,
+     "win_rate": 0.2421833333333333,
      "fair": 0.25,
-     "delta_pp": 2.8000000000000025
+     "delta_pp": -0.7816666666666694
     }
    },
    "length": {
-    "turns_mean": 47.084,
+    "turns_mean": 47.7364,
     "minutes_p50": 38.0,
-    "share_30_45": 0.997
+    "share_30_45": 0.9957
    }
   },
   "4p:mira+hulda+sable+quill": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.23833333333333334,
+     "games": 10000,
+     "win_rate": 0.2312666666666666,
      "fair": 0.25,
-     "delta_pp": -1.1666666666666659
+     "delta_pp": -1.8733333333333406
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.101,
+     "games": 10000,
+     "win_rate": 0.08935,
      "fair": 0.25,
-     "delta_pp": -14.899999999999999
+     "delta_pp": -16.065
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3788333333333333,
+     "games": 10000,
+     "win_rate": 0.35228333333333345,
      "fair": 0.25,
-     "delta_pp": 12.88333333333333
+     "delta_pp": 10.228333333333344
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.2818333333333333,
+     "games": 10000,
+     "win_rate": 0.32710000000000006,
      "fair": 0.25,
-     "delta_pp": 3.1833333333333327
+     "delta_pp": 7.710000000000006
     }
    },
    "length": {
-    "turns_mean": 45.664,
+    "turns_mean": 46.3888,
     "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.998
+    "share_30_45": 0.9945
    }
   },
   "4p:mira+hulda+twins+quill": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.2573333333333333,
+     "games": 10000,
+     "win_rate": 0.2536666666666667,
      "fair": 0.25,
-     "delta_pp": 0.7333333333333303
+     "delta_pp": 0.3666666666666707
     },
     "mira": {
-     "games": 1000,
-     "win_rate": 0.11566666666666667,
+     "games": 10000,
+     "win_rate": 0.1084,
      "fair": 0.25,
-     "delta_pp": -13.433333333333334
+     "delta_pp": -14.16
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.38983333333333337,
+     "games": 10000,
+     "win_rate": 0.40038333333333337,
      "fair": 0.25,
-     "delta_pp": 13.983333333333336
+     "delta_pp": 15.038333333333338
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.23716666666666666,
+     "games": 10000,
+     "win_rate": 0.23755000000000004,
      "fair": 0.25,
-     "delta_pp": -1.2833333333333337
+     "delta_pp": -1.244999999999996
     }
    },
    "length": {
-    "turns_mean": 44.888,
+    "turns_mean": 45.4776,
     "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.995
+    "share_30_45": 0.9962
    }
   },
   "4p:mira+sable+twins+quill": {
    "chars": {
     "mira": {
-     "games": 1000,
-     "win_rate": 0.09633333333333334,
+     "games": 10000,
+     "win_rate": 0.09624166666666668,
      "fair": 0.25,
-     "delta_pp": -15.366666666666667
+     "delta_pp": -15.375833333333333
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3641666666666667,
+     "games": 10000,
+     "win_rate": 0.37855833333333344,
      "fair": 0.25,
-     "delta_pp": 11.41666666666667
+     "delta_pp": 12.855833333333344
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.308,
+     "games": 10000,
+     "win_rate": 0.296575,
      "fair": 0.25,
-     "delta_pp": 5.8
+     "delta_pp": 4.657499999999998
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.2315,
+     "games": 10000,
+     "win_rate": 0.22862499999999997,
      "fair": 0.25,
-     "delta_pp": -1.8499999999999988
+     "delta_pp": -2.1375000000000033
     }
    },
    "length": {
-    "turns_mean": 45.128,
+    "turns_mean": 45.7148,
     "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.997
+    "share_30_45": 0.9936
    }
   },
   "4p:gritch+hulda+sable+twins": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.32333333333333336,
+     "games": 10000,
+     "win_rate": 0.3068916666666667,
      "fair": 0.25,
-     "delta_pp": 7.333333333333336
+     "delta_pp": 5.689166666666667
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.22483333333333333,
+     "games": 10000,
+     "win_rate": 0.21719166666666664,
      "fair": 0.25,
-     "delta_pp": -2.516666666666667
+     "delta_pp": -3.2808333333333355
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.2511666666666667,
+     "games": 10000,
+     "win_rate": 0.28930833333333345,
      "fair": 0.25,
-     "delta_pp": 0.11666666666667047
+     "delta_pp": 3.9308333333333447
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.2006666666666667,
+     "games": 10000,
+     "win_rate": 0.1866083333333333,
      "fair": 0.25,
-     "delta_pp": -4.933333333333331
+     "delta_pp": -6.339166666666671
     }
    },
    "length": {
-    "turns_mean": 47.48,
+    "turns_mean": 47.8448,
     "minutes_p50": 38.0,
-    "share_30_45": 0.997
+    "share_30_45": 0.9911
    }
   },
   "4p:gritch+hulda+sable+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.25883333333333336,
+     "games": 10000,
+     "win_rate": 0.26688333333333336,
      "fair": 0.25,
-     "delta_pp": 0.883333333333336
+     "delta_pp": 1.6883333333333361
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.173,
+     "games": 10000,
+     "win_rate": 0.1861333333333333,
      "fair": 0.25,
-     "delta_pp": -7.700000000000001
+     "delta_pp": -6.386666666666671
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.33,
+     "games": 10000,
+     "win_rate": 0.30121666666666663,
      "fair": 0.25,
-     "delta_pp": 8.000000000000002
+     "delta_pp": 5.1216666666666635
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.2381666666666667,
+     "games": 10000,
+     "win_rate": 0.2457666666666666,
      "fair": 0.25,
-     "delta_pp": -1.1833333333333307
+     "delta_pp": -0.42333333333333945
     }
    },
    "length": {
-    "turns_mean": 45.924,
-    "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.996
+    "turns_mean": 46.5704,
+    "minutes_p50": 38.0,
+    "share_30_45": 0.9916
    }
   },
   "4p:gritch+hulda+twins+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.2855,
+     "games": 10000,
+     "win_rate": 0.30970833333333336,
      "fair": 0.25,
-     "delta_pp": 3.5499999999999976
+     "delta_pp": 5.970833333333337
     },
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.2258333333333333,
+     "games": 10000,
+     "win_rate": 0.20124166666666662,
      "fair": 0.25,
-     "delta_pp": -2.4166666666666696
+     "delta_pp": -4.875833333333338
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.29533333333333334,
+     "games": 10000,
+     "win_rate": 0.3207083333333334,
      "fair": 0.25,
-     "delta_pp": 4.533333333333333
+     "delta_pp": 7.070833333333337
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.19333333333333333,
+     "games": 10000,
+     "win_rate": 0.16834166666666667,
      "fair": 0.25,
-     "delta_pp": -5.666666666666667
+     "delta_pp": -8.165833333333333
     }
    },
    "length": {
-    "turns_mean": 45.232,
+    "turns_mean": 45.732,
     "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.991
+    "share_30_45": 0.9929
    }
   },
   "4p:gritch+sable+twins+quill": {
    "chars": {
     "gritch": {
-     "games": 1000,
-     "win_rate": 0.25483333333333336,
+     "games": 10000,
+     "win_rate": 0.28891666666666665,
      "fair": 0.25,
-     "delta_pp": 0.4833333333333356
+     "delta_pp": 3.8916666666666657
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.33283333333333337,
+     "games": 10000,
+     "win_rate": 0.3197500000000001,
      "fair": 0.25,
-     "delta_pp": 8.283333333333337
+     "delta_pp": 6.9750000000000085
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.21816666666666665,
+     "games": 10000,
+     "win_rate": 0.2258833333333333,
      "fair": 0.25,
-     "delta_pp": -3.1833333333333353
+     "delta_pp": -2.41166666666667
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.19416666666666665,
+     "games": 10000,
+     "win_rate": 0.16544999999999996,
      "fair": 0.25,
-     "delta_pp": -5.583333333333335
+     "delta_pp": -8.455000000000004
     }
    },
    "length": {
-    "turns_mean": 45.568,
+    "turns_mean": 45.976,
     "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.987
+    "share_30_45": 0.9896
    }
   },
   "4p:hulda+sable+twins+quill": {
    "chars": {
     "hulda": {
-     "games": 1000,
-     "win_rate": 0.2135,
+     "games": 10000,
+     "win_rate": 0.2018833333333333,
      "fair": 0.25,
-     "delta_pp": -3.6500000000000004
+     "delta_pp": -4.811666666666669
     },
     "quill": {
-     "games": 1000,
-     "win_rate": 0.3123333333333333,
+     "games": 10000,
+     "win_rate": 0.3273333333333334,
      "fair": 0.25,
-     "delta_pp": 6.23333333333333
+     "delta_pp": 7.733333333333342
     },
     "sable": {
-     "games": 1000,
-     "win_rate": 0.2773333333333334,
+     "games": 10000,
+     "win_rate": 0.28690000000000004,
      "fair": 0.25,
-     "delta_pp": 2.733333333333338
+     "delta_pp": 3.6900000000000044
     },
     "twins": {
-     "games": 1000,
-     "win_rate": 0.19683333333333333,
+     "games": 10000,
+     "win_rate": 0.18388333333333332,
      "fair": 0.25,
-     "delta_pp": -5.316666666666666
+     "delta_pp": -6.611666666666668
     }
    },
    "length": {
-    "turns_mean": 44.852,
+    "turns_mean": 45.3204,
     "minutes_p50": 34.833333333333336,
-    "share_30_45": 0.998
+    "share_30_45": 0.9965
    }
   }
  },
@@ -1355,261 +1355,261 @@
   "2": {
    "chars": {
     "gritch": {
-     "games": 5000,
-     "win_rate": 0.6321,
+     "games": 50000,
+     "win_rate": 0.68816,
      "fair": 0.5,
-     "delta_pp": 13.209999999999999
+     "delta_pp": 18.816
     },
     "hulda": {
-     "games": 5000,
-     "win_rate": 0.5681,
+     "games": 50000,
+     "win_rate": 0.53657,
      "fair": 0.5,
-     "delta_pp": 6.810000000000005
+     "delta_pp": 3.656999999999999
     },
     "mira": {
-     "games": 5000,
-     "win_rate": 0.2439,
+     "games": 50000,
+     "win_rate": 0.20998,
      "fair": 0.5,
-     "delta_pp": -25.61
+     "delta_pp": -29.002
     },
     "quill": {
-     "games": 5000,
-     "win_rate": 0.5173,
+     "games": 50000,
+     "win_rate": 0.51865,
      "fair": 0.5,
-     "delta_pp": 1.7299999999999982
+     "delta_pp": 1.8650000000000055
     },
     "sable": {
-     "games": 5000,
-     "win_rate": 0.5647,
+     "games": 50000,
+     "win_rate": 0.5792,
      "fair": 0.5,
-     "delta_pp": 6.469999999999998
+     "delta_pp": 7.920000000000005
     },
     "twins": {
-     "games": 5000,
-     "win_rate": 0.4739,
+     "games": 50000,
+     "win_rate": 0.46744,
      "fair": 0.5,
-     "delta_pp": -2.610000000000001
+     "delta_pp": -3.2559999999999976
     }
    },
    "seats": {
     "seat_win_rate": [
-     0.5351333333333333,
-     0.46486666666666665
+     0.5277633333333334,
+     0.4722366666666667
     ],
     "fair": 0.5
    },
    "length": {
-    "games": 15000,
-    "turns_mean": 59.73533333333334,
-    "rounds_mean": 29.86766666666667,
-    "turns_p10": 50,
+    "games": 150000,
+    "turns_mean": 58.51110666666667,
+    "rounds_mean": 29.255553333333335,
+    "turns_p10": 52,
     "turns_p50": 58,
-    "turns_p90": 72,
-    "minutes_mean": 49.779444444444444,
-    "minutes_p10": 41.666666666666664,
+    "turns_p90": 68,
+    "minutes_mean": 48.759255555555555,
+    "minutes_p10": 43.333333333333336,
     "minutes_p50": 48.333333333333336,
-    "minutes_p90": 60.0,
+    "minutes_p90": 56.666666666666664,
     "minutes_lo_p50": 33.833333333333336,
     "minutes_hi_p50": 62.833333333333336,
-    "share_30_45": 0.3544,
+    "share_30_45": 0.3514333333333333,
     "timed_out": 0,
-    "score_mean": 35.67823333333333,
-    "margin_mean": 11.500066666666667
+    "score_mean": 37.711333333333336,
+    "margin_mean": 11.704253333333334
    },
    "dynamics": {
-    "mid_leader_wins": 0.7902257196106854,
-    "q3_leader_wins": 0.8881778144783925,
-    "lead_changes_mean": 2.760266666666667,
+    "mid_leader_wins": 0.7911425794807719,
+    "q3_leader_wins": 0.8844671154984649,
+    "lead_changes_mean": 2.76178,
     "events_per_game": {
-     "bank": 11.932,
-     "crush": 15.0432,
-     "crush_tokens": 19.9198,
-     "hoist": 2.2083333333333335,
-     "pilfer": 5.563266666666666,
+     "bank": 11.771146666666667,
+     "crush": 11.00504,
+     "crush_tokens": 14.28404,
+     "hoist": 2.390686666666667,
+     "pilfer": 5.63562,
      "reshuffle": 3.0,
-     "rouse": 5.6806,
-     "rumble_joker": 1.2891333333333332,
-     "surge": 6.124733333333333
+     "rouse": 5.972013333333333,
+     "rumble_joker": 1.3377,
+     "surge": 6.127673333333333
     },
-    "left_on_board_mean": 25.3744
+    "left_on_board_mean": 23.912613333333333
    },
    "luck": {
-    "luckiest_draw_win_rate": 0.5686741331902623,
+    "luckiest_draw_win_rate": 0.5661209659037583,
     "fair": 0.5
    }
   },
   "3": {
    "chars": {
     "gritch": {
-     "games": 10000,
-     "win_rate": 0.4210666666666668,
+     "games": 100000,
+     "win_rate": 0.45538333333333353,
      "fair": 0.3333333333333333,
-     "delta_pp": 8.77333333333335
+     "delta_pp": 12.205000000000021
     },
     "hulda": {
-     "games": 10000,
-     "win_rate": 0.3441666666666667,
+     "games": 100000,
+     "win_rate": 0.32385666666666624,
      "fair": 0.3333333333333333,
-     "delta_pp": 1.0833333333333361
+     "delta_pp": -0.9476666666667077
     },
     "mira": {
-     "games": 10000,
-     "win_rate": 0.14515,
+     "games": 100000,
+     "win_rate": 0.12882333333333348,
      "fair": 0.3333333333333333,
-     "delta_pp": -18.81833333333333
+     "delta_pp": -20.450999999999983
     },
     "quill": {
-     "games": 10000,
-     "win_rate": 0.3988000000000001,
+     "games": 100000,
+     "win_rate": 0.40081166666666657,
      "fair": 0.3333333333333333,
-     "delta_pp": 6.546666666666678
+     "delta_pp": 6.747833333333325
     },
     "sable": {
-     "games": 10000,
-     "win_rate": 0.3879333333333334,
+     "games": 100000,
+     "win_rate": 0.4051516666666664,
      "fair": 0.3333333333333333,
-     "delta_pp": 5.46000000000001
+     "delta_pp": 7.1818333333333095
     },
     "twins": {
-     "games": 10000,
-     "win_rate": 0.3028833333333333,
+     "games": 100000,
+     "win_rate": 0.28597333333333314,
      "fair": 0.3333333333333333,
-     "delta_pp": -3.0450000000000035
+     "delta_pp": -4.736000000000018
     }
    },
    "seats": {
     "seat_win_rate": [
-     0.36136666666666656,
-     0.3343916666666666,
-     0.3042416666666666
+     0.36768416666666703,
+     0.3281991666666673,
+     0.30411666666666715
     ],
     "fair": 0.3333333333333333
    },
    "length": {
-    "games": 20000,
-    "turns_mean": 53.39865,
-    "rounds_mean": 17.79955,
+    "games": 200000,
+    "turns_mean": 53.57625,
+    "rounds_mean": 17.85875,
     "turns_p10": 48,
     "turns_p50": 51,
     "turns_p90": 60,
-    "minutes_mean": 43.01557916666667,
+    "minutes_mean": 43.15864583333333,
     "minutes_p10": 38.666666666666664,
     "minutes_p50": 41.083333333333336,
     "minutes_p90": 48.333333333333336,
     "minutes_lo_p50": 28.333333333333332,
     "minutes_hi_p50": 53.833333333333336,
-    "share_30_45": 0.7581,
+    "share_30_45": 0.738505,
     "timed_out": 0,
-    "score_mean": 22.014516666666665,
-    "margin_mean": 6.2537
+    "score_mean": 22.976086666666667,
+    "margin_mean": 6.312945
    },
    "dynamics": {
-    "mid_leader_wins": 0.6544686840253343,
-    "q3_leader_wins": 0.7915753461271182,
-    "lead_changes_mean": 3.2675,
+    "mid_leader_wins": 0.6491641732795629,
+    "q3_leader_wins": 0.7864955410813612,
+    "lead_changes_mean": 3.236455,
     "events_per_game": {
-     "bank": 10.9362,
-     "crush": 14.87385,
-     "crush_tokens": 19.7856,
-     "hoist": 1.88785,
-     "pilfer": 7.8841,
+     "bank": 10.978185,
+     "crush": 11.80227,
+     "crush_tokens": 15.22365,
+     "hoist": 2.06857,
+     "pilfer": 7.846245,
      "reshuffle": 3.0,
-     "rouse": 6.7029,
-     "rumble_joker": 0.8433,
-     "surge": 6.18505
+     "rouse": 6.71798,
+     "rumble_joker": 0.918915,
+     "surge": 6.185405
     },
-    "left_on_board_mean": 28.55285
+    "left_on_board_mean": 27.16428
    },
    "luck": {
-    "luckiest_draw_win_rate": 0.3964076010626596,
+    "luckiest_draw_win_rate": 0.39631786882249026,
     "fair": 0.3333333333333333
    }
   },
   "4": {
    "chars": {
     "gritch": {
-     "games": 10000,
-     "win_rate": 0.3184,
+     "games": 100000,
+     "win_rate": 0.3279999999999993,
      "fair": 0.25,
-     "delta_pp": 6.840000000000002
+     "delta_pp": 7.79999999999993
     },
     "hulda": {
-     "games": 10000,
-     "win_rate": 0.2394499999999999,
+     "games": 100000,
+     "win_rate": 0.22924166666666634,
      "fair": 0.25,
-     "delta_pp": -1.0550000000000086
+     "delta_pp": -2.0758333333333656
     },
     "mira": {
-     "games": 10000,
-     "win_rate": 0.10490000000000005,
+     "games": 100000,
+     "win_rate": 0.09660083333333337,
      "fair": 0.25,
-     "delta_pp": -14.509999999999994
+     "delta_pp": -15.339916666666664
     },
     "quill": {
-     "games": 10000,
-     "win_rate": 0.34466666666666673,
+     "games": 100000,
+     "win_rate": 0.3451674999999995,
      "fair": 0.25,
-     "delta_pp": 9.466666666666674
+     "delta_pp": 9.516749999999952
     },
     "sable": {
-     "games": 10000,
-     "win_rate": 0.2721166666666667,
+     "games": 100000,
+     "win_rate": 0.2925599999999991,
      "fair": 0.25,
-     "delta_pp": 2.2116666666666673
+     "delta_pp": 4.25599999999991
     },
     "twins": {
-     "games": 10000,
-     "win_rate": 0.22046666666666662,
+     "games": 100000,
+     "win_rate": 0.2084299999999998,
      "fair": 0.25,
-     "delta_pp": -2.9533333333333385
+     "delta_pp": -4.157000000000019
     }
    },
    "seats": {
     "seat_win_rate": [
-     0.2708555555555556,
-     0.24955555555555567,
-     0.24017777777777788,
-     0.2394111111111112
+     0.27471611111111144,
+     0.2553572222222223,
+     0.23829722222222194,
+     0.231629444444444
     ],
     "fair": 0.25
    },
    "length": {
-    "games": 15000,
-    "turns_mean": 46.29066666666667,
-    "rounds_mean": 11.572666666666667,
+    "games": 150000,
+    "turns_mean": 46.83328,
+    "rounds_mean": 11.70832,
     "turns_p10": 44,
-    "turns_p50": 44,
-    "turns_p90": 48,
-    "minutes_mean": 36.64677777777778,
+    "turns_p50": 48,
+    "turns_p90": 52,
+    "minutes_mean": 37.076346666666666,
     "minutes_p10": 34.833333333333336,
-    "minutes_p50": 34.833333333333336,
-    "minutes_p90": 38.0,
-    "minutes_lo_p50": 23.833333333333332,
-    "minutes_hi_p50": 45.833333333333336,
-    "share_30_45": 0.9936,
+    "minutes_p50": 38.0,
+    "minutes_p90": 41.166666666666664,
+    "minutes_lo_p50": 26.0,
+    "minutes_hi_p50": 50.0,
+    "share_30_45": 0.99116,
     "timed_out": 0,
-    "score_mean": 14.545583333333333,
-    "margin_mean": 4.297266666666666
+    "score_mean": 15.000778333333333,
+    "margin_mean": 4.32546
    },
    "dynamics": {
-    "mid_leader_wins": 0.5492390331244404,
-    "q3_leader_wins": 0.7233744187762935,
-    "lead_changes_mean": 2.9352,
+    "mid_leader_wins": 0.5522749383470215,
+    "q3_leader_wins": 0.7221221368432663,
+    "lead_changes_mean": 2.9309933333333333,
     "events_per_game": {
-     "bank": 9.690866666666667,
-     "crush": 13.974666666666666,
-     "crush_tokens": 18.5674,
-     "hoist": 1.5176,
-     "pilfer": 8.660533333333333,
+     "bank": 9.882533333333333,
+     "crush": 11.739093333333333,
+     "crush_tokens": 14.914546666666666,
+     "hoist": 1.7160666666666666,
+     "pilfer": 8.568286666666667,
      "reshuffle": 3.0,
-     "rouse": 6.8982,
-     "rumble_joker": 0.6082,
-     "surge": 6.280333333333333
+     "rouse": 6.831206666666667,
+     "rumble_joker": 0.6817466666666666,
+     "surge": 6.2706333333333335
     },
-    "left_on_board_mean": 33.358
+    "left_on_board_mean": 32.05618666666667
    },
    "luck": {
-    "luckiest_draw_win_rate": 0.3100829049140847,
+    "luckiest_draw_win_rate": 0.31017916660904243,
     "fair": 0.25
    }
   }
@@ -1617,139 +1617,139 @@
  "usage": {
   "by_suit": {
    "Spades": {
-    "plays": 1256265,
-    "mine": 0.3209752719370515,
-    "move": 0.49440762896363427,
-    "pilfer": 0.050506063609190736,
-    "rouse": 0.062374578611996676,
-    "shortcut": 0.07173645687812683
-   },
-   "Diamonds": {
-    "plays": 1249278,
-    "hoist": 0.07496009695199947,
-    "mine": 0.3323255512383953,
-    "move": 0.4023780135406211,
-    "pilfer": 0.05247991239740074,
-    "rouse": 0.06563150875945946,
-    "shortcut": 0.07222491711212396
-   },
-   "Clubs": {
-    "plays": 1252805,
-    "mine": 0.32356511987100944,
-    "move": 0.3979765406427976,
-    "pilfer": 0.14113130135974872,
-    "rouse": 0.06425580996244427,
-    "shortcut": 0.07307122816399998
+    "plays": 12602717,
+    "mine": 0.2932664440532942,
+    "move": 0.5194924237368815,
+    "pilfer": 0.05042547571289588,
+    "rouse": 0.06302180712301958,
+    "shortcut": 0.07379384937390882
    },
    "Hearts": {
-    "plays": 1180248,
-    "mine": 0.4353271515817015,
-    "move": 0.3678964082125113,
-    "pilfer": 0.05525787800530058,
-    "rouse": 0.06938287546346192,
-    "shortcut": 0.07213568673702477
+    "plays": 11753998,
+    "mine": 0.4211192651215357,
+    "move": 0.37873138994919003,
+    "pilfer": 0.055657913162823404,
+    "rouse": 0.0707282747538327,
+    "shortcut": 0.07376315701261818
+   },
+   "Diamonds": {
+    "plays": 12560086,
+    "hoist": 0.08198407240205202,
+    "mine": 0.3218681782911359,
+    "move": 0.40707364583331673,
+    "pilfer": 0.05191079105668544,
+    "rouse": 0.06512407637973179,
+    "shortcut": 0.07203923603707808
+   },
+   "Clubs": {
+    "plays": 12541202,
+    "mine": 0.2997364207992185,
+    "move": 0.4193126783222214,
+    "pilfer": 0.14018831687744127,
+    "rouse": 0.065426663249663,
+    "shortcut": 0.07533592075145588
    }
   },
   "by_rank": {
-   "9": {
-    "plays": 352373,
-    "hoist": 0.01924097476253856,
-    "mine": 0.570619769392093,
-    "move": 0.38423488746300083,
-    "pilfer": 0.025904368382367548
-   },
-   "13": {
-    "plays": 430533,
-    "hoist": 0.006905394011608866,
-    "mine": 0.1595696497132624,
-    "move": 0.07562021958827779,
-    "pilfer": 0.008275788383236593,
-    "rouse": 0.7496289483036144
-   },
-   "5": {
-    "plays": 393458,
-    "hoist": 0.025842656649502617,
-    "mine": 0.2271500388859802,
-    "move": 0.7178199452038083,
-    "pilfer": 0.029187359260708895
-   },
-   "6": {
-    "plays": 393287,
-    "hoist": 0.026115788215730497,
-    "mine": 0.22775479484447744,
-    "move": 0.717120067533379,
-    "pilfer": 0.02900934940641313
-   },
-   "3": {
-    "plays": 393874,
-    "hoist": 0.025655412644652858,
-    "mine": 0.2269152063857985,
-    "move": 0.7180595825060806,
-    "pilfer": 0.029369798463468013
-   },
    "12": {
-    "plays": 402904,
-    "hoist": 0.008446180727915335,
-    "mine": 0.23140003574052379,
-    "move": 0.11309393801004705,
-    "pilfer": 0.6470598455215139
-   },
-   "2": {
-    "plays": 393830,
-    "hoist": 0.025841098951324176,
-    "mine": 0.22630830561409745,
-    "move": 0.7186908056775766,
-    "pilfer": 0.02915978975700175
+    "plays": 4001121,
+    "hoist": 0.009571317638231885,
+    "mine": 0.21789693438413885,
+    "move": 0.12099059238648369,
+    "pilfer": 0.6515411555911456
    },
    "11": {
-    "plays": 429470,
-    "hoist": 0.006817705544042658,
-    "mine": 0.15343330151116494,
-    "move": 0.0011223135492583883,
-    "pilfer": 0.0072973665215265325,
-    "shortcut": 0.8313293128740075
+    "plays": 4326599,
+    "hoist": 0.008250129027441646,
+    "mine": 0.1411933484013656,
+    "move": 0.0009374568801037489,
+    "pilfer": 0.006777609850138642,
+    "shortcut": 0.8428414558409504
    },
-   "4": {
-    "plays": 393604,
-    "hoist": 0.025444355240292274,
-    "mine": 0.22772126299529477,
-    "move": 0.7178661802217458,
-    "pilfer": 0.02896820154266725
+   "9": {
+    "plays": 3518075,
+    "hoist": 0.02141455199221165,
+    "mine": 0.5396701321034941,
+    "move": 0.41305913034827285,
+    "pilfer": 0.025856185556021403
    },
-   "8": {
-    "plays": 352739,
-    "hoist": 0.019141631631319475,
-    "mine": 0.5711956999367804,
-    "move": 0.3840516642616779,
-    "pilfer": 0.025611004170222176
+   "13": {
+    "plays": 4324072,
+    "hoist": 0.008400183900730608,
+    "mine": 0.15164086074422442,
+    "move": 0.07689094908687923,
+    "pilfer": 0.008205691302087478,
+    "rouse": 0.7548623149660783
+   },
+   "2": {
+    "plays": 3970253,
+    "hoist": 0.02713429093813417,
+    "mine": 0.21514271256768774,
+    "move": 0.7292656160703109,
+    "pilfer": 0.028457380423867196
    },
    "7": {
-    "plays": 352270,
-    "hoist": 0.019124535157691542,
-    "mine": 0.5697447980242427,
-    "move": 0.3849745933516905,
-    "pilfer": 0.026156073466375225
+    "plays": 3518173,
+    "hoist": 0.021497237344496704,
+    "mine": 0.5394888199073781,
+    "move": 0.41296775343338715,
+    "pilfer": 0.026046189314738077
    },
-   "10": {
-    "plays": 352332,
-    "hoist": 0.019490139981608257,
-    "mine": 0.569732525004825,
-    "move": 0.38505159905997755,
-    "pilfer": 0.025725735953589228
+   "5": {
+    "plays": 3970885,
+    "hoist": 0.027189908546835277,
+    "mine": 0.21501277423042975,
+    "move": 0.7292525469763038,
+    "pilfer": 0.028544770246431213
    },
    "14": {
-    "plays": 297922,
-    "hoist": 0.02171709373594431,
-    "mine": 0.8681903316975584,
-    "move": 0.07702351622236693,
-    "pilfer": 0.03306905834413034
+    "plays": 2885079,
+    "hoist": 0.02676980422373183,
+    "mine": 0.8494027373253904,
+    "move": 0.09004571451942911,
+    "pilfer": 0.03378174393144867
+   },
+   "3": {
+    "plays": 3969580,
+    "hoist": 0.02720690853944246,
+    "mine": 0.21514895782425345,
+    "move": 0.7292756412517193,
+    "pilfer": 0.028368492384584765
+   },
+   "6": {
+    "plays": 3968212,
+    "hoist": 0.027200915676884197,
+    "mine": 0.21501169796371766,
+    "move": 0.7293539256471177,
+    "pilfer": 0.028433460712280492
+   },
+   "10": {
+    "plays": 3517393,
+    "hoist": 0.02159070652611181,
+    "mine": 0.5392729785952266,
+    "move": 0.41311221123144326,
+    "pilfer": 0.026024103647218265
+   },
+   "8": {
+    "plays": 3516821,
+    "hoist": 0.0214275904289698,
+    "mine": 0.53916193061859,
+    "move": 0.4134458364528647,
+    "pilfer": 0.02596464249957561
+   },
+   "4": {
+    "plays": 3971740,
+    "hoist": 0.027261099669162635,
+    "mine": 0.21494508703993714,
+    "move": 0.7292295064631622,
+    "pilfer": 0.02856430682773797
    }
   }
  },
  "_meta": {
   "version": "v1",
-  "games_per_config": 1000,
-  "seconds": 145.06590342521667,
+  "games_per_config": 10000,
+  "seconds": 1989.0055017471313,
   "sec_per_turn": 45,
   "sec_warden": 10
  }

@@ -81,9 +81,26 @@ GLYPH_FONT = "DejaVuSans"
 _SUIT_RE = re.compile(r"\{([SHDC])\}")
 
 
+_TEXT_FONT_FILES = ("Alegreya-Regular", "Alegreya-Bold", "Alegreya-Italic", "AlegreyaSans-Regular",
+                    "AlegreyaSans-Bold", "Cinzel-Bold")
+_TEXT_CHARS: set[int] | None = None
+
+
+def _covered(ch: str) -> bool:
+    """True if every text font has this character (else it would print as a blank box)."""
+    global _TEXT_CHARS
+    if _TEXT_CHARS is None:
+        from fontTools.ttLib import TTFont
+        sets = [set(TTFont(str(FONTS / f"{f}.ttf")).getBestCmap()) for f in _TEXT_FONT_FILES]
+        _TEXT_CHARS = set.intersection(*sets)
+    return ord(ch) < 128 or ord(ch) in _TEXT_CHARS
+
+
 def markup(text: str) -> str:
-    """{H} -> coloured glyph, safe for reportlab Paragraph XML."""
+    """{H} -> coloured glyph, safe for reportlab Paragraph XML. Characters the text fonts lack
+    (arrows, ≤, ≈, ■ …) fall back to DejaVu Sans instead of printing as blank boxes."""
     text = text.replace("&", "&amp;")
+    text = "".join(ch if _covered(ch) else f'<font name="{GLYPH_FONT}">{ch}</font>' for ch in text)
     return _SUIT_RE.sub(lambda m: f'<font name="{GLYPH_FONT}" color="{SUIT_COLOR[m.group(1)].hexval().replace("0x", "#")}">'
                                   f'{SUIT_GLYPH[m.group(1)]}</font>', text)
 

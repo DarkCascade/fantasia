@@ -37,6 +37,10 @@ GOAL = ("Score the most glimmer. Glimmer you bring back to the Gate is safe in y
         "your pack when the mountain collapses counts for half.")
 
 DEPTH_VALUES = V.depth_values
+LOW_RANKS = f"2–{V.high_rank_min - 1}"   # "2–6"
+HIGH_RANKS = f"{V.high_rank_min}–10"     # "7–10"
+GRITCH_PACK = V.pack_limit - 1 if V.gritch_pack4 else V.pack_limit
+QUILL_JACK = V.jack_steps + 1 if "jack4" in V.quill_mode else V.jack_steps
 TOKENS = [(1, 24), (2, 24), (4, 28)]  # sized from simulation: covers >99.9% of games
 COLLAPSE_END = V.collapse_at
 
@@ -67,9 +71,9 @@ SETUP = [
 CARD_TABLE = [
     ("Suit", "The vein it mines",
      "Each chamber shows a vein: {S}, {H}, {D} or {C}. To Mine, play a card of that chamber's suit."),
-    ("2–6", f"Low: Mine {V.low_yield}",
+    (LOW_RANKS, f"Low: Mine {V.low_yield}",
      f"Mines {V.low_yield} glimmer. Any card can Move 1 chamber instead."),
-    ("7–10", f"High: Mine {V.high_yield}",
+    (HIGH_RANKS, f"High: Mine {V.high_yield}",
      f"Mines {V.high_yield} glimmer. Any card can Move 1 chamber instead."),
     ("Ace", f"Wild: Mine {V.low_yield}",
      f"Matches every vein. Counts as rank 1, so it mines {V.low_yield}."),
@@ -97,8 +101,8 @@ ACTIONS = [
 
 TURN_SUMMARY = [
     f"Take up to {V.actions_per_turn} actions. Each action is one card played face up onto the discard pile.",
-    f"Refill your hand to {V.hand_size} cards. If the draw pile runs out, shuffle the discards into a new draw "
-    "pile and advance the collapse marker 1 space.",
+    f"Refill your hand to {V.hand_size} cards. If you need a card and the draw pile is empty, shuffle the "
+    "discards into a new draw pile and advance the collapse marker 1 space.",
     "After the last player's turn, the Warden takes its turn (the rumble).",
 ]
 
@@ -151,7 +155,7 @@ CHARACTERS = {
         palette=["#6B4A2F", "#5C6166", "#56713A", "#E6DCC4"],
         ability="Tunneler",
         text=f"A {{S}} played to Move takes you up to {V.gritch_spade_steps} chambers. It can end at the Gate, but "
-             f"can't pass through it. You travel light: your pack holds {V.pack_limit - 1} glimmer.",
+             f"can't pass through it. You travel light: your pack holds {GRITCH_PACK} glimmer.",
         example=("Gritch stands at the Gate holding 3{S} 8{D} 5{C} 10{H} J{D}. "
                  "He plays 3{S} and burrows Gate → B1 → B2 → B3 in a single action, straight into a {S} chamber "
                  "full of 4-point glimmer. Next turn a high {S} would mine 2 there. With his small pack he'll "
@@ -165,7 +169,7 @@ CHARACTERS = {
         colors=["rust red", "iron", "moss green", "leather brown"],
         palette=["#9E3B26", "#6E7378", "#3F6B3A", "#7A5634"],
         ability="Shakedown",
-        text=f"You may play a {{C}} as a Pilfer. A high {{C}} ({V.high_rank_min}–10, or a face card) takes "
+        text=f"You may play a {{C}} as a Pilfer. A high {{C}} ({HIGH_RANKS}, or a face card) takes "
              "2 glimmer instead of 1.",
         example=("Hulda is in B2. Pip & Pell, in the next chamber B1, carry 4 + 2 + 1. Hulda plays 9{C}: it's a "
                  "high club, so she takes the two most valuable, the 4 and the 2. Then she plays 3{C} on "
@@ -182,8 +186,8 @@ CHARACTERS = {
         text=f"As an action, play a {{D}} to send up to {V.sable_hoist} glimmer of your choice from your pack straight to your "
              "vault, from anywhere on the board.",
         example=("Sable is down in D3 with a full pack: 4 + 4 + 4 + 2 + 2. The Warden is one chamber away. "
-                 "She plays 5{D} and hoists two 4s to her vault, then plays 7{D} and hoists the third 4. If the "
-                 "Warden crushes her now, she drops just one 2-point token."),
+                 "She plays 5{D} and hoists two 4s to her vault, then plays 7{D} and hoists the third 4 and a 2. "
+                 "If the Warden crushes her now, all it can shake loose is one 2-point token."),
         tip="Keep a diamond in hand when you go deep. It's insurance and a way to free up pack space.",
         mini="Slim figure in a long fitted coat with a jeweller's loupe, clutching a pulley block; diamond-shaped clasp.",
     ),
@@ -209,11 +213,11 @@ CHARACTERS = {
         palette=["#E8D9B0", "#5B2C4F", "#1F1F24", "#A9ADB3"],
         ability="Old Hands",
         text=f"The first face card (J, Q or K) you play each turn is a free action. Your Jack's Shortcut moves "
-             f"up to {V.jack_steps + 1} chambers.",
-        example=("Quill stands at the Gate holding J{C} K{S} 4{H} 7{D} 2{C}. He plays J{C} as a Shortcut: Gate, "
-                 "C1, C2, D2, D3, four chambers in one move, and it's free as his first face card. Then he plays "
-                 "7{D} to Mine two 4-point glimmer from the {D} vein at D3. He still has an action, and he keeps "
-                 "K{S} to Rouse the Warden away later."),
+             f"up to {QUILL_JACK} chambers.",
+        example=("Quill stands at the Gate holding J{C} K{S} 4{H} 7{D} 2{C}; the Warden has wandered up to A2. "
+                 "He plays J{C} as a Shortcut: B1, B2, B3, the Heart, four chambers in one move, and it's free as "
+                 "his first face card. Any card mines in the Heart, so 7{D} takes the Crown. He still has an "
+                 "action, and he keeps K{S} to Rouse the Warden away later."),
         tip="Faces are your engine. Save one for the turn you need a third action.",
         mini="Elderly map-maker with a rolled map tucked under one arm and a quill tucked behind the ear; stout walking staff held vertically against the body.",
     ),
@@ -236,7 +240,8 @@ FAQ = [
     ("Can the Warden crush someone on a King's Rouse?", "Yes. A Rouse follows every Warden rule, including Crush."),
     ("Does the first-turn limit apply with 2 players?", "No, only with 3 or 4 players."),
     ("Does the rumble flip count as a draw?",
-     "It comes from the draw pile, so if that empties you reshuffle and advance the collapse marker as usual."),
+     "It comes from the draw pile, so if the pile is empty you reshuffle first and advance the collapse marker "
+     "as usual."),
     ("Can Gritch use a {S} to move just 1 chamber?", "Yes. Any card can always Move 1."),
 ]
 

@@ -299,10 +299,11 @@ def draw_board(c):
     draw_panel(c, 0.55, 16.62, 4.3, 2.25, "YOUR TURN", [
         f"<b>Up to {V.actions_per_turn} actions</b>, one card each: <b>Move</b> 1 chamber (any card), "
         "<b>Mine</b> (match the vein), or a face card's <b>Event</b>.",
-        f"Then refill to {V.hand_size}. Your pack holds {V.pack_limit}.",
+        f"Then refill to {V.hand_size}. Your pack holds {V.pack_limit} (Gritch's {T.GRITCH_PACK}).",
     ])
     draw_panel(c, BOARD_W - 0.55 - 4.3, 16.62, 4.3, 2.25, "THE WARDEN'S TURN", [
-        "Flip the top card. <b>A–10</b>: 1 step. <b>J Q K</b>: 2 steps. <b>Joker</b>: Tremor.",
+        f"Flip the top card. <b>A–10</b>: {V.warden_steps_number} step. <b>J Q K</b>: {V.warden_steps_face} steps. "
+        "<b>Joker</b>: Tremor.",
         "It walks toward the <b>winning</b> delver who's underground and <b>crushes</b> anyone it walks in on.",
     ])
 

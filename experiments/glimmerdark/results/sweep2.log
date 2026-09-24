@@ -1,0 +1,11 @@
+== balance (v4, 10000 games/config)
+  2p:mira+gritch                           gritch:0.551  mira:0.449
+  2p:mira+hulda                            hulda:0.505  mira:0.495
+  2p:mira+sable                            mira:0.529  sable:0.471
+  2p:mira+twins                            mira:0.461  twins:0.539
+  2p:mira+quill                            mira:0.520  quill:0.480
+  2p:gritch+hulda                          gritch:0.480  hulda:0.520
+  2p:gritch+sable                          gritch:0.596  sable:0.404
+  2p:gritch+twins                          gritch:0.518  twins:0.482
+  2p:gritch+quill                          gritch:0.560  quill:0.440
+  2p:hulda+sable                           hulda:0.451  sable:0.549

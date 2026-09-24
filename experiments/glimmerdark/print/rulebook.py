@@ -18,6 +18,7 @@ import board as BD
 import content as T
 import diagrams as DG
 import emblems as E
+import results as RS
 import style as S
 from board import GB
 
@@ -51,11 +52,19 @@ def draw_cover(c, doc):
         p.close()
         c.drawPath(p, fill=1, stroke=0)
     # glimmer veins in the rock
-    for _ in range(90):
+    placed = 0
+    while placed < 90:
         x = rnd.uniform(0.3, 8.2) * inch
         y = rnd.uniform(0.4, 5.2) * inch
         v = rnd.choice([1, 1, 2, 2, 4])
-        S.draw_gem(c, x, y, rnd.uniform(0.04, 0.11) * inch, v)
+        size = rnd.uniform(0.04, 0.11) * inch
+        # keep the Gate glow, the Warden's eye and the RULEBOOK label clear
+        if abs(x - W / 2) < 1.55 * inch and 1.05 * inch < y < 4.6 * inch:
+            continue
+        if abs(x - W / 2) < 1.35 * inch and y < 0.95 * inch:
+            continue
+        S.draw_gem(c, x, y, size, v)
+        placed += 1
     # the Gate glow
     gx, gy = W / 2, 3.05 * inch
     for k, a in enumerate((0.06, 0.1, 0.16, 0.25)):
@@ -146,6 +155,14 @@ def mini(width_in, height_in, **kw):
                     lambda c, w, h: DG.mini_map(c, x0, y0, scale, **kw))
 
 
+def games_line() -> str:
+    total = RS.games_total()
+    if not total:
+        return "Balanced by simulation; see the Designer's Notes for the numbers."
+    return (f"Balanced over {total / 1e6:.1f} million simulated games; see the Designer's Notes for the numbers."
+            if total >= 1e6 else f"Balanced over {total:,} simulated games; see the Designer's Notes for the numbers.")
+
+
 # ------------------------------------------------------------------ content
 def story():
     s = []
@@ -228,7 +245,8 @@ def story():
     s.append(para(T.PACK_RULE))
     s.append(Spacer(1, 4))
     s.append(example("a first turn",
-                     ["Hulda starts at the Gate holding 4{S} 9{D} A{H} 6{C} K{S}.",
+                     ["Hulda is second in turn order, so she has both actions. She starts at the Gate holding "
+                      "4{S} 9{D} A{H} 6{C} K{S}.",
                       "<b>Action 1:</b> she plays 4{S} to <b>Move</b> into C1. Any card can move one chamber, "
                       "and a low spade is the cheapest card to spend.",
                       "<b>Action 2:</b> C1 is a {D} vein, so she plays 9{D} to <b>Mine</b>. A 9 is high, so she "
@@ -267,15 +285,17 @@ def story():
     s.append(CondPageBreak(4.5 * inch))
     s.append(h1("Tremors and the collapse"))
     s.append(para("<b>Joker: Tremor.</b> " + T.CARD_TABLE[-1][2]))
-    s.append(para("<b>Reshuffle.</b> Whenever the draw pile runs out, shuffle the discard pile into a new draw pile "
+    s.append(para("<b>Reshuffle.</b> Whenever a card must be drawn, or flipped for the rumble, and the draw pile is "
+                  "empty, shuffle the discard pile into a new draw pile "
                   "and advance the collapse marker 1 space."))
     s.append(h2("The end"))
     for t in T.END_RULES:
         s.append(para("• " + t))
     s.append(Spacer(1, 6))
     s.append(example("final scoring (3 players)", [
-        f"Hulda's refill empties the draw pile. Reshuffling moves the collapse marker to {T.COLLAPSE_END[3]}: the "
-        "end space for 3 players. Everyone finishes the round, the Warden rumbles one last time, then:",
+        f"Hulda needs two cards to refill, but the draw pile holds one. She draws it, shuffles the discards into "
+        f"a new draw pile and moves the collapse marker to {T.COLLAPSE_END[3]}: the end space for 3 players. She "
+        "draws her second card. Everyone finishes the round, the Warden rumbles one last time, then:",
         "Mira: vault 23, pack 4 + 2 = 6, counts half = 3. <b>26</b>.",
         "Hulda: vault 21, pack 4 + 4 + 1 = 9, counts half (rounded down) = 4. <b>25</b>.",
         "Gritch: vault 26, pack empty. <b>26</b>.",
@@ -291,7 +311,8 @@ def story():
     ], cards=["QH", "KC"], played=("QH", "KC")))
 
     # ---- delvers
-    s.append(PageBreak())
+    s.append(CondPageBreak(3.5 * inch))
+    s.append(Spacer(1, 10))
     s.append(h1("The delvers"))
     s.append(para("Each player controls one delver with its own ability, and each ability bends the card rules a "
                   "little differently. Everything else follows the normal rules. Each delver's player aid has "
@@ -310,6 +331,7 @@ def story():
 
     # ---- FAQ & tips
     s.append(CondPageBreak(4.0 * inch))
+    s.append(Spacer(1, 12))
     s.append(h1("Questions & tips"))
     for q, a in T.FAQ:
         s.append(para(f"<b>{q}</b> {a}"))
@@ -324,27 +346,34 @@ def story():
         s.append(para("• " + t))
     s.append(h2("Credits"))
     s.append(para("Design, simulation and balancing: the Glimmerdark project. Fonts: Cinzel, Alegreya and Alegreya Sans "
-                  "(SIL Open Font License), DejaVu Sans. Balanced over millions of simulated games; see the "
-                  "Designer's Notes for the numbers.", "small"))
+                  "(SIL Open Font License), DejaVu Sans. " + games_line(), "small"))
     return s
 
 
 def _components_strip(c, w, h):
+    """Tokens, the Crown, cards and figures in one row, scaled down to fit the frame if needed."""
+    tok, crown, card, fig = 1.0 * inch, 0.9 * inch, 0.58 * inch, 0.8 * inch
+    natural = 0.1 * inch + len(T.TOKENS) * tok + crown + 4 * card + 2 * fig
+    k = min(1.0, w / natural)
+    c.saveState()
+    c.translate((w - natural * k) / 2, h * (1 - k) / 2)
+    c.scale(k, k)
     x = 0.1 * inch
     for v, n in T.TOKENS:
-        S.draw_token(c, x + 0.35 * inch, h / 2, 0.3 * inch, v)
+        S.draw_token(c, x + 0.33 * inch, h / 2, 0.3 * inch, v)
         c.setFont(S.SANS, 9)
         c.setFillColor(S.INK_SOFT)
-        c.drawString(x + 0.72 * inch, h / 2 - 3, f"× {n}")
-        x += 1.2 * inch
+        c.drawString(x + 0.68 * inch, h / 2 - 3, f"× {n}")
+        x += tok
     S.draw_token(c, x + 0.38 * inch, h / 2, 0.34 * inch, 5, crown=True)
-    x += 1.0 * inch
+    x += crown
     for code in ("AS", "7H", "QD", "JK"):
         S.draw_card(c, x, 0.08 * inch, 0.5 * inch, code)
-        x += 0.58 * inch
+        x += card
     for key in ("mira", "warden"):
-        E.emblem(c, key, x + 0.42 * inch, h / 2, 0.34 * inch)
-        x += 0.8 * inch
+        E.emblem(c, key, x + 0.4 * inch, h / 2, 0.34 * inch)
+        x += fig
+    c.restoreState()
 
 
 def _setup_map(c, w, h):

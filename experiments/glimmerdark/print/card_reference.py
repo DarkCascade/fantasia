@@ -83,7 +83,7 @@ def build(out):
     for i, (title, items) in enumerate((
         ("On your turn", [f"<b>Up to {V.actions_per_turn} actions</b>, one card each:"] +
          [f"<b>{name}</b> ({who}): {what}" for name, who, what in T.ACTIONS] +
-         [f"Then <b>refill to {V.hand_size}</b>. Pack holds {V.pack_limit}; enter or pass the Gate to bank.",
+         [f"Then <b>refill to {V.hand_size}</b>. Pack holds {V.pack_limit} (Gritch's {T.GRITCH_PACK}); enter or pass the Gate to bank.",
           "Reshuffle or Joker: advance the collapse marker 1."]),
         ("The Warden's turn", [f"<b>{k}.</b> {v}" for k, v in T.WARDEN_RULES] +
          [f"<b>Collapse</b> at {T.COLLAPSE_END[2]} (2p), {T.COLLAPSE_END[3]} (3p), {T.COLLAPSE_END[4]} (4p): "

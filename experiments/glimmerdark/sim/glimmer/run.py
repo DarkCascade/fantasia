@@ -3,7 +3,9 @@
     python -m glimmer.run balance    [--version v3] [--games 10000]
     python -m glimmer.run strategies [--version v3] [--games 10000]
     python -m glimmer.run luck       [--version v3] [--games 10000]
-    python -m glimmer.run all        [--version v3] [--games 10000]
+    python -m glimmer.run lengths    [--version v3] [--games 10000]
+    python -m glimmer.run abilities  [--version v3] [--games 10000]
+    python -m glimmer.run all        [--version v3] [--games 10000]   (balance + strategies + luck)
 
 Results land in ../results/<version>/<experiment>.json. Games run in worker
 processes; each worker returns compact per-game records.
@@ -299,9 +301,38 @@ def exp_luck(cfg, games_per, seed=31) -> dict:
     return out
 
 
+def exp_lengths(cfg, games_per, seed=41) -> dict:
+    """Playtime distribution per player count with random line-ups (tactician AI),
+    measured the same way for every version so the before/after charts compare."""
+    rng = random.Random(seed)
+    out = {}
+    for n in (2, 3, 4):
+        cs = [tuple(rng.sample(R.CHARACTERS, n)) for _ in range(games_per)]
+        recs, _ = run_games(cfg, cs, [("tactician",) * n] * games_per, seed0=seed + n)
+        out[str(n)] = {"length": length_summary(recs), "tokens": token_summary(recs, cfg),
+                       "dynamics": dynamics_summary(recs)}
+        L = out[str(n)]["length"]
+        print(f"  {n}p  median {L['minutes_p50']:.1f} min  p10-p90 {L['minutes_p10']:.1f}-{L['minutes_p90']:.1f}", flush=True)
+    return out
+
+
+def exp_abilities(cfg, games_per, seed=53) -> dict:
+    """How much is each ability worth? Every delver duels a "plain" delver with
+    no ability at all (2 players, seats alternating). 0.5 = worthless."""
+    out = {}
+    for ch in R.CHARACTERS:
+        cs = [(ch, "plain") if i % 2 == 0 else ("plain", ch) for i in range(games_per)]
+        recs, _ = run_games(cfg, cs, [("tactician", "tactician")] * games_per, seed0=seed + _stable((ch,)),
+                            rotate=False)
+        w = sum(1 / len(r["winners"]) for r in recs for i in r["winners"] if r["chars"][i] == ch)
+        out[ch] = w / games_per
+        print(f"  {ch:<7} vs plain  {out[ch]:.3f}", flush=True)
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("experiment", choices=["balance", "strategies", "luck", "all"])
+    ap.add_argument("experiment", choices=["balance", "strategies", "luck", "lengths", "abilities", "all"])
     ap.add_argument("--version", default=R.CURRENT)
     ap.add_argument("--games", type=int, default=10000)
     a = ap.parse_args(argv)
@@ -312,7 +343,8 @@ def main(argv=None):
     for exp in todo:
         t0 = time.time()
         print(f"== {exp} ({a.version}, {a.games} games/config)", flush=True)
-        res = {"balance": exp_balance, "strategies": exp_strategies, "luck": exp_luck}[exp](cfg, a.games)
+        res = {"balance": exp_balance, "strategies": exp_strategies, "luck": exp_luck,
+               "lengths": exp_lengths, "abilities": exp_abilities}[exp](cfg, a.games)
         res["_meta"] = {"version": a.version, "games_per_config": a.games, "seconds": time.time() - t0,
                         "sec_per_turn": SEC_PER_TURN, "sec_warden": SEC_WARDEN}
         (outdir / f"{exp}.json").write_text(json.dumps(res, indent=1, default=str))
