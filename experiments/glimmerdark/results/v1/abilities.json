@@ -1,0 +1,15 @@
+{
+ "mira": 0.4711,
+ "gritch": 0.8532,
+ "hulda": 0.7704,
+ "sable": 0.77655,
+ "twins": 0.7058,
+ "quill": 0.72655,
+ "_meta": {
+  "version": "v1",
+  "games_per_config": 10000,
+  "seconds": 451.36905241012573,
+  "sec_per_turn": 45,
+  "sec_warden": 10
+ }
+}

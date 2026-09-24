@@ -133,8 +133,12 @@ def per_n(fn, sep=" / "):
 # so the "data shown" half of every entry is the measured number, not a recollection.
 def _mira_why(P):
     a = P.ability("mira")
-    extra = (f" Duelling a delver with no ability at all, Mira won only {pc(a)} of games: letting hearts match any vein "
-             "was worth almost nothing, because the scarce thing on a turn is movement, not matching.") if a else ""
+    if a is None:
+        extra = ""
+    else:
+        worth = "no better than having no ability" if a <= 0.5 else "worth very little"
+        extra = (f" Duelling a delver with no ability at all, Mira won {pc(a, 1)} of games: letting hearts match any "
+                 f"vein was {worth}, because the scarce thing on a turn is movement, not matching.")
     return f"Mira was {pp(P.delta(2, 'mira'))} / {pp(P.delta(3, 'mira'))} / {pp(P.delta(4, 'mira'))} points from a fair share (2 / 3 / 4 players).{extra}"
 
 
