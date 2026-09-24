@@ -1,6 +1,6 @@
 # NEON//LEDGER runtime - everything runs locally, nothing here phones home
 # once browser.gatherUsageStats=false is set (see .streamlit/config.toml).
-streamlit>=1.50
+streamlit>=1.64   # lazy tabs (st.tabs on_change + .open) and theme.fontFaces are recent
 pandas>=2.2
 numpy>=1.26
 plotly>=6.0
