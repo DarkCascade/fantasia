@@ -1,0 +1,9 @@
+[project]
+name = "glimmer-sim"
+version = "1.0.0"
+description = "Rules engine, AI strategies and balance experiments for the GLIMMERDARK board game."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

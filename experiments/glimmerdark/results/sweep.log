@@ -1,0 +1,35 @@
+== balance (v1, 10000 games/config)
+  2p:mira+gritch                           gritch:0.874  mira:0.126
+  2p:mira+hulda                            hulda:0.794  mira:0.206
+  2p:mira+sable                            mira:0.194  sable:0.806
+  2p:mira+twins                            mira:0.272  twins:0.728
+  2p:mira+quill                            mira:0.253  quill:0.747
+  2p:gritch+hulda                          gritch:0.595  hulda:0.406
+  2p:gritch+sable                          gritch:0.640  sable:0.360
+  2p:gritch+twins                          gritch:0.695  twins:0.305
+  2p:gritch+quill                          gritch:0.637  quill:0.363
+  2p:hulda+sable                           hulda:0.388  sable:0.612
+  2p:hulda+twins                           hulda:0.574  twins:0.426
+  2p:hulda+quill                           hulda:0.522  quill:0.478
+  2p:sable+twins                           sable:0.587  twins:0.413
+  2p:sable+quill                           quill:0.470  sable:0.530
+  2p:twins+quill                           quill:0.535  twins:0.465
+  3p:mira+gritch+hulda                     gritch:0.529  hulda:0.362  mira:0.109
+  3p:mira+gritch+sable                     gritch:0.506  mira:0.110  sable:0.385
+  3p:mira+gritch+twins                     gritch:0.565  mira:0.123  twins:0.312
+  3p:mira+gritch+quill                     gritch:0.492  mira:0.103  quill:0.405
+  3p:mira+hulda+sable                      hulda:0.343  mira:0.122  sable:0.535
+  3p:mira+hulda+twins                      hulda:0.445  mira:0.165  twins:0.390
+  3p:mira+hulda+quill                      hulda:0.394  mira:0.139  quill:0.467
+  3p:mira+sable+twins                      mira:0.137  sable:0.521  twins:0.342
+  3p:mira+sable+quill                      mira:0.125  quill:0.439  sable:0.437
+  3p:mira+twins+quill                      mira:0.156  quill:0.503  twins:0.341
+  3p:gritch+hulda+sable                    gritch:0.384  hulda:0.259  sable:0.357
+  3p:gritch+hulda+twins                    gritch:0.442  hulda:0.310  twins:0.248
+  3p:gritch+hulda+quill                    gritch:0.395  hulda:0.261  quill:0.344
+  3p:gritch+sable+twins                    gritch:0.434  sable:0.328  twins:0.238
+  3p:gritch+sable+quill                    gritch:0.384  quill:0.341  sable:0.276
+  3p:gritch+twins+quill                    gritch:0.423  quill:0.359  twins:0.218
+  3p:hulda+sable+twins                     hulda:0.294  sable:0.454  twins:0.251
+  3p:hulda+sable+quill                     hulda:0.257  quill:0.347  sable:0.396
+  3p:hulda+twins+quill                     hulda:0.313  quill:0.420  twins:0.268

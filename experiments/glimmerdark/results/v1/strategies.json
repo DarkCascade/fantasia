@@ -1,0 +1,72 @@
+{
+ "2p:tactician/greedy": {
+  "tactician": 0.678,
+  "greedy": 0.322,
+  "_minutes_p50": 46.666666666666664
+ },
+ "2p:tactician/cautious": {
+  "tactician": 0.4235,
+  "cautious": 0.5765,
+  "_minutes_p50": 45.0
+ },
+ "2p:greedy/cautious": {
+  "greedy": 0.2465,
+  "cautious": 0.7535,
+  "_minutes_p50": 45.0
+ },
+ "2p:tactician/tactician": {
+  "tactician": 0.5,
+  "_minutes_p50": 48.333333333333336
+ },
+ "2p:greedy/greedy": {
+  "greedy": 0.5,
+  "_minutes_p50": 46.666666666666664
+ },
+ "2p:cautious/cautious": {
+  "cautious": 0.5,
+  "_minutes_p50": 45.0
+ },
+ "3p:tactician/greedy/cautious": {
+  "tactician": 0.3583333333333334,
+  "greedy": 0.18233333333333335,
+  "cautious": 0.4593333333333333,
+  "_minutes_p50": 41.083333333333336
+ },
+ "3p:tactician/tactician/tactician": {
+  "tactician": 0.3333333333333333,
+  "_minutes_p50": 41.083333333333336
+ },
+ "3p:greedy/greedy/greedy": {
+  "greedy": 0.3333333333333333,
+  "_minutes_p50": 41.083333333333336
+ },
+ "3p:cautious/cautious/cautious": {
+  "cautious": 0.3333333333333333,
+  "_minutes_p50": 41.083333333333336
+ },
+ "4p:tactician/greedy/cautious/tactician": {
+  "greedy": 0.14633333333333332,
+  "cautious": 0.3258333333333333,
+  "tactician": 0.2639166666666667,
+  "_minutes_p50": 34.833333333333336
+ },
+ "4p:tactician/greedy/greedy/cautious": {
+  "cautious": 0.3706666666666667,
+  "greedy": 0.17408333333333334,
+  "tactician": 0.2811666666666666,
+  "_minutes_p50": 38.0
+ },
+ "4p:tactician/cautious/cautious/greedy": {
+  "greedy": 0.14025,
+  "cautious": 0.29475,
+  "tactician": 0.27025,
+  "_minutes_p50": 34.833333333333336
+ },
+ "_meta": {
+  "version": "v1",
+  "games_per_config": 1000,
+  "seconds": 37.051546812057495,
+  "sec_per_turn": 45,
+  "sec_warden": 10
+ }
+}
