@@ -15,7 +15,7 @@ Under the old mountain sleeps the Warden, a stone giant grown into the rock. Its
 - 1 standard deck of 52 playing cards plus 2 jokers (the only cards in the game)
 - The Glimmerdark board (printed on 4 sheets, taped together)
 - 6 delver figures and 1 Warden figure (3D-printed miniatures, or the cut-out standees)
-- Glimmer tokens: 24 worth 1, 24 worth 2, 28 worth 4, and the Crown (worth 5)
+- Glimmer tokens: 24 worth 1, 24 worth 2, 30 worth 4, and the Crown (worth 5)
 - 1 collapse marker (any coin works) and 1 first-player marker
 - 6 player aids (one per delver) and 1 card reference sheet per player
 

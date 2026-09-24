@@ -514,40 +514,44 @@ def delver_table(res):
 
 
 def remaining_imbalance(a: Res) -> list[str]:
-    """Plain-language notes on what's left, driven by the final sweep."""
+    """What's left after the final sweep: every gap of 3 points or more, with the evidence the data gives."""
     notes = []
-    items = sorted(((abs(a.delta(n, ch)), n, ch) for n in (2, 3, 4) for ch in CHARS), reverse=True)
-    for mag, n, ch in items[:3]:
+    gaps = sorted(((abs(a.delta(n, ch)), n, ch) for n in (2, 3, 4) for ch in CHARS), reverse=True)
+    big = [(n, ch) for mag, n, ch in gaps if mag >= 3.0]
+    for n, ch in big:
         x = a.delta(n, ch)
-        why = WHY_LEFT.get((ch, n, x > 0))
-        notes.append(f"<b>{NAMES[ch]}, {n} players: {pp(x)} points.</b> " + (f"<i>Probable cause:</i> {why}" if why else ""))
+        others = ", ".join(f"{pp(a.delta(m, ch))} with {m}" for m in (2, 3, 4) if m != n)
+        why = WHY_LEFT.get((ch, x > 0))
+        notes.append(f"<b>{NAMES[ch]}, {n} players: {pp(x)} points</b> ({others}). " + (why(a, n) if why else ""))
+    rest = [g for g in gaps if g[0] < 3.0]
+    if rest:
+        notes.append(f"Every other delver and player count is within {rest[0][0]:.1f} points of a fair share.")
     return notes
 
 
-# Likely causes for the residual gaps the final sweep leaves. Printed as the designer's reading of the
-# data, not as measured fact; only the entries matching the three largest final gaps are used.
+def _turns_each(a: Res, n: int) -> float:
+    return a.length(n)["turns_p50"] / n
+
+
+# Evidence-backed notes for the gaps the final sweep leaves (keyed by delver and direction). The numbers are
+# measured; the "probably" part is the designer's reading of them.
 WHY_LEFT = {
-    ("quill", 2, False): "In a duel there are only two rivals' worth of Queens and Kings to exploit and the Warden "
-                         "targets one of just two delvers, so Quill's free court card matters less than it does at a "
-                         "busier table, where he is at or above par. Pushing him up for 2 players would have pushed "
-                         "him over the line at 4.",
-    ("gritch", 2, True): "Gritch's triple move is at its strongest on an open 2-player board, where nobody is in his "
-                         "way. His pack of 4 is the brake; it bites harder as tables get crowded.",
-    ("twins", 2, True): "Pip & Pell's free cards compound over the longer 2-player game (more turns each).",
-    ("twins", 4, False): "With four players each delver gets fewer turns, so Pip & Pell see fewer chances to chain "
-                         "free cards.",
-    ("twins", 3, False): "With more players each delver gets fewer turns, so Pip & Pell see fewer chances to chain "
-                         "free cards.",
-    ("sable", 2, False): "Sable's hoist saves trips to the Gate; with the Warden split between fewer delvers the "
-                         "trips are safer anyway, so her edge is smaller.",
-    ("sable", 3, False): "Sable's hoist saves trips to the Gate, and it matters less when the Warden has more targets "
-                         "to chase than her.",
-    ("sable", 4, False): "Sable's hoist saves trips to the Gate, and it matters less when the Warden has more targets "
-                         "to chase than her.",
-    ("hulda", 4, True): "More rivals means more packs to shake down.",
-    ("hulda", 3, True): "More rivals means more packs to shake down.",
-    ("mira", 3, True): "Mira's free heart is used every turn regardless of table size.",
-    ("mira", 4, True): "Mira's free heart is used every turn regardless of table size.",
+    ("gritch", True): lambda a, n: (
+        f"His edge is speed, and speed pays per turn: each delver gets about {_turns_each(a, 2):.0f} turns in a "
+        f"2-player game against {_turns_each(a, 4):.0f} with 4, so a faster delver pulls further ahead over a "
+        "longer personal game. Any nerf that trims the 2-player edge also lowers him at 3 and 4 players, where "
+        f"he sits at {pp(a.delta(3, 'gritch'))} and {pp(a.delta(4, 'gritch'))}, and a 2-player-only rule is more "
+        "rules weight than a 4-point gap deserves. It stays, flagged for playtesting."),
+    ("quill", False): lambda a, n: (
+        f"His ability is the weakest of the six in 2-player duels against an ability-less delver "
+        f"({pc(a.ability('quill'), 1)}, against {pc(min(a.ability(c) for c in CHARS if c != 'quill'), 1)}–"
+        f"{pc(max(a.ability(c) for c in CHARS if c != 'quill'), 1)} for the others). Probably because Queens and "
+        "Kings need rivals nearby to hit, and a 2-player board has only one. Strengthening him for 2 players would "
+        f"push him up at 4, where he is already at {pp(a.delta(4, 'quill'))}, so this is also left for playtesting: human players "
+        "may well use his free Kings better than the AI does."),
+    ("sable", False): lambda a, n: "Her hoist saves trips to the Gate, which matter less when the Warden has other targets.",
+    ("twins", True): lambda a, n: "Their free cards compound over the longer personal game at small tables.",
+    ("hulda", True): lambda a, n: "More rivals means more packs to shake down.",
 }
 
 

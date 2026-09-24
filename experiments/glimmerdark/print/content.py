@@ -41,7 +41,7 @@ LOW_RANKS = f"2–{V.high_rank_min - 1}"   # "2–6"
 HIGH_RANKS = f"{V.high_rank_min}–10"     # "7–10"
 GRITCH_PACK = V.pack_limit - 1 if V.gritch_pack4 else V.pack_limit
 QUILL_JACK = V.jack_steps + 1 if "jack4" in V.quill_mode else V.jack_steps
-TOKENS = [(1, 24), (2, 24), (4, 28)]  # sized from simulation: covers >99.9% of games
+TOKENS = [(1, 24), (2, 24), (4, 30)]  # at least the most any final-rules sweep game needed (verify.py checks)
 COLLAPSE_END = V.collapse_at
 
 COMPONENTS = [
