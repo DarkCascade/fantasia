@@ -4,3 +4,4 @@ minis/out/
 *.pyc
 print/_build/
 results/_board_full.pdf
+results/*.log
