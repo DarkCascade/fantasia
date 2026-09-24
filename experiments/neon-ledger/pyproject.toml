@@ -1,0 +1,10 @@
+[project]
+name = "neon-ledger"
+version = "1.0.0"
+description = "Local-only personal cash-flow forensics console (Streamlit + Plotly)."
+requires-python = ">=3.10"
+dependencies = ["streamlit>=1.50", "pandas>=2.2", "numpy>=1.26", "plotly>=6.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

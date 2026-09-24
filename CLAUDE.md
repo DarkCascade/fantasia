@@ -482,6 +482,7 @@ vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
 vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitControls, BufferGeometryUtils)
 experiments/           Scratch prototypes kept out of the deploy's copy step; never shipped
+experiments/neon-ledger/  NEON//LEDGER: local-only Python/Streamlit personal-finance analyser (not a game; ./run.sh; see its README)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
 

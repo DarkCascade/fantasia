@@ -1,0 +1,8 @@
+# NEON//LEDGER runtime - everything runs locally, nothing here phones home
+# once browser.gatherUsageStats=false is set (see .streamlit/config.toml).
+streamlit>=1.50
+pandas>=2.2
+numpy>=1.26
+plotly>=6.0
+# tests
+pytest>=8

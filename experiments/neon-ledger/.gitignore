@@ -1,0 +1,6 @@
+# Your own data never belongs in git.
+user_data/
+*.local.csv
+__pycache__/
+.pytest_cache/
+.venv/

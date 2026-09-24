@@ -1,0 +1,80 @@
+# NEON//LEDGER - Streamlit settings.
+# Streamlit reads this file when you launch from this folder
+# (`streamlit run app.py`, or the run.sh / run.bat launchers).
+#
+# LOCAL-ONLY GUARANTEES
+#  * server.address = 127.0.0.1  -> the server binds to loopback only; nothing
+#    else on your network (or the internet) can connect to it.
+#  * browser.gatherUsageStats = false -> Streamlit's anonymous telemetry is off.
+#  * client.toolbarMode = "minimal" -> hides the "Deploy" (cloud) button.
+#  * Fonts are served from ./static by Streamlit itself: no CDN, no Google Fonts.
+
+[server]
+address = "127.0.0.1"
+port = 8501
+enableStaticServing = true
+enableXsrfProtection = true
+enableCORS = true
+maxUploadSize = 200
+runOnSave = false
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = "full"
+
+[runner]
+magicEnabled = false
+
+[theme]
+base = "dark"
+primaryColor = "#00E5FF"
+backgroundColor = "#03050B"
+secondaryBackgroundColor = "#0A1428"
+textColor = "#D8F6FF"
+linkColor = "#FF2BD6"
+borderColor = "#123A5E"
+dataframeBorderColor = "#123A5E"
+dataframeHeaderBackgroundColor = "#081A33"
+codeBackgroundColor = "#04121E"
+codeTextColor = "#00FF9C"
+baseRadius = "none"
+buttonRadius = "none"
+showWidgetBorder = true
+greenColor = "#00FF9C"
+redColor = "#FF3355"
+blueColor = "#00E5FF"
+orangeColor = "#FF7A1A"
+yellowColor = "#FFE14D"
+violetColor = "#A070FF"
+font = "Share Tech Mono, monospace"
+headingFont = "Orbitron, Share Tech Mono, monospace"
+codeFont = "Share Tech Mono, monospace"
+chartCategoricalColors = ["#00E5FF", "#FF5A36", "#2F7BFF", "#FFB000", "#A070FF", "#B4FF39", "#FF2BD6", "#00FFA3"]
+
+[[theme.fontFaces]]
+family = "Orbitron"
+url = "app/static/fonts/orbitron-latin-400-normal.woff2"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Orbitron"
+url = "app/static/fonts/orbitron-latin-700-normal.woff2"
+weight = 700
+
+[[theme.fontFaces]]
+family = "Orbitron"
+url = "app/static/fonts/orbitron-latin-900-normal.woff2"
+weight = 900
+
+[[theme.fontFaces]]
+family = "Share Tech Mono"
+url = "app/static/fonts/share-tech-mono-latin-400-normal.woff2"
+weight = 400
+
+[theme.sidebar]
+backgroundColor = "#050A18"
+secondaryBackgroundColor = "#0A1428"
