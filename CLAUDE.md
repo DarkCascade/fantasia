@@ -455,6 +455,63 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   (rounded-rect pads, a padlock glyph, a generic machine body, a product
   swatch, a crate) and tinted per-planet at runtime via `setTint()` rather
   than re-baked, so swapping planets never regenerates a texture.
+- **Greenlit** (`src/greenlit.js`) — "Reigns, but game development", on the
+  last slot of menu page 3. A career from a 1984 garage onward: each project
+  opens with a **pitch card** (swipe between two random `GENRES`, each with
+  hidden weights over the four quality categories — Audio, Graphics, Story,
+  Gameplay — surfaced only as "Fans love X / shrug at Y") and a set budget.
+  Then two random cards from the studio's **deck** of decision cards are dealt
+  as one Reigns-style swipe card; keep one (drag past the threshold, tap a
+  side, or ←/→). Every card is invisibly tied to one category: keeping it
+  spends budget and adds its hidden `power` to that category. **The player
+  never sees a number until the release** — cards say only "Slightly /
+  (plain) / Greatly / Massively improves X" and "Minimal … Very High Cost",
+  and the four HUD meters never fill; leaning toward a side drops a
+  Reigns-style dot over the meter it moves, sized by the same label tier.
+  Keep that contract: no values, fills or percentages mid-project. When
+  spending reaches the budget (the last pick may overrun — the card warns
+  "⚠ Over budget") or fewer than two cards are left, the project ships:
+  pick one of four generated titles (`titleOptions()`: genre word lists ×
+  era-flavoured templates, plus a SEQUEL slot after a 70+ hit in that genre),
+  then a summary shows the real quality values, the review, and profit
+  (`revenue − spent`). Between projects the studio screen sells new cards
+  (`shopCards()`) and lets you shelve stale ones (`MIN_ACTIVE_DECK` stay
+  active); every release advances the year by `YEARS_PER_RELEASE` and new
+  tech unlocks on its card's `year`. Mechanics that are load-bearing:
+  - **Card cost is a share of *today's* market** (`cardCost(card, year)` =
+    `marketSize(year) × TIER_COST`), not a fixed price, so every project gets
+    ~5–7 decisions in every era. With fixed prices, budgets outgrew old
+    cards, the pile ran dry, and a never-upgraded deck turned a profit on
+    9/100 reviews (confirmed by sweep before the change).
+  - **Cards age through power, not cost.** `power` is fixed at the card's
+    release; expectations (`EXPECT_GROWTH`) and new-tech power
+    (`CARD_POWER_GROWTH`, slightly faster) keep climbing, so an old card's
+    labels slide from "Greatly" to "Slightly" (labels are relative to
+    brand-new mid-tier tech *now*, `magnitudeIndex`). Shop price is marked
+    down to match (`cardPrice`, floored at `PRICE_FLOOR`).
+  - **Rival pairs** (`vs`, mutual: 2D Sprites / Wireframe 3D, Chiptune /
+    PC Speaker, CD audio / MIDI, Polygons / Pre-rendered, Open World /
+    Linear, Orchestra / Licensed, Procgen / Handcrafted) are dealt together
+    `RIVAL_PAIR_CHANCE` of the time, and keeping one discards the other for
+    the rest of the project. Otherwise pairs are random; the unkept card goes
+    back in the pile.
+  - **Scoring** (`scoreProject`): Σ quality × genre weight, docked up to
+    `BALANCE_WEIGHT` for the category furthest below its genre-proportional
+    share, divided by the year's `expectation()`; ratio 1 reviews ≈58.
+    `salesMult` breaks even (revenue = a fully spent budget) around 52.
+  - **No debt, and a safety net.** Cash floors at 0 (the publisher "eats"
+    the rest of a loss, shown on the summary), and if a release leaves the
+    studio unable to afford any shop card, `release()` lends it one card of
+    the newest tech for free (`gift`). Without the loan ~6% of sensible bot
+    careers stayed broke 5+ releases running; with it, ~0%.
+
+  Tuning was done against `experiments/greenlit-balance/sweep.js`, which
+  `require`s the game file directly (it exports its model under Node) — rerun
+  it after touching any constant above. Like Indie Grind it's a **DOM
+  overlay** (`#gl-root`, `<style id="gl-style">`), `window.greenlitGame`'s
+  `destroy()` takes no arguments, and `window.greenlitGame.career` exposes
+  the model for headless assertions. Only the best single release persists
+  (`localStorage` `greenlit-best-hit`); the career resets on teardown.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -477,6 +534,7 @@ src/slopeman.js        The Abominable Slopeman downhill dodger (three.js); windo
 src/slopeman/          Decimated snowman .glb (art not drawn at runtime)
 src/nova-merge/nova-merge.js  Nova Merge physics merge game; window.launchNovaMerge()
 src/planetary-tycoon.js  Planetary Manufacturing Tycoon incremental factory game; window.launchPlanetaryTycoon()
+src/greenlit.js        Greenlit Reigns-style game-dev card game (DOM overlay); window.launchGreenlit()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
@@ -484,6 +542,7 @@ vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitContr
 experiments/           Scratch prototypes kept out of the deploy's copy step; never shipped
 experiments/neon-ledger/  NEON//LEDGER: local-only Python/Streamlit personal-finance analyser (not a game; ./run.sh; see its README)
 experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules sim + balance sweeps, printable PDFs in dist/, Meshy mini prompts); not deployed
+experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real model (node experiments/greenlit-balance/sweep.js)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
 
@@ -582,17 +641,19 @@ experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules 
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
-  `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`);
+  `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
+  `launchPlanetaryTycoon`, `launchGreenlit`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
   `window.returnToMenu()` tears down whichever game is running (`window.game` /
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
-  `slopemanGame` / `novaMergeGame`) and re-shows
-  the menu. All of those are Phaser
+  `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame`) and
+  re-shows the menu. All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
-  `indieGrindGame` and `slopemanGame`, whose handles take a plain `destroy()`.
+  `indieGrindGame`, `slopemanGame` and `greenlitGame`, whose handles take a
+  plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
