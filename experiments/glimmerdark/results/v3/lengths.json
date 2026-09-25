@@ -1,0 +1,252 @@
+{
+ "2": {
+  "length": {
+   "games": 10000,
+   "turns_mean": 40.2224,
+   "rounds_mean": 20.1112,
+   "turns_p10": 34,
+   "turns_p50": 40,
+   "turns_p90": 48,
+   "minutes_mean": 33.51866666666667,
+   "minutes_p10": 28.333333333333332,
+   "minutes_p50": 33.333333333333336,
+   "minutes_p90": 40.0,
+   "minutes_lo_p50": 23.333333333333332,
+   "minutes_hi_p50": 43.333333333333336,
+   "share_30_45": 0.8122,
+   "timed_out": 0,
+   "score_mean": 38.99915,
+   "margin_mean": 8.8593,
+   "minutes_hist": {
+    "23": 9,
+    "25": 110,
+    "26": 462,
+    "28": 1141,
+    "30": 1497,
+    "31": 1556,
+    "33": 1329,
+    "35": 1141,
+    "36": 883,
+    "38": 670,
+    "40": 470,
+    "41": 308,
+    "43": 166,
+    "45": 102,
+    "46": 48,
+    "48": 53,
+    "50": 24,
+    "51": 11,
+    "53": 7,
+    "55": 6,
+    "56": 4,
+    "58": 2,
+    "66": 1
+   }
+  },
+  "tokens": {
+   "1": {
+    "p50": 14,
+    "p99": 17,
+    "p999": 19,
+    "max": 19,
+    "games": 10000
+   },
+   "2": {
+    "p50": 14,
+    "p99": 18,
+    "p999": 19,
+    "max": 20,
+    "games": 10000
+   },
+   "4": {
+    "p50": 17,
+    "p99": 23,
+    "p999": 25,
+    "max": 26,
+    "games": 10000
+   }
+  },
+  "dynamics": {
+   "mid_leader_wins": 0.6943268416596104,
+   "q3_leader_wins": 0.7891835673426937,
+   "lead_changes_mean": 2.8195,
+   "events_per_game": {
+    "bank": 8.3748,
+    "crush": 8.8087,
+    "crush_tokens": 10.447,
+    "hoist": 1.7482,
+    "pilfer": 4.1051,
+    "reshuffle": 2.0082,
+    "rouse": 4.5416,
+    "rumble_joker": 0.9802,
+    "surge": 5.1225,
+    "surge_token_1": 1.7109,
+    "surge_token_2": 2.4303,
+    "surge_token_4": 5.5577
+   },
+   "left_on_board_mean": 36.1041
+  }
+ },
+ "3": {
+  "length": {
+   "games": 10000,
+   "turns_mean": 43.8933,
+   "rounds_mean": 14.6311,
+   "turns_p10": 36,
+   "turns_p50": 45,
+   "turns_p90": 51,
+   "minutes_mean": 35.358491666666666,
+   "minutes_p10": 29.0,
+   "minutes_p50": 36.25,
+   "minutes_p90": 41.083333333333336,
+   "minutes_lo_p50": 25.0,
+   "minutes_hi_p50": 47.5,
+   "share_30_45": 0.8734,
+   "timed_out": 0,
+   "score_mean": 25.934633333333334,
+   "margin_mean": 5.7474,
+   "minutes_hist": {
+    "24": 31,
+    "26": 279,
+    "29": 829,
+    "31": 1384,
+    "33": 2028,
+    "36": 2376,
+    "38": 1868,
+    "41": 831,
+    "43": 247,
+    "45": 75,
+    "48": 36,
+    "50": 7,
+    "53": 3,
+    "55": 5,
+    "62": 1
+   }
+  },
+  "tokens": {
+   "1": {
+    "p50": 14,
+    "p99": 18,
+    "p999": 20,
+    "max": 20,
+    "games": 10000
+   },
+   "2": {
+    "p50": 15,
+    "p99": 19,
+    "p999": 20,
+    "max": 23,
+    "games": 10000
+   },
+   "4": {
+    "p50": 18,
+    "p99": 23,
+    "p999": 25,
+    "max": 27,
+    "games": 10000
+   }
+  },
+  "dynamics": {
+   "mid_leader_wins": 0.565989847715736,
+   "q3_leader_wins": 0.6914526224908267,
+   "lead_changes_mean": 3.2789,
+   "events_per_game": {
+    "bank": 8.6943,
+    "crush": 10.632,
+    "crush_tokens": 12.7148,
+    "hoist": 1.674,
+    "pilfer": 6.6068,
+    "reshuffle": 2.1831,
+    "rouse": 5.8719,
+    "rumble_joker": 0.8011,
+    "surge": 6.0321,
+    "surge_token_1": 2.0399,
+    "surge_token_2": 2.6682,
+    "surge_token_4": 5.8928
+   },
+   "left_on_board_mean": 36.9489
+  }
+ },
+ "4": {
+  "length": {
+   "games": 10000,
+   "turns_mean": 44.5636,
+   "rounds_mean": 11.1409,
+   "turns_p10": 40,
+   "turns_p50": 44,
+   "turns_p90": 48,
+   "minutes_mean": 35.279516666666666,
+   "minutes_p10": 31.666666666666668,
+   "minutes_p50": 34.833333333333336,
+   "minutes_p90": 38.0,
+   "minutes_lo_p50": 23.833333333333332,
+   "minutes_hi_p50": 45.833333333333336,
+   "share_30_45": 0.998,
+   "timed_out": 0,
+   "score_mean": 18.594675,
+   "margin_mean": 4.6268,
+   "minutes_hist": {
+    "28": 5,
+    "31": 1181,
+    "34": 6526,
+    "38": 2056,
+    "41": 177,
+    "44": 40,
+    "47": 11,
+    "50": 2,
+    "53": 1,
+    "66": 1
+   }
+  },
+  "tokens": {
+   "1": {
+    "p50": 14,
+    "p99": 18,
+    "p999": 19,
+    "max": 21,
+    "games": 10000
+   },
+   "2": {
+    "p50": 14,
+    "p99": 18,
+    "p999": 20,
+    "max": 21,
+    "games": 10000
+   },
+   "4": {
+    "p50": 17,
+    "p99": 23,
+    "p999": 24,
+    "max": 26,
+    "games": 10000
+   }
+  },
+  "dynamics": {
+   "mid_leader_wins": 0.4850686037126715,
+   "q3_leader_wins": 0.6391077571856619,
+   "lead_changes_mean": 3.122,
+   "events_per_game": {
+    "bank": 8.5561,
+    "crush": 11.8688,
+    "crush_tokens": 13.9916,
+    "hoist": 1.5705,
+    "pilfer": 8.1167,
+    "reshuffle": 3.0,
+    "rouse": 6.731,
+    "rumble_joker": 0.6521,
+    "surge": 6.2995,
+    "surge_token_1": 1.89,
+    "surge_token_2": 2.3753,
+    "surge_token_4": 5.1319
+   },
+   "left_on_board_mean": 35.484
+  }
+ },
+ "_meta": {
+  "version": "v3",
+  "games_per_config": 10000,
+  "seconds": 97.59899306297302,
+  "sec_per_turn": 45,
+  "sec_warden": 10
+ }
+}

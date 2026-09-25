@@ -127,11 +127,12 @@ def check_documents():
     ok(f"{E[2]} (2p), {E[3]} (3p), {E[4]} (4p)" in ref, "card reference: the same collapse ends")
 
     # stale or broken text anywhere in any PDF
-    stale = [r"\{[SHDC]\}", r"&nbsp;", r"&amp;", r"\bNone\b", r"\bnan\b", r"worth 3\b", r"(?<![\d,])30,000", r"millions",
-             r"3 reshuffles", r"Move up to 2 chambers"]
+    broken = [r"\{[SHDC]\}", r"&nbsp;", r"&amp;", r"\bNone\b", r"\bnan\b"]
+    # earlier rules versions: banned from what players read; the Designer's Notes quote them on purpose
+    old_rules = [r"worth 3\b", r"(?<![\d,])30,000", r"millions", r"3 reshuffles", r"Move up to 2 chambers"]
     for pdf in sorted(DIST.glob("*.pdf")):
         t = pdf_text(pdf)
-        bad = [p for p in stale if re.search(p, t)]
+        bad = [p for p in broken + ([] if pdf.stem == "designers_notes" else old_rules) if re.search(p, t)]
         if "\x00" in t or "\ufffd" in t:
             bad.append("missing glyph (a character the font can't draw)")
         ok(not bad, f"{pdf.name}: no stale or broken text", ", ".join(bad))

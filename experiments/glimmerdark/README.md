@@ -15,7 +15,26 @@ Six delvers each bend one card rule: Mira (hearts), Gritch (spades), Hulda
 (clubs), Sable (diamonds), Pip & Pell (pairs and runs) and Old Quill (face
 cards). The Warden is the boss figure everyone plays against.
 
-<!-- RESULTS -->
+**Balance.** The final rules were checked over 3,000,000 simulated games,
+10,000 for each line-up of characters:
+
+| | 2 players | 3 players | 4 players |
+|---|---|---|---|
+| Median playtime (45 s a turn) | 33 min | 36 min | 35 min |
+| Games inside 30–45 min | 81% | 87% | 100% |
+| Furthest delver from a fair share | 4.1 pts | 1.8 pts | 2.3 pts |
+| First player's win rate (fair share) | 49.9% (50%) | 33.3% (33.3%) | 24.7% (25%) |
+
+No strategy dominates:
+
+- The planning AI wins 61% of games against greedy play and 62% against
+  cautious play.
+- Greedy and cautious play are about even (52 / 48).
+
+The first draft had one character 29 points below a fair share, and
+2-player games ran 48 minutes. The [Designer's
+Notes](dist/designers_notes.pdf) and [CHANGELOG.md](CHANGELOG.md) show how it
+got from there to here.
 
 ## What's here
 

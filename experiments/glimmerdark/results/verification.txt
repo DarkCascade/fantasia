@@ -1,0 +1,193 @@
+
+== 1. rules engine tests
+[PASS] pytest (engine rules + every printed example replayed on the engine): 36 passed in 1.14s
+
+== 2. the documents say the same thing as content.py, and so each other
+[PASS] one player aid page per delver: 6 pages
+[PASS] card meaning 'Suit' identical in rulebook and card reference
+[PASS] card short-form 'Suit' on the card reference
+[PASS] card meaning '2–6' identical in rulebook and card reference
+[PASS] card short-form '2–6' on the card reference
+[PASS] card meaning '7–10' identical in rulebook and card reference
+[PASS] card short-form '7–10' on the card reference
+[PASS] card meaning 'Ace' identical in rulebook and card reference
+[PASS] card short-form 'Ace' on the card reference
+[PASS] card meaning 'Jack' identical in rulebook and card reference
+[PASS] card short-form 'Jack' on the card reference
+[PASS] card meaning 'Queen' identical in rulebook and card reference
+[PASS] card short-form 'Queen' on the card reference
+[PASS] card meaning 'King' identical in rulebook and card reference
+[PASS] card short-form 'King' on the card reference
+[PASS] card meaning 'Joker' identical in rulebook and card reference
+[PASS] card short-form 'Joker' on the card reference
+[PASS] action 'Move' identical in rulebook and card reference
+[PASS] action 'Mine' identical in rulebook and card reference
+[PASS] action 'Event' identical in rulebook and card reference
+[PASS] Warden rule 'Rumble' identical in rulebook and card reference
+[PASS] Warden rule 'Target' identical in rulebook and card reference
+[PASS] Warden rule 'Route' identical in rulebook and card reference
+[PASS] Warden rule 'Crush' identical in rulebook and card reference
+[PASS] rulebook prints: Tape the four board sheets together. Put 3 glimmer in every …
+[PASS] rulebook prints: Each player picks a delver, takes its player aid and figure,…
+[PASS] rulebook prints: Put the collapse marker on the Start space of the Collapse t…
+[PASS] rulebook prints: Shuffle all 54 cards. Deal 5 to each player. If anyone is de…
+[PASS] rulebook prints: Pick a first player at random and give them the first-player…
+[PASS] rulebook prints: Take up to 2 actions. Each action is one card played face up…
+[PASS] rulebook prints: Refill your hand to 5 cards. If you need a card and the draw…
+[PASS] rulebook prints: After the last player's turn, the Warden takes its turn (the…
+[PASS] rulebook prints: When the collapse marker reaches the end space for your play…
+[PASS] rulebook prints: Score your vault at full value, plus half the value of your …
+[PASS] rulebook prints: Most points wins. Ties go to the tied player with more point…
+[PASS] rulebook prints: Your pack holds 5 glimmer tokens. You can't mine or pilfer m…
+[PASS] FAQ in rulebook: Do I have to take both actions?
+[PASS] FAQ in rulebook: Can face cards be played as normal cards?
+[PASS] FAQ in rulebook: Can two delvers share a chamber?
+[PASS] FAQ in rulebook: What if a chamber runs out of glimmer?
+[PASS] FAQ in rulebook: What if my pack is full?
+[PASS] FAQ in rulebook: Can the Warden crush someone on a King's Rouse?
+[PASS] FAQ in rulebook: Does the first-turn limit apply with 2 players?
+[PASS] FAQ in rulebook: Does the rumble flip count as a draw?
+[PASS] FAQ in rulebook: Can Gritch use a ♠ to move just 1 chamber?
+[PASS] Mira Emberheart: ability text in the rulebook
+[PASS] Mira Emberheart: same ability text on the player aid
+[PASS] Mira Emberheart: worked example on the player aid
+[PASS] Mira Emberheart: aid's turn reminder uses this delver's Jack (3) and pack (5)
+[PASS] Mira Emberheart: aid's mining numbers
+[PASS] Gritch Underbough: ability text in the rulebook
+[PASS] Gritch Underbough: same ability text on the player aid
+[PASS] Gritch Underbough: worked example on the player aid
+[PASS] Gritch Underbough: aid's turn reminder uses this delver's Jack (3) and pack (4)
+[PASS] Gritch Underbough: aid's mining numbers
+[PASS] Hulda Stonefist: ability text in the rulebook
+[PASS] Hulda Stonefist: same ability text on the player aid
+[PASS] Hulda Stonefist: worked example on the player aid
+[PASS] Hulda Stonefist: aid's turn reminder uses this delver's Jack (3) and pack (5)
+[PASS] Hulda Stonefist: aid's mining numbers
+[PASS] Sable Voss: ability text in the rulebook
+[PASS] Sable Voss: same ability text on the player aid
+[PASS] Sable Voss: worked example on the player aid
+[PASS] Sable Voss: aid's turn reminder uses this delver's Jack (3) and pack (5)
+[PASS] Sable Voss: aid's mining numbers
+[PASS] Pip & Pell: ability text in the rulebook
+[PASS] Pip & Pell: same ability text on the player aid
+[PASS] Pip & Pell: worked example on the player aid
+[PASS] Pip & Pell: aid's turn reminder uses this delver's Jack (3) and pack (5)
+[PASS] Pip & Pell: aid's mining numbers
+[PASS] Old Quill: ability text in the rulebook
+[PASS] Old Quill: same ability text on the player aid
+[PASS] Old Quill: worked example on the player aid
+[PASS] Old Quill: aid's turn reminder uses this delver's Jack (4) and pack (5)
+[PASS] Old Quill: aid's mining numbers
+[PASS] rulebook's Pip & Pell example is the aid's example
+[PASS] board panel: Warden steps
+[PASS] board panel: hand and pack
+[PASS] rulebook: collapse ends (7 with 2 players, 8 with 3, 9 with 4)
+[PASS] card reference: the same collapse ends
+[PASS] board_a4.pdf: no stale or broken text
+[PASS] board_letter.pdf: no stale or broken text
+[PASS] card_reference.pdf: no stale or broken text
+[PASS] components.pdf: no stale or broken text
+[PASS] designers_notes.pdf: no stale or broken text
+[PASS] miniatures_guide.pdf: no stale or broken text
+[PASS] player_aids.pdf: no stale or broken text
+[PASS] rulebook.pdf: no stale or broken text
+
+== 3. PDF geometry and fonts
+[PASS] board_a4.pdf: every page is a4: 5 pages
+[PASS] board_a4.pdf: all text inside the printable area (0.2 in)
+[PASS] board_a4.pdf: every font used is embedded (Alegreya-Bold, Alegreya-Regular, AlegreyaSans-Bold, AlegreyaSans-ExtraBold, AlegreyaSans-Regular, Cinzel-Black, Cinzel-Bold)
+[PASS] board_letter.pdf: every page is letter: 5 pages
+[PASS] board_letter.pdf: all text inside the printable area (0.2 in)
+[PASS] board_letter.pdf: every font used is embedded (Alegreya-Bold, Alegreya-Regular, AlegreyaSans-Bold, AlegreyaSans-ExtraBold, AlegreyaSans-Regular, Cinzel-Black, Cinzel-Bold)
+[PASS] card_reference.pdf: every page is letter: 1 pages
+[PASS] card_reference.pdf: all text inside the printable area (0.2 in)
+[PASS] card_reference.pdf: every font used is embedded (Alegreya-Bold, Alegreya-Regular, AlegreyaSans-Bold, AlegreyaSans-ExtraBold, AlegreyaSans-Regular, Cinzel-Black, Cinzel-Bold, DejaVuSans)
+[PASS] components.pdf: every page is letter: 2 pages
+[PASS] components.pdf: all text inside the printable area (0.2 in)
+[PASS] components.pdf: every font used is embedded (Alegreya-Italic, AlegreyaSans-ExtraBold, AlegreyaSans-Regular, Cinzel-Bold)
+[PASS] designers_notes.pdf: every page is letter: 7 pages
+[PASS] designers_notes.pdf: all text inside the printable area (0.2 in)
+[PASS] designers_notes.pdf: every font used is embedded (Alegreya-Bold, Alegreya-Italic, Alegreya-Regular, AlegreyaSans-Bold, AlegreyaSans-Regular, Cinzel-Bold, DejaVuSans, DejaVuSansMono)
+[PASS] miniatures_guide.pdf: every page is letter: 6 pages
+[PASS] miniatures_guide.pdf: all text inside the printable area (0.2 in)
+[PASS] miniatures_guide.pdf: every font used is embedded (Alegreya-Bold, Alegreya-Italic, Alegreya-Regular, AlegreyaSans-Bold, AlegreyaSans-ExtraBold, AlegreyaSans-Regular, Cinzel-Bold, DejaVuSans, DejaVuSansMono)
+[PASS] player_aids.pdf: every page is letter: 6 pages
+[PASS] player_aids.pdf: all text inside the printable area (0.2 in)
+[PASS] player_aids.pdf: every font used is embedded (Alegreya-Bold, Alegreya-BoldItalic, Alegreya-Italic, Alegreya-Regular, AlegreyaSans-Bold, AlegreyaSans-ExtraBold, AlegreyaSans-Regular, Cinzel-Black, Cinzel-Bold, DejaVuSans)
+[PASS] rulebook.pdf: every page is letter: 8 pages
+[PASS] rulebook.pdf: all text inside the printable area (0.2 in)
+[PASS] rulebook.pdf: every font used is embedded (Alegreya-Bold, Alegreya-Italic, Alegreya-Regular, AlegreyaSans-Bold, AlegreyaSans-ExtraBold, AlegreyaSans-Regular, Cinzel-Black, Cinzel-Bold, DejaVuSans)
+
+== 4. board tiles re-assemble into the full board
+[PASS] board_letter.pdf: assembly guide + 4 sheets
+[PASS] board_letter.pdf: every sheet matches its quarter of the full board: mean pixel difference 0.00/255
+[PASS] board_letter.pdf: artwork continues across both seams: left/right 9.5, top/bottom 0.2 (mean /255 either side of the join)
+[PASS] board_a4.pdf: assembly guide + 4 sheets
+[PASS] board_a4.pdf: every sheet matches its quarter of the full board: mean pixel difference 0.02/255
+[PASS] board_a4.pdf: artwork continues across both seams: left/right 9.5, top/bottom 0.2 (mean /255 either side of the join)
+
+== 5. Meshy prompts
+[PASS] meshy_prompts.txt is exactly the prompts, one per line: 7 lines
+[PASS] a prompt for every delver and the Warden
+[PASS] mira: printability rules (575/600 chars)
+[PASS] gritch: printability rules (584/600 chars)
+[PASS] hulda: printability rules (594/600 chars)
+[PASS] sable: printability rules (584/600 chars)
+[PASS] twins: printability rules (589/600 chars)
+[PASS] quill: printability rules (586/600 chars)
+[PASS] warden: printability rules (595/600 chars)
+[PASS] mira: prompt and negative prompt in the guide match the .txt
+[PASS] mira: height 32 mm in the guide
+[PASS] mira: paint swatches match the player aid palette
+[PASS] gritch: prompt and negative prompt in the guide match the .txt
+[PASS] gritch: height 27 mm in the guide
+[PASS] gritch: paint swatches match the player aid palette
+[PASS] hulda: prompt and negative prompt in the guide match the .txt
+[PASS] hulda: height 35 mm in the guide
+[PASS] hulda: paint swatches match the player aid palette
+[PASS] sable: prompt and negative prompt in the guide match the .txt
+[PASS] sable: height 34 mm in the guide
+[PASS] sable: paint swatches match the player aid palette
+[PASS] twins: prompt and negative prompt in the guide match the .txt
+[PASS] twins: height 25 mm in the guide
+[PASS] twins: paint swatches match the player aid palette
+[PASS] quill: prompt and negative prompt in the guide match the .txt
+[PASS] quill: height 30 mm in the guide
+[PASS] quill: paint swatches match the player aid palette
+[PASS] warden: prompt and negative prompt in the guide match the .txt
+[PASS] warden: height 60 mm in the guide
+[PASS] warden: paint swatches match the player aid palette
+[PASS] mira: player aid shows the same paint scheme names
+[PASS] gritch: player aid shows the same paint scheme names
+[PASS] hulda: player aid shows the same paint scheme names
+[PASS] sable: player aid shows the same paint scheme names
+[PASS] twins: player aid shows the same paint scheme names
+[PASS] quill: player aid shows the same paint scheme names
+
+== 6. Designer's Notes numbers
+[PASS] full sweeps present for the first draft and the final rules: v1, v2, v3, v4
+[PASS] final sweep uses at least 10,000 games per configuration: 10,000
+[PASS] every 2-, 3- and 4-delver line-up swept (15 + 20 + 15)
+[PASS] notes quote the final 2-player playtime (p10/median/p90 at 45 s a turn)
+[PASS] notes quote the final 3-player playtime (p10/median/p90 at 45 s a turn)
+[PASS] notes quote the final 4-player playtime (p10/median/p90 at 45 s a turn)
+[PASS] notes quote mira's final win-rate deltas: -0.9 / +0.2 / +0.5
+[PASS] notes quote gritch's final win-rate deltas: +4.1 / +0.8 / -0.7
+[PASS] notes quote hulda's final win-rate deltas: +0.8 / +1.8 / +2.3
+[PASS] notes quote sable's final win-rate deltas: -2.4 / -1.2 / -1.9
+[PASS] notes quote twins's final win-rate deltas: +2.3 / -1.1 / -1.6
+[PASS] notes quote quill's final win-rate deltas: -3.8 / -0.5 / +1.3
+[PASS] notes state the total number of simulated games: 3,000,000
+[PASS] rulebook credits quote the same total
+[PASS] components sheet quotes the final sweep's token needs
+[PASS] token counts cover 99.9% of final-rules games: 1: have 24, p99.9 20, max 22, 2: have 24, p99.9 20, max 23, 4: have 30, p99.9 25, max 30
+[PASS] CHANGELOG.md has an entry for every swept version
+[PASS] re-running 2p:mira+gritch (10,000 games) reproduces the published win rates exactly: mira 0.4492, gritch 0.5507
+[PASS] fresh-seed 2-player re-run (4,000 games): median playtime: 33.3 min vs 33.3 published
+[PASS] fresh-seed 2-player re-run: every delver's win rate within 3 standard errors: gritch 0.4/4.1, hulda 0.5/4.1, mira 1.0/4.1, quill 1.8/4.2, sable 1.7/4.1, twins 0.6/4.1
+[PASS] fresh-seed 3-player re-run (4,000 games): median playtime: 36.2 min vs 36.2 published
+[PASS] fresh-seed 3-player re-run: every delver's win rate within 3 standard errors: gritch 1.4/3.2, hulda 0.4/3.1, mira 0.4/3.2, quill 0.7/3.1, sable 1.4/3.2, twins 0.1/3.2
+[PASS] fresh-seed 4-player re-run (4,000 games): median playtime: 34.8 min vs 34.8 published
+[PASS] fresh-seed 4-player re-run: every delver's win rate within 3 standard errors: gritch 1.0/2.5, hulda 2.3/2.5, mira 0.5/2.5, quill 0.2/2.5, sable 1.0/2.5, twins 0.1/2.5
+
+179 checks, 0 failed

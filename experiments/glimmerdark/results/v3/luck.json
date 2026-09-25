@@ -1,0 +1,32 @@
+{
+ "2p:tactician/random": {
+  "random": 0.00055,
+  "tactician": 0.99945,
+  "luck": {
+   "luckiest_draw_win_rate": 0.49523475120385235,
+   "fair": 0.5
+  }
+ },
+ "2p:tactician/tactician": {
+  "tactician": 0.5,
+  "luck": {
+   "luckiest_draw_win_rate": 0.5743963782696178,
+   "fair": 0.5
+  }
+ },
+ "4p:tactician/random/random/random": {
+  "random": 0.00033055555555555556,
+  "tactician": 0.9990083333333332,
+  "luck": {
+   "luckiest_draw_win_rate": 0.23172664076875896,
+   "fair": 0.25
+  }
+ },
+ "_meta": {
+  "version": "v3",
+  "games_per_config": 10000,
+  "seconds": 93.39005708694458,
+  "sec_per_turn": 45,
+  "sec_warden": 10
+ }
+}
