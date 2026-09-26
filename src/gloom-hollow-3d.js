@@ -495,7 +495,48 @@
 .gh3-btn--menu{background:#3a3358;}
 .gh3-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   color:#ffe7a3;font-size:15px;letter-spacing:.24em;text-transform:uppercase;}
+/* ----- title screen: the mode picker ----- */
+.gh3-titlescreen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:22px;padding:24px 16px;box-sizing:border-box;overflow:auto;
+  background:radial-gradient(ellipse at 50% 38%,#2a1f4a 0%,#120d24 45%,#05040b 100%);}
+/* Embers drifting up the screen — two layers of radial dots scrolled at
+   different speeds, so the title isn't a flat card while three.js loads. */
+.gh3-titlescreen::before,.gh3-titlescreen::after{content:"";position:absolute;inset:-50% 0 0 0;pointer-events:none;
+  background-image:radial-gradient(2px 2px at 12% 80%,rgba(255,170,90,.8),transparent 60%),
+    radial-gradient(1.5px 1.5px at 37% 60%,rgba(159,216,255,.7),transparent 60%),
+    radial-gradient(2px 2px at 64% 90%,rgba(255,140,70,.7),transparent 60%),
+    radial-gradient(1.5px 1.5px at 83% 70%,rgba(255,210,120,.8),transparent 60%),
+    radial-gradient(1px 1px at 52% 40%,rgba(200,180,255,.7),transparent 60%);
+  background-size:100% 50%;animation:gh3-embers 14s linear infinite;opacity:.8;}
+.gh3-titlescreen::after{animation-duration:23s;transform:scaleX(-1);opacity:.5;}
+@keyframes gh3-embers{from{transform:translateY(0);}to{transform:translateY(-50%);}}
+.gh3-logo{position:relative;text-align:center;font-weight:bold;letter-spacing:.12em;line-height:1.05;
+  font-size:44px;color:#e9e2ff;text-shadow:0 0 18px rgba(143,120,255,.55),0 4px 12px #000;}
+.gh3-logo span{display:block;font-size:17px;letter-spacing:.6em;color:#9fd8ff;margin-top:6px;
+  text-shadow:0 0 12px rgba(111,184,255,.7);}
+.gh3-modes{position:relative;display:flex;gap:18px;flex-wrap:wrap;justify-content:center;}
+.gh3-mode{position:relative;overflow:hidden;width:250px;min-height:170px;padding:20px 18px 16px;box-sizing:border-box;
+  font-family:inherit;color:#fff;text-align:left;cursor:pointer;border-radius:16px;
+  border:2px solid rgba(255,224,138,.28);box-shadow:0 10px 26px rgba(0,0,0,.6);
+  transition:transform .12s ease,border-color .15s ease,box-shadow .15s ease;}
+.gh3-mode--arena{background:linear-gradient(160deg,rgba(47,95,168,.55) 0%,rgba(15,13,34,.96) 70%);}
+.gh3-mode--dive{background:linear-gradient(160deg,rgba(214,120,40,.5) 0%,rgba(40,14,30,.96) 70%);}
+@media (hover:hover){.gh3-mode:hover{transform:translateY(-4px);border-color:#ffd23f;
+  box-shadow:0 14px 30px rgba(0,0,0,.7),0 0 22px rgba(255,210,63,.25);}}
+.gh3-mode:active{transform:translateY(1px);}
+.gh3-mode-name{display:block;font-size:22px;font-weight:bold;letter-spacing:.04em;}
+.gh3-mode--arena .gh3-mode-name{color:#9fd8ff;}
+.gh3-mode--dive .gh3-mode-name{color:#ffc27a;}
+.gh3-mode-tag{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:99px;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;background:rgba(255,255,255,.1);color:#d9d2ff;}
+.gh3-mode-note{display:block;margin-top:10px;font-size:13px;line-height:1.5;color:#d3d9f2;}
+.gh3-mode-best{display:block;margin-top:10px;font-size:12px;color:#ffe7a3;}
+.gh3-back{position:relative;font:bold 15px Arial,Helvetica,sans-serif;color:#fff;background:#3a3358;border:0;
+  border-radius:10px;padding:10px 20px;cursor:pointer;box-shadow:0 3px 0 rgba(0,0,0,.5);}
 @media (max-width:520px){
+  .gh3-logo{font-size:32px;}
+  .gh3-logo span{font-size:13px;}
+  .gh3-mode{width:min(320px,88vw);min-height:0;}
   .gh3-title{font-size:18px;}
   /* Stacked, not overlapping: the menu button owns the top-left corner, then
      the hint (three lines at this width), then the score line. */
@@ -563,6 +604,33 @@
     <button class="gh3-btn gh3-btn--menu" type="button" data-gh3="toMenu">&#8801; Menu</button>
   </div>
 </div>`;
+
+  // Gloom Hollow 3D's own front door: pick the endless arena or a Dungeon
+  // Dive. The best lines are filled in from localStorage when it opens.
+  const TITLE_HTML = `
+<div class="gh3-titlescreen">
+  <div class="gh3-logo">GLOOM HOLLOW<span>3D</span></div>
+  <div class="gh3-modes">
+    <button class="gh3-mode gh3-mode--arena" type="button" data-mode="arena">
+      <span class="gh3-mode-name">The Hollow</span>
+      <span class="gh3-mode-tag">Arena</span>
+      <span class="gh3-mode-note">Endless waves in one walled arena. Take a boon between waves and see how deep the hollow goes.</span>
+      <span class="gh3-mode-best" data-best="arena"></span>
+    </button>
+    <button class="gh3-mode gh3-mode--dive" type="button" data-mode="dive">
+      <span class="gh3-mode-name">Dungeon Dive</span>
+      <span class="gh3-mode-tag">Explore</span>
+      <span class="gh3-mode-note">Find the way down through a freshly carved floor. Loot chests for bonus points, then descend.</span>
+      <span class="gh3-mode-best" data-best="dive"></span>
+    </button>
+  </div>
+  <button class="gh3-back" type="button" data-back>&#9666; Fantasia Menu</button>
+</div>`;
+
+  // Dungeon Dive lives in its own ES module (it vendors post-processing and
+  // loads the Kenney kit), fetched only when that mode is picked.
+  const DIVE_URL = new URL("gloom-hollow-3d/dungeon-dive.js", SELF_SRC || window.location.href).href;
+  const DIVE_BEST_KEY = "gloom-hollow-3d-dive-best";
 
   /* ---------- the game ---------- */
 
@@ -1759,7 +1827,7 @@
       let best = null;
       let bestD = p.range;
       this.monsters.forEach((m) => {
-        if (!m.alive) return;
+        if (!m.alive || !this.canShoot(m)) return;
         const d = dist(m.gx, m.gz, p.gx, p.gz);
         if (d <= bestD) {
           bestD = d;
@@ -2257,6 +2325,27 @@
       }
     }
 
+    /* ---------- hooks ---------- */
+    // The arena is one open room, so these are trivial here. They exist so a
+    // mode with walls between bodies (Dungeon Dive, src/gloom-hollow-3d/
+    // dungeon-dive.js, which subclasses this class) can add line of sight and
+    // pathfinding without copying the whole update loop.
+
+    // Is this monster awake and hunting? Here: purely distance, as always.
+    monsterEngaged(m, d) {
+      return d <= m.def.aggro;
+    }
+
+    // Where a hunting monster walks toward this frame.
+    chasePoint() {
+      return this.player;
+    }
+
+    // May the auto-attack pick this monster?
+    canShoot() {
+      return true;
+    }
+
     /* ---------- frame ---------- */
 
     tick(ts) {
@@ -2318,9 +2407,10 @@
           return;
         }
         const d = dist(m.gx, m.gz, p.gx, p.gz);
-        if (d > m.def.aggro) return;
+        if (!this.monsterEngaged(m, d)) return;
         if (d > m.range) {
-          this.stepToward(m, p.gx, p.gz, dt);
+          const c = this.chasePoint(m);
+          this.stepToward(m, c.gx, c.gz, dt);
         } else {
           this.faceToward(m, p.gx - m.gx, p.gz - m.gz);
           if (this.now >= m.nextAttack) this.monsterAttack(m);
@@ -2445,8 +2535,11 @@
       }
     }
 
+    // Back to Gloom Hollow 3D's own title screen (the mode picker) when the
+    // launcher gave us one, otherwise straight out to the Fantasia menu.
     toMenu() {
-      if (typeof window.returnToMenu === "function") window.returnToMenu();
+      if (typeof this.onExit === "function") this.onExit();
+      else if (typeof window.returnToMenu === "function") window.returnToMenu();
     }
 
     // Start a fresh run in the same renderer: wipe everything the last run put
@@ -2515,46 +2608,118 @@
     });
   }
 
+  function readBest(key) {
+    try {
+      return JSON.parse(localStorage.getItem(key)) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function launchGloomHollow3D() {
     if (window.gloom3DGame) return window.gloom3DGame;
 
     injectStyle();
     const root = document.createElement("div");
     root.id = "gh3-root";
-    root.innerHTML = '<div class="gh3-loading">Entering the hollow…</div>' + HUD_HTML;
     document.getElementById("game-container").appendChild(root);
 
     // The handle exists before three has finished loading, so returning to the
     // menu mid-load tears the right things down — and stops the game from ever
-    // starting — instead of leaving an orphan canvas behind.
+    // starting — instead of leaving an orphan canvas behind. `session` counts
+    // mode starts, so a load that finishes after the player has already backed
+    // out to the title (or picked the other mode) is dropped on the floor.
     const handle = {
       root: root,
       game: null,
       cancelled: false,
+      session: 0,
       destroy: function () {
         this.cancelled = true;
+        this.stopGame();
+        if (root.parentNode) root.parentNode.removeChild(root);
+      },
+      stopGame: function () {
+        this.session++;
         if (this.game) {
           this.game.destroy();
           this.game = null;
         }
-        if (root.parentNode) root.parentNode.removeChild(root);
+      },
+      // The mode picker. Each game gets a fresh copy of the HUD markup when it
+      // starts, so nothing one run did to the DOM leaks into the next.
+      showTitle: function () {
+        this.stopGame();
+        root.classList.remove("gh3-dive");
+        root.innerHTML = TITLE_HTML;
+        const arena = readBest(BEST_KEY);
+        const dive = readBest(DIVE_BEST_KEY);
+        root.querySelector('[data-best="arena"]').textContent =
+          arena && arena.wave ? "Best: Wave " + arena.wave + " (" + arena.kills + " slain)" : "Best: —";
+        root.querySelector('[data-best="dive"]').textContent =
+          dive && dive.score ? "Best: " + dive.score + " pts · Floor " + dive.floor : "Best: —";
+        root.querySelectorAll("[data-mode]").forEach((b) => {
+          b.addEventListener("click", () => this.startMode(b.getAttribute("data-mode")));
+        });
+        root.querySelector("[data-back]").addEventListener("click", () => {
+          if (typeof window.returnToMenu === "function") window.returnToMenu();
+        });
+        // Warm the three.js import while the player reads the cards.
+        ensureThree().catch(() => {});
+      },
+      startMode: function (mode) {
+        const session = ++this.session;
+        const label = mode === "dive" ? "Carving the dungeon…" : "Entering the hollow…";
+        root.innerHTML = '<div class="gh3-loading" data-gh3-loading>' + label + "</div>" + HUD_HTML;
+        const fail = (err) => {
+          const loading = root.querySelector("[data-gh3-loading]");
+          if (loading) loading.textContent = "Could not start: " + (err && err.message ? err.message : err);
+          console.error("Gloom Hollow 3D failed to start:", err);
+        };
+        const live = () => !this.cancelled && session === this.session;
+        ensureThree()
+          .then(() => {
+            if (!live()) return null;
+            if (mode !== "dive") return new Hollow3D(root);
+            return import(DIVE_URL).then((mod) => {
+              if (!live()) return null;
+              return mod.createDungeonDive({
+                THREE: THREE,
+                Hollow3D: Hollow3D,
+                root: root,
+                kitUrl: new URL("gloom-hollow-3d/kit/", SELF_SRC || window.location.href).href,
+                bestKey: DIVE_BEST_KEY,
+                api: {
+                  BODY_R: BODY_R,
+                  MONSTERS: MONSTERS,
+                  FLASK_CHANCE: FLASK_CHANCE,
+                  waveComposition: waveComposition,
+                  waveStatScale: waveStatScale,
+                  shuffle: shuffle,
+                  randInt: randInt,
+                  dist: dist,
+                  clamp: clamp,
+                },
+                isLive: live,
+              });
+            });
+          })
+          .then((game) => {
+            if (!game) return;
+            if (!live()) {
+              game.destroy();
+              return;
+            }
+            const loading = root.querySelector("[data-gh3-loading]");
+            if (loading) loading.remove();
+            game.onExit = () => this.showTitle();
+            this.game = game;
+          })
+          .catch(fail);
       },
     };
     window.gloom3DGame = handle;
-
-    ensureThree()
-      .then(() => {
-        if (handle.cancelled) return;
-        const loading = root.querySelector(".gh3-loading");
-        if (loading) loading.remove();
-        handle.game = new Hollow3D(root);
-      })
-      .catch((err) => {
-        const loading = root.querySelector(".gh3-loading");
-        if (loading) loading.textContent = "Could not load three.js";
-        console.error("Gloom Hollow 3D failed to start:", err);
-      });
-
+    handle.showTitle();
     return handle;
   }
 
