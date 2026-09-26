@@ -27,6 +27,19 @@ function numericIdToStringId() {
   return _byNumericId;
 }
 
+// Neighbours a route may step onto. Mastery nodes ("Spear Mastery", ...)
+// are decorative hubs PoE2 kept from PoE1's tree art: they have edges in the
+// export but no stats and can't be allocated (no real .build file allocates
+// one), so a path through one is a path the player can't actually take.
+function traversableNeighbours(node) {
+  const index = loadIndex();
+  const numToStr = numericIdToStringId();
+  return [...node.in, ...node.out].filter((nid) => {
+    const sid = numToStr[nid];
+    return !(sid && index.nodes[sid].isMastery);
+  });
+}
+
 // Finds every passive node whose display name matches (case-insensitive).
 // Generic filler nodes ("Attribute", "Movement Speed", ...) are shared by
 // dozens of nodes with no other distinguishing text — expect many matches
@@ -93,7 +106,7 @@ function computeClassStartMap() {
         const sid = numToStr[nid];
         const n = sid ? index.nodes[sid] : null;
         if (!n) continue;
-        for (const nb of [...n.in, ...n.out]) {
+        for (const nb of traversableNeighbours(n)) {
           if (!dist.has(nb)) {
             dist.set(nb, d + 1);
             next.push(nb);
@@ -182,7 +195,7 @@ function shortestPath(fromId, toId) {
       const sid = numToStr[nid];
       const n = sid ? index.nodes[sid] : null;
       if (!n) continue;
-      for (const nb of [...n.in, ...n.out]) {
+      for (const nb of traversableNeighbours(n)) {
         if (!prev.has(nb)) {
           prev.set(nb, nid);
           if (nb === toNode.numericId) {
@@ -214,7 +227,13 @@ function shortestPath(fromId, toId) {
 // since real trees are sparse enough that it rarely differs from optimal.
 // The start node itself is excluded from the result: it isn't a real
 // allocatable passive, just the graph's anchor.
-function computeAllocationPath(startId, targetIds) {
+//
+// `{ ordered: true }` takes the targets in the order given instead of
+// nearest-first — what a levelling guide wants, where "take the attack
+// speed notable before the far-off damage cluster" matters more than the
+// total route length. Each target is still reached by the shortest path
+// from everything allocated so far.
+function computeAllocationPath(startId, targetIds, { ordered: inGivenOrder = false } = {}) {
   const index = loadIndex();
   const numToStr = numericIdToStringId();
   const startNode = index.nodes[startId];
@@ -248,7 +267,7 @@ function computeAllocationPath(startId, targetIds) {
         const n = sid ? index.nodes[sid] : null;
         if (!n) continue;
         const d = dist.get(nid);
-        for (const nb of [...n.in, ...n.out]) {
+        for (const nb of traversableNeighbours(n)) {
           if (!dist.has(nb)) {
             dist.set(nb, d + 1);
             prev.set(nb, nid);
@@ -265,7 +284,10 @@ function computeAllocationPath(startId, targetIds) {
     const { dist, prev } = multiSourceBFS();
     let closest = null;
     let closestDist = Infinity;
-    for (const t of remaining) {
+    // A Set iterates in insertion order, so its first entry is the next
+    // target the caller listed.
+    const candidates = inGivenOrder ? [remaining.values().next().value] : remaining;
+    for (const t of candidates) {
       const tNumeric = index.nodes[t].numericId;
       const d = dist.get(tNumeric);
       if (d !== undefined && d < closestDist) {

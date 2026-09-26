@@ -104,6 +104,16 @@ nodes needed to reach it. That's a greedy nearest-target-first walk, not an
 optimal Steiner tree (that's NP-hard and unnecessary here — every real build
 planner ships the same greedy approach; on PoE2's sparse tree it rarely
 finds a worse route than optimal).
+`computeAllocationPath(start, targets, { ordered: true })` takes the targets
+in the order given instead, which is what a levelling guide wants. Routes
+never step onto mastery hubs (`isMastery`): they're edge-connected in the
+export but can't be allocated.
+
+For a full worked example (per-node allocation notes with approximate
+levels, ascendancy points, gem tier upgrades, per-slot affix hints), see
+`examples/twister-amazon.js`: `node examples/twister-amazon.js` writes a
+levels 1-50 Twister Amazon plan for a first-time player, with the reasoning
+for every choice in its header comment.
 
 Lower-level pieces (`src/passives.js`, `src/gems.js`, `src/uniques.js`,
 `src/schema.js`) are usable directly for anything the assembler doesn't

@@ -63,8 +63,29 @@ test('computeAllocationPath connects the start to every target, in order', () =>
   for (const t of targets) assert.ok(allocation.includes(t), `expected ${t} in the allocation`);
 });
 
-function computeAndCheck(start, targets) {
-  const allocation = passives.computeAllocationPath(start, targets);
+test('routes never pass through an unallocatable mastery hub', () => {
+  // Before the fix, the shortest way from the Huntress start to Roll and
+  // Strike stepped through "mastery_spear_6704" — an edge-connected hub
+  // with no stats that the game won't let anyone allocate.
+  const index = passives.loadIndex();
+  const allocation = computeAndCheck('ranger596', ['spear13', 'spear18']);
+  const masteries = allocation.filter((id) => index.nodes[id].isMastery);
+  assert.deepEqual(masteries, []);
+});
+
+test('ordered allocation reaches targets in the order given, not nearest-first', () => {
+  // Roll and Strike is ~20 nodes out, Honed Instincts ~5: nearest-first
+  // takes Honed Instincts first no matter how they're listed; ordered mode
+  // must honour the caller's order.
+  const targets = ['spear18', 'ranger_huntress_notable2'];
+  const greedy = computeAndCheck('ranger596', targets);
+  const ordered = computeAndCheck('ranger596', targets, { ordered: true });
+  assert.ok(greedy.indexOf('ranger_huntress_notable2') < greedy.indexOf('spear18'));
+  assert.ok(ordered.indexOf('spear18') < ordered.indexOf('ranger_huntress_notable2'));
+});
+
+function computeAndCheck(start, targets, opts) {
+  const allocation = passives.computeAllocationPath(start, targets, opts);
   // Every allocated node must be adjacent to some earlier node (or the
   // start) — the whole point of pathfinding is a connected, allocatable
   // route, not just "the targets, however you get there".
