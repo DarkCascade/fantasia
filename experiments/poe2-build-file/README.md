@@ -8,10 +8,24 @@ plain display names — "Flameblast", "Avatar of Fire", "Gemling Legionnaire"
 ## What a `.build` file is
 
 GGG's in-game Build Planner reads `.build` JSON files from
-`Documents/My Games/Path of Exile 2/BuildPlanner/` and highlights the
+`<Documents>/My Games/Path of Exile 2/BuildPlanner/` and highlights the
 matching passive-tree route, tags recommended skill/support gems, and drops
 hint icons on inventory slots — a visual guide overlay. It does not allocate
 points or equip items for you.
+
+`<Documents>` is wherever Windows' Documents folder actually lives, which
+is **not** always `C:\Users\<you>\Documents`: with OneDrive folder backup
+on (Windows often turns it on during setup), Documents is redirected and the
+game follows it. On
+the machine this was developed on the real folder is
+
+```
+C:\Users\<you>\OneDrive\Documents\My Games\Path of Exile 2\BuildPlanner\
+```
+
+and `C:\Users\<you>\Documents\My Games\Path of Exile 2\` doesn't exist at
+all. If in doubt, find the folder holding `poe2_production_Config.ini`;
+`BuildPlanner/` sits next to it.
 
 ## Why display names aren't enough on their own
 
@@ -81,7 +95,7 @@ const { build, validation } = assembleBuildFile({
 
 if (!validation.valid) throw new Error(JSON.stringify(validation.errors, null, 2));
 writeBuildFile(build, 'My Flameblast Gemling.build');
-// -> drop this in Documents/My Games/Path of Exile 2/BuildPlanner/
+// -> drop this in <Documents>/My Games/Path of Exile 2/BuildPlanner/ (see above: often under OneDrive)
 ```
 
 `assembleBuildFile` resolves notables/keystones and paths them to the class
@@ -109,11 +123,15 @@ cover.
   style and an accent colour, going by how they're used) isn't confirmed
   against GGG's own docs (blocked from the sandbox this was researched in).
   Verify in-game before relying on either for something visually important.
-- **`Trinket1` vs `Charm1`.** The schema's community source only lists
-  `Charm1`; a real file uses `Trinket1` for the same slot type. Both are
-  accepted here since which one your current patch actually expects wasn't
-  independently confirmed — if in-game highlighting doesn't show up for a
-  charm slot, try the other.
+- **`Trinket1` and `Charm1` are both real.** The schema's community source
+  only lists `Charm1`; the Gemling fixture uses `Trinket1` for the same slot
+  type. Nine more game-accepted files (FGKorbyn21's 0.5 Martial Artist
+  "Giga Bonk" plans, Act 1 through endgame, as found in a real
+  `BuildPlanner/` folder) use `Charm1`, so the game accepts either, and
+  the schema keeps both. The generator uses whichever you pass it; `Charm1`
+  is the safer default, since more of the real sample uses it. Nobody has
+  compared the two in-game to see whether both actually show a hint, so if
+  a charm hint doesn't appear, try the other.
 - **Uniques aren't validated against gear class.** `uniques.findUnique(name)`
   looks a name up and returns its item class as a sanity check, but nothing
   stops `assembleBuildFile` from attaching a boot enchant's name to a
