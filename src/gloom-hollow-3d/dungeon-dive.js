@@ -657,7 +657,9 @@ diffuseColor.rgb *= mix(1.0, 0.42, dPud);
 #ifdef D_DETAIL
 roughnessFactor = mix(roughnessFactor, 0.98, (1.0 - dH) * 0.45);
 roughnessFactor = mix(roughnessFactor, 0.38, dDamp * 0.7);
-roughnessFactor = mix(roughnessFactor, 0.04, dPud);
+// Not mirror-smooth: at ~0.05 a point light's reflection is a pinpoint
+// thousands of times white, which bloom turns into a glowing square.
+roughnessFactor = mix(roughnessFactor, 0.2, dPud);
 #endif`
       )
       .replace(
@@ -796,10 +798,10 @@ void main() {
   vec3 violet = vec3(0.62, 0.22, 1.0);
   vec3 cyan = vec3(0.25, 0.85, 1.0);
   vec3 col = mix(violet, cyan, swirl * core);
-  float glow = core * (0.45 + swirl * 1.3) + ring * 2.6;
+  float glow = core * (0.3 + swirl * 0.9) + ring * 2.0;
   // The eye of the vortex is a black hole, so the swirl has depth.
   glow *= mix(0.15, 1.0, smoothstep(0.05, 0.35, r));
-  gl_FragColor = vec4(col * glow * 2.2, 1.0);
+  gl_FragColor = vec4(col * glow * 0.85, 1.0);
 }`;
 
 // Low mist over the floor: two layers of scrolling noise, brighter around
@@ -1366,7 +1368,7 @@ function defineDive(Base, bestKey) {
           uColor: { value: new THREE.Color(0.5, 0.65, 1.0) },
           uTime: this.U.uTime,
           uNoiseTex: this.U.uNoiseTex,
-          uOpacity: { value: 0.35 },
+          uOpacity: { value: 0.2 },
         },
         vertexShader: PORTAL_VERT,
         fragmentShader: POOL_FRAG,
@@ -2066,46 +2068,62 @@ function defineDive(Base, bestKey) {
       const tx = (t % GW) + 0.5;
       const tz = Math.floor(t / GW) + 0.5;
       if (!this.aG) {
+        // Lazy-deletion heap: entries are (node, f) pairs, a node may sit in
+        // it more than once, and stale copies are skipped via `closed`.
+        // Improving a node's f in place would break the heap order.
         this.aG = new Float32Array(N);
         this.aCame = new Int32Array(N);
         this.aSeen = new Uint32Array(N);
-        this.aHeap = new Int32Array(N * 2);
-        this.aF = new Float32Array(N);
+        this.aClosed = new Uint32Array(N);
+        this.aHeapN = new Int32Array(N * 8);
+        this.aHeapF = new Float32Array(N * 8);
         this.aStamp = 0;
       }
       const stamp = ++this.aStamp;
       const g = this.aG;
       const came = this.aCame;
       const seen = this.aSeen;
-      const f = this.aF;
-      const heap = this.aHeap;
+      const closed = this.aClosed;
+      const HN = this.aHeapN;
+      const HF = this.aHeapF;
+      const cap = HN.length;
       let hn = 0;
-      const push = (i) => {
+      const push = (i, fi) => {
+        if (hn >= cap) return;
         let k = hn++;
-        heap[k] = i;
+        HN[k] = i;
+        HF[k] = fi;
         while (k > 0) {
           const p = (k - 1) >> 1;
-          if (f[heap[p]] <= f[heap[k]]) break;
-          const tmp = heap[p];
-          heap[p] = heap[k];
-          heap[k] = tmp;
+          if (HF[p] <= HF[k]) break;
+          const tn = HN[p];
+          HN[p] = HN[k];
+          HN[k] = tn;
+          const tf = HF[p];
+          HF[p] = HF[k];
+          HF[k] = tf;
           k = p;
         }
       };
       const pop = () => {
-        const top = heap[0];
-        heap[0] = heap[--hn];
+        const top = HN[0];
+        hn--;
+        HN[0] = HN[hn];
+        HF[0] = HF[hn];
         let k = 0;
         for (;;) {
           const l = k * 2 + 1;
           const r = l + 1;
           let m = k;
-          if (l < hn && f[heap[l]] < f[heap[m]]) m = l;
-          if (r < hn && f[heap[r]] < f[heap[m]]) m = r;
+          if (l < hn && HF[l] < HF[m]) m = l;
+          if (r < hn && HF[r] < HF[m]) m = r;
           if (m === k) break;
-          const tmp = heap[m];
-          heap[m] = heap[k];
-          heap[k] = tmp;
+          const tn = HN[m];
+          HN[m] = HN[k];
+          HN[k] = tn;
+          const tf = HF[m];
+          HF[m] = HF[k];
+          HF[k] = tf;
           k = m;
         }
         return top;
@@ -2118,13 +2136,12 @@ function defineDive(Base, bestKey) {
       g[s] = 0;
       seen[s] = stamp;
       came[s] = -1;
-      f[s] = h(s);
-      push(s);
+      push(s, h(s));
       let found = false;
-      let expanded = 0;
-      while (hn > 0 && expanded < 30000) {
+      while (hn > 0) {
         const c = pop();
-        expanded++;
+        if (closed[c] === stamp) continue;
+        closed[c] = stamp;
         if (c === t) {
           found = true;
           break;
@@ -2138,15 +2155,14 @@ function defineDive(Base, bestKey) {
             const nz = cz + dz;
             if (nx < 0 || nz < 0 || nx >= GW || nz >= this.gh) continue;
             const n = nz * GW + nx;
-            if (!this.stand[n] || (pred && !pred(n))) continue;
+            if (closed[n] === stamp || !this.stand[n] || (pred && !pred(n))) continue;
             if (dx && dz && (!this.stand[cz * GW + nx] || !this.stand[nz * GW + cx])) continue;
             const ng = g[c] + (dx && dz ? Math.SQRT2 : 1);
             if (seen[n] === stamp && ng >= g[n]) continue;
             seen[n] = stamp;
             g[n] = ng;
             came[n] = c;
-            f[n] = ng + h(n);
-            push(n);
+            push(n, ng + h(n));
           }
         }
       }
@@ -2907,8 +2923,7 @@ function defineDive(Base, bestKey) {
       for (let t = 0; t < 80; t++) {
         const gx = (room.x + 0.3 + this.rng() * (room.w - 0.6)) * CELL;
         const gz = (room.y + 0.3 + this.rng() * (room.h - 0.6)) * CELL;
-        const s = this.sampleIdx(gx, gz);
-        if (!this.stand[s]) continue;
+        if (!this.canStand(gx, gz, BODY_R)) continue;
         if (avoid.some((a) => dist(a.gx, a.gz, gx, gz) < (a.r || clearance))) continue;
         return { gx: gx, gz: gz };
       }
@@ -2936,7 +2951,7 @@ function defineDive(Base, bestKey) {
         let count;
         if (room.type === "elite") count = 1 + this.rint(0, 2);
         else if (room.type === "treasure") count = this.rint(1, 2) + Math.floor(n / 3);
-        else count = Math.min(8, Math.round(area / 5) + Math.floor((n - 1) / 2) + this.rint(0, 1));
+        else count = Math.min(7, Math.max(1, Math.round(area / 7) + Math.floor((n - 1) / 2) + this.rint(0, 1)));
         const placed = [];
         for (let k = 0; k < count; k++) {
           const elite = room.type === "elite" && k === 0;
@@ -3857,7 +3872,7 @@ function pickQuality() {
   }
   return {
     low: false,
-    pr: Math.min(dpr, 1.75),
+    pr: Math.min(dpr, 1.5),
     msaa: 4,
     shadows: true,
     shadowSize: 1024,

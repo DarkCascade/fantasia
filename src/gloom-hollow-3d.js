@@ -25,7 +25,10 @@
  * equivalent of Phaser's text and graphics objects, and DOM text stays crisp at
  * any canvas resolution.
  *
- * Created on demand via window.launchGloomHollow3D() so the menu stays first.
+ * Created on demand via window.launchGloomHollow3D(), which opens this game's
+ * own mode picker: the arena below ("The Hollow"), or Dungeon Dive
+ * (src/gloom-hollow-3d/dungeon-dive.js), an ES module loaded only when picked
+ * that subclasses Hollow3D and swaps in a generated Kenney-kit dungeon.
  */
 (function () {
   "use strict";
