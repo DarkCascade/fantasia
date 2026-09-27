@@ -158,6 +158,103 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   object with `destroy()` (no arguments — unlike the Phaser games'
   `destroy(true)`), and it exists from the moment the button is pressed so
   returning to the menu mid-load cancels the boot.
+
+  **Title screen and modes.** The menu button no longer drops straight into
+  the arena: `launchGloomHollow3D()` shows Gloom Hollow 3D's own **mode
+  picker** (`TITLE_HTML`, a DOM screen with best lines read from
+  `localStorage`) offering **The Hollow** (the arena above) or **Dungeon
+  Dive**. The handle grew `showTitle()` / `startMode(mode)` / `stopGame()`;
+  every mode start rebuilds the HUD markup from scratch and bumps a `session`
+  counter so a load that finishes after the player backed out is thrown away.
+  In-game `≡` and the death screen's Menu return to the **picker**
+  (`Hollow3D.toMenu()` calls `this.onExit` when the launcher set one); the
+  picker's "◂ Fantasia Menu" is the way out to the site menu. The base class
+  gained three no-op hooks the arena ignores — `monsterEngaged(m, d)`,
+  `chasePoint(m)`, `canShoot(m)` — which is all Dungeon Dive needed to change
+  in the shared update loop.
+- **Dungeon Dive** (`src/gloom-hollow-3d/dungeon-dive.js`) — the second Gloom
+  Hollow 3D mode: find the descent portal on a generated floor built from
+  **Kenney's Modular Dungeon Kit** (CC0, `src/gloom-hollow-3d/kit/` — the
+  **third exception to the no-external-assets rule**, after Bark Quest's PNGs
+  and the Slopeman snowman). It's an **ES module imported on demand** only
+  when the mode is picked, and `class DungeonDive extends Hollow3D` — the
+  launcher passes its `THREE`, the `Hollow3D` class and a small `api` of
+  shared tuning/helpers into `createDungeonDive(ctx)`. Combat, bolts, nova,
+  telegraphs, boons, HUD and all input are the arena's code; the subclass
+  replaces the world, collision and renderer. Because `super()` calls the
+  overridden `setupRenderer`/`startRun` before any subclass field exists,
+  per-page state (the loaded kit, generated textures, quality tier) lives in
+  module-level variables set before construction, not instance fields.
+  - **Layout.** The kit is modelled on a 4-unit grid; `KIT_SCALE = 0.6` makes
+    one kit cell `CELL = 2.4` game tiles and a wall ~2.5 tall. The
+    `generateFloor(rng, n)` generator (pure; exported) scatters 7–10 rooms of
+    3–5 cells on a 22×22 cell map with a one-cell gap, joins them with a Prim
+    MST of L-shaped corridors plus a few loops, hangs 2–4 dead-end **spurs**
+    off corridors (chest alcoves), puts the exit in the room farthest by
+    walking distance and rolls a room type (`battle`/`elite`/`treasure`/
+    `empty`; start is always `start`). Kit pieces used: `template-floor`
+    (+2 detail variants), `template-wall` (+detail), `template-corner` (the
+    rounded piece — used for **any** floor cell with exactly two
+    perpendicular void sides, so room corners and corridor turns are
+    curved), `template-wall-corner` posts at convex vertices, `template-detail`
+    pillars in 5-wide rooms, `gate` arches / `gate-door` (door leaf swings
+    open as you or an awake monster approaches) at doorways, and
+    `gate-metal-bars` as barred alcoves into black cells. All static kit
+    geometry is **InstancedMesh** per piece. Wall orientation: the kit wall
+    sits on its local z=0 line and extends toward -z, so `DIRS[].rot` turns
+    local -z to face into the cell. Measure new pieces before trusting them.
+  - **Collision** is a bitmap at `SUB = 10` samples per cell (0.24 tiles):
+    void cells, `WALL_T` strips on void edges, the rounded corner's arc
+    (`CORNER_R`), posts, gate pillars, props and chests. `stand` precomputes
+    `canStand(BODY_R)` per sample. The exile's walk orders go through **A\***
+    (8-connected, lazy-deletion heap — improving a node's f in place broke
+    the heap and silently lost paths once; keep it lazy) then string-pulled,
+    and may only route through **discovered** cells. Hunting monsters with no
+    line of sight follow a BFS **flow field** from the exile. Monsters sleep
+    until they have distance + LOS (`monsterEngaged`), wake their whole room,
+    and give up past `LEASH`; bolts and the nova need LOS; closed doors block
+    sight.
+  - **Scoring**: kills, chests (common / rare), a floor bonus, an exploration
+    bonus (`PTS.explore` × fraction of floor cells revealed) when you enter
+    the portal, and a purge bonus for killing everything — all ×`floorMult()`.
+    The portal opens the arena's **boon picker** (retitled "FLOOR n
+    CLEARED"); `nextWaveAfterChoice` builds the next floor. A bot that rushes
+    each portal clears ~5–6 floors with a handful of kills; exploring pays
+    roughly 3× per floor in points, which is the intended trade. Best is
+    `{score, floor}` in `localStorage` (`gloom-hollow-3d-dive-best`).
+  - **Rendering** (the "go to 11" brief): HDR `EffectComposer` — RenderPass
+    (4× MSAA half-float target) → **GTAO** (desktop) → a **sanitize** pass
+    (zeroes NaN/Inf, clamps to 10) → **Unreal bloom** (threshold 1.0, so only
+    true emitters bloom) → OutputPass (ACES) → a custom **grade** pass
+    (chromatic fringe, split-tone grade, vignette, grain, hurt/low-life
+    response, the descend fade). One `onBeforeCompile` hook (`shadeHook`,
+    feature-flagged per material) adds: **triplanar procedural detail** —
+    1024² brick and Voronoi-flagstone height/normal sets generated at runtime
+    (`makeBricks`/`makeFlagstones`) layered over the kit's palette albedo with
+    whiteout-blended normals, grout darkening, damp wall bases and **puddles**
+    (flattened normals, roughness 0.2 — not lower: a near-mirror puddle
+    reflects the exile's light as a pinpoint thousands of times white that
+    bloom turns into a glowing square); the **wall cutaway** (walls in front
+    of the exile dissolve in a noisy, rimmed screen-space circle); the
+    **fog-of-war mask** (`exploreTex`, R = revealed, G = floor; revealed by
+    walking distance so nothing shows through walls); and a fresnel **rim**
+    on bodies. Lights are a **fixed pool** (exile's shadow-casting light,
+    `torchLights` handed to the nearest discovered torches, portal, one
+    reusable flash light) so the light count — and so every shader — never
+    changes. Also: noise-driven fire billboards and halos, loot beams, a
+    swirling portal disc with a canvas rune ring, moonlight shafts with dust,
+    floor mist, and CPU point-sprite particle pools (`Particles`, additive +
+    smoke). Keep lights well clear of surfaces — inverse-square light a few
+    cm from a mesh blows it to a bloom square (the exile's light rides a
+    metre above the head for that reason).
+  - **Quality tiers**: coarse-pointer devices get `QUALITY.low` (no MSAA,
+    shadows or GTAO, 3 torch lights, 512² detail textures, pixel ratio ≤1.25,
+    `powerPreference: "default"`); everyone gets **adaptive resolution**
+    (`trackPerf`: drop GTAO first, then pixel ratio). A null WebGL context
+    throws (the launcher shows the message) and `webglcontextlost` shows a
+    fatal panel, per the Slopeman lessons. Debug URL params: `?gh3q=low|high`
+    (force a tier and fix resolution), `?gh3seed=N` (reproducible floors),
+    `?gh3ao=0` (no GTAO).
 - **Bark Quest** (`src/bark-quest.js`) — a Puzzle-Quest-style match-3 battler on
   the last slot of menu page 2. Miles, a red doberman, faces an endless line of
   foes on a repeating three-foe rotation (`FOE_ORDER`): fox, squirrel, wolf,
@@ -527,7 +624,9 @@ src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
 src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
 src/indie-grind.js     Indie Grind incremental dev-studio game; window.launchIndieGrind()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
-src/gloom-hollow-3d.js Gloom Hollow 3D (three.js); window.launchGloomHollow3D()
+src/gloom-hollow-3d.js Gloom Hollow 3D (three.js) + its mode picker; window.launchGloomHollow3D()
+src/gloom-hollow-3d/dungeon-dive.js  Dungeon Dive mode (ES module, imported on demand; extends Hollow3D)
+src/gloom-hollow-3d/kit/  Kenney Modular Dungeon Kit pieces (CC0 .glb + palette PNGs, License.txt)
 src/bark-quest.js      Bark Quest match-3 battler; window.launchBarkQuest()
 src/bark-quest/         Miles' two stances + the three foe cut-outs (art not drawn at runtime)
 src/slopeman.js        The Abominable Slopeman downhill dodger (three.js); window.launchSlopeman()
@@ -538,7 +637,8 @@ src/greenlit.js        Greenlit Reigns-style game-dev card game (DOM overlay); w
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
-vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitControls, BufferGeometryUtils)
+vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitControls, BufferGeometryUtils,
+                       postprocessing: EffectComposer/RenderPass/ShaderPass/UnrealBloomPass/OutputPass/GTAOPass + their shaders)
 experiments/           Scratch prototypes kept out of the deploy's copy step; never shipped
 experiments/neon-ledger/  NEON//LEDGER: local-only Python/Streamlit personal-finance analyser (not a game; ./run.sh; see its README)
 experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules sim + balance sweeps, printable PDFs in dist/, Meshy mini prompts); not deployed
@@ -586,6 +686,18 @@ experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real mo
   paste back — this is the only channel to a real device's diagnostics
   from here, so don't rely on remote debugging (`chrome://inspect`) as the
   only option; it needs a computer and USB access the user may not have handy.
+- **Headless Chromium on SwiftShader renders the heavier three.js scenes at
+  ~3 fps**, and the game clamps each frame to 50 ms, so "wait N seconds and
+  check" tests barely move anything. For Dungeon Dive, step the sim yourself
+  inside `page.evaluate` (`g.now += 50; g.update(0.05); g.runFx();` in a
+  loop) and screenshot afterwards — but expect the next *real* frame to
+  rewind `now`, so effects mid-flight look wrong for a frame. Useful probes:
+  `window.gloom3DGame.game` is the live `DungeonDive`; `g.findPath`,
+  `g.buildFloor(n)`, `g.gen` (the generator output) and `g.stand`/`g.solid`
+  (collision) are all reachable for assertions.
+- **kenney.nl is reachable only if the environment's network policy allows
+  it** (it was added for the Dungeon Dive work). The kit zip lives at a
+  `kenney.nl/media/pages/assets/<name>/…zip` URL scraped from the asset page.
 - **The live `*.github.io` site is NOT reachable from the sandbox** (network
   policy blocks it). Do **not** verify deploys by curling the live URL — it will
   hang/000. Instead check the **GitHub Actions run** (status/conclusion) via the
@@ -650,7 +762,8 @@ experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real mo
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
   `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame`) and
-  re-shows the menu. All of those are Phaser
+  re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
+  see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
   `indieGrindGame`, `slopemanGame` and `greenlitGame`, whose handles take a
   plain `destroy()`.
