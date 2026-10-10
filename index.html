@@ -268,64 +268,7 @@
       pointer-events: none;
     }
 
-    /* "Under construction" modal (Underfoot). */
-    #uc-modal {
-      position: fixed;
-      inset: 0;
-      z-index: 40;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 6vw;
-      background: rgba(4, 2, 14, 0.7);
-    }
 
-    #uc-modal.is-open { display: flex; }
-
-    .uc-card {
-      max-width: 88vw;
-      padding: clamp(26px, 6vw, 42px) clamp(28px, 7vw, 48px);
-      text-align: center;
-      border: 3px solid #ffd23f;
-      border-radius: 18px;
-      background: linear-gradient(180deg, #2c3170 0%, #14173a 100%);
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-    }
-
-    .uc-text {
-      font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
-      font-size: clamp(28px, 8vw, 46px);
-      font-weight: 700;
-      color: #ffe7a3;
-      text-shadow: 0 2px 0 rgba(74, 38, 0, 0.5);
-    }
-
-    .uc-sub {
-      margin-top: 10px;
-      font-family: "Palatino Linotype", Palatino, Georgia, serif;
-      font-style: italic;
-      color: #cfe0ff;
-      font-size: clamp(14px, 4vw, 17px);
-    }
-
-    .uc-close {
-      margin-top: clamp(18px, 3.5vh, 26px);
-      font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
-      font-size: clamp(16px, 4.5vw, 20px);
-      color: #3a2500;
-      border: 2px solid #ffe9ad;
-      border-radius: 12px;
-      padding: 10px 24px;
-      cursor: pointer;
-      background: linear-gradient(180deg, #ffe7a3 0%, #f0b94a 100%);
-      box-shadow: 0 5px 0 #8a5a12;
-      transition: transform 0.06s ease, box-shadow 0.06s ease;
-    }
-
-    .uc-close:active {
-      transform: translateY(3px);
-      box-shadow: 0 2px 0 #8a5a12;
-    }
   </style>
 </head>
 <body>
@@ -358,8 +301,8 @@
           </button>
         </div>
         <div class="menu-page" id="page-2" aria-hidden="true">
-          <button id="btn-underfoot" class="menu-btn menu-btn--secondary" type="button">
-            Underfoot
+          <button id="btn-thebutton" class="menu-btn menu-btn--secondary" type="button">
+            The Button
           </button>
           <button id="btn-gloom" class="menu-btn menu-btn--secondary" type="button">
             Gloom Hollow
@@ -399,15 +342,6 @@
     <button class="menu-arrow menu-arrow--right" id="page-next" type="button" aria-label="Next page">→</button>
   </div>
 
-  <!-- "Under construction" modal (Underfoot, page 2). -->
-  <div id="uc-modal" role="dialog" aria-modal="true" aria-label="Under construction">
-    <div class="uc-card">
-      <div class="uc-text">under construction</div>
-      <div class="uc-sub">Underfoot isn't ready to explore yet.</div>
-      <button id="uc-close" class="uc-close" type="button">OK</button>
-    </div>
-  </div>
-
   <!-- Phaser 4, vendored locally so the games are fully self-contained and work offline. -->
   <script src="vendor/phaser.min.js"></script>
   <script src="src/game.js"></script>
@@ -426,6 +360,7 @@
   <script src="src/slopeman.js"></script>
   <script src="src/planetary-tycoon.js"></script>
   <script src="src/greenlit.js"></script>
+  <script src="src/the-button.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -518,20 +453,9 @@
         if (typeof window.launchGreenlit === "function") window.launchGreenlit();
       });
 
-      // Underfoot (page 2) -> "under construction" modal.
-      var ucModal = document.getElementById("uc-modal");
-      document.getElementById("btn-underfoot").addEventListener("click", function () {
-        ucModal.classList.add("is-open");
-      });
-      function closeUc() {
-        ucModal.classList.remove("is-open");
-      }
-      document.getElementById("uc-close").addEventListener("click", closeUc);
-      ucModal.addEventListener("click", function (e) {
-        if (e.target === ucModal) closeUc();
-      });
-      document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape") closeUc();
+      document.getElementById("btn-thebutton").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchTheButton === "function") window.launchTheButton();
       });
 
       // Return to the Fantasia menu from within a game: show the menu and tear
@@ -555,6 +479,7 @@
           if (window.indieGrindGame) { try { window.indieGrindGame.destroy(); } catch (e) {} window.indieGrindGame = null; }
           if (window.slopemanGame) { try { window.slopemanGame.destroy(); } catch (e) {} window.slopemanGame = null; }
           if (window.tycoonGame) { try { window.tycoonGame.destroy(true); } catch (e) {} window.tycoonGame = null; }
+          if (window.theButtonGame) { try { window.theButtonGame.destroy(); } catch (e) {} window.theButtonGame = null; }
           if (window.greenlitGame) { try { window.greenlitGame.destroy(); } catch (e) {} window.greenlitGame = null; }
         }, 0);
       };

@@ -256,7 +256,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     (force a tier and fix resolution), `?gh3seed=N` (reproducible floors),
     `?gh3ao=0` (no GTAO).
 - **Bark Quest** (`src/bark-quest.js`) — a Puzzle-Quest-style match-3 battler on
-  the last slot of menu page 2. Miles, a red doberman, faces an endless line of
+  menu page 1. Miles, a red doberman, faces an endless line of
   foes on a repeating three-foe rotation (`FOE_ORDER`): fox, squirrel, wolf,
   with the wolf still anchoring every third fight as the hard one. The
   squirrel is the skirmisher — least Courage and the weakest bark, but the
@@ -609,6 +609,46 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   `destroy()` takes no arguments, and `window.greenlitGame.career` exposes
   the model for headless assertions. Only the best single release persists
   (`localStorage` `greenlit-best-hit`); the career resets on teardown.
+- **The Button** (`src/the-button.js`) — first slot of menu page 2 (it replaced
+  the old "Underfoot" under-construction placeholder, whose modal is gone), and
+  a game that is 1% gameplay and 99% juice: press a button, the number goes up
+  by **exactly one**, and every system exists only to make that +1 feel
+  enormous. A **DOM overlay** (`#bt-root`, `<style id="bt-style">`) with two
+  canvases: a background one (hue-cycling sunburst, warp starfield, bokeh, and
+  the namesake **juice** — a wavy liquid that rises up both screen edges as
+  you push, with bubbles and drips) and a particle one on top (sparks,
+  confetti, stars, coins, shockwave rings, fireworks, the floating "+1"s).
+  No assets: all sound is **WebAudio-synthesised** (`Sfx`: kick + click + a
+  pentatonic note that climbs with the combo, reverb sparkle, tier-up risers,
+  milestone arpeggios) and the AudioContext is only created on the first push
+  (autoplay policy). Load-bearing ideas:
+  - **Combo → `heat`.** Pushes within `COMBO_WINDOW` (0.85s) build a combo;
+    `heat = combo / HEAT_FULL` (smoothed, rises fast / decays slow) scales
+    *everything* — particle counts, shake, ray speed, embers off the button,
+    sound brightness, rainbow rays. `TIERS` (NICE … TRANSCENDENT) fire a
+    tier-up banner/flash/hit-stop; a 5% **crit** ("CRITICAL ONE!") is purely
+    visual — the number still goes up by one.
+  - **Milestones** (`milestoneLevel`): level 1 every 10th, level 2 at 25/50/69/
+    100s/250/500, level 3 every 1000 — slow-mo, confetti cannons, coin
+    shower, a volley of rockets (`rocket` → `explode` via a particle `die`
+    callback), banner, fanfare. The break-reminder toasts are intentional.
+  - **Spring physics everywhere** (`Spring`: button cap, score, tier, combo,
+    zoom) plus a trauma-model screen shake, hit-stop (`freeze`, real-time) and
+    slow-mo (`slowT`/`slowScale`), chromatic RGB split on the score. Timers
+    (`after()`) run on real time so slow-mo doesn't stretch fireworks.
+  - **Calm mode** (`JUICE: CALM`, default ON under `prefers-reduced-motion`)
+    cuts flashes, shake, slow-mo and particle counts to ~40%; there is also a
+    mute chip. Keep both when adding effects — gate flashes/shake on `calm`.
+  - **Adaptive quality**: `q` (0.35–1) drops when the frame rate EMA falls
+    under ~34 fps and scales every spawn count and the particle cap (headless
+    SwiftShader sits at 0.35).
+  - Layout is computed in JS (`layout()`: portrait/desktop stacks the score
+    over the button; phone landscape puts the HUD left, button right) and
+    pushed into CSS vars (`--bx/--by/--bs/--hx/--ht/--ns`). Persistence:
+    `the-button-count` (lifetime pushes — the number you left at is the number
+    you return to), `the-button-best-combo`, `the-button-calm`,
+    `the-button-mute`. `window.theButtonGame.destroy()` takes no arguments;
+    `.game.push()` is handy for headless tests.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -634,6 +674,7 @@ src/slopeman/          Decimated snowman .glb (art not drawn at runtime)
 src/nova-merge/nova-merge.js  Nova Merge physics merge game; window.launchNovaMerge()
 src/planetary-tycoon.js  Planetary Manufacturing Tycoon incremental factory game; window.launchPlanetaryTycoon()
 src/greenlit.js        Greenlit Reigns-style game-dev card game (DOM overlay); window.launchGreenlit()
+src/the-button.js      The Button — all-juice button pusher (DOM + 2 canvases, WebAudio); window.launchTheButton()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
@@ -754,19 +795,19 @@ experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real mo
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
-  `launchPlanetaryTycoon`, `launchGreenlit`);
+  `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
   `window.returnToMenu()` tears down whichever game is running (`window.game` /
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
-  `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame`) and
+  `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
   see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
-  `indieGrindGame`, `slopemanGame` and `greenlitGame`, whose handles take a
-  plain `destroy()`.
+  `indieGrindGame`, `slopemanGame`, `greenlitGame` and `theButtonGame`, whose
+  handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
