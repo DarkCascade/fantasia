@@ -1730,10 +1730,15 @@
 
   const GRASS_CLUMPS = ["grass_a", "grass_b", "grass_c"];
   const GRASS_PICK = ["grass_a", "grass_b", "grass_b", "grass_c", "grass_c"]; // grass_a is the pricey pom-pom (243 tris, can't decimate further), so it is drawn less
-  // per-chunk counts at full density; touch screens get half (triangles, not draw calls, are the cost)
-  const GRASS_VERGE = 70;
-  const GRASS_PATCHES = 8;
-  const GRASS_DENSITY = window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? 0.5 : 1;
+  // per-chunk counts at full density; touch screens get half (triangles, not draw calls, are the cost).
+  // ?grass=N overrides the density multiplier (e.g. ?grass=1 on a phone, ?grass=0 for none).
+  const GRASS_VERGE = 210;
+  const GRASS_PATCHES = 24;
+  const GRASS_DENSITY = (() => {
+    const q = parseFloat(new URLSearchParams(location.search).get("grass"));
+    if (isFinite(q) && q >= 0) return q;
+    return window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? 0.5 : 1;
+  })();
   const PROP_SHADOW ={ tree: 1.0, pine: 0.9, bush: 0.75, rock: 0.8, mushroom: 0.4, grass: 0.3 };
 
   class Scenery {

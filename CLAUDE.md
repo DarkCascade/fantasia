@@ -740,13 +740,14 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     text-to-3d refine) at ~2.9k tris, baked down to 243 / 150 / 110 (`grass_a`
     is 30 closed blobs and can't decimate below ~8 tris each, so `GRASS_PICK`
     draws it half as often). The hero path is deliberately **overgrown**: they
-    are not individual meshes — `Scenery.buildGrass` scatters ~130 per chunk (a
+    are not individual meshes — `Scenery.buildGrass` scatters up to ~390 per chunk (a
     verge of `GRASS_VERGE` clumps hugging both road edges with a pow(rng, 2.4)
     falloff, `GRASS_PATCHES` looser patches, a few loners; own rng stream;
     arenas stay clear via the same box test props use) and merges them into one
-    mesh per chunk, so density costs **triangles, not draw calls**: ~150–230k
+    mesh per chunk, so density costs **triangles, not draw calls**: ~240–290k
     tris in view in a headless iso shot, so touch screens get `GRASS_DENSITY`
-    0.5. If perf bites, lower those constants first. See
+    0.5 (override with `?grass=N`, e.g. `?grass=1` / `?grass=0`). If perf bites,
+    lower those constants first. See
     `experiments/chibi-level-art/README.md`.
   - **Not done yet** (obvious next steps): audio, player agency (formation
     drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
