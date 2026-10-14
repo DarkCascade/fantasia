@@ -649,6 +649,72 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     you return to), `the-button-best-combo`, `the-button-calm`,
     `the-button-mute`. `window.theButtonGame.destroy()` takes no arguments;
     `.game.push()` is handy for headless tests.
+- **Chibi Crawl** (`src/chibi-crawl.js`) — an isometric, cutesy-chibi **party
+  auto-battler** on three.js (DOM HUD, three imported on demand like Slopeman),
+  alone on **menu page 4** (`PAGE_COUNT` is 4; page 4 has its own `translateX`
+  rules). A first-draft *lab*: nothing to press, an endless loop of **run →
+  sight → intro → battle → victory/wipe → run**, with most design questions
+  exposed as live settings (⚙ sheet or hotkeys, persisted in
+  `localStorage` `chibi-crawl-settings`; best win streak in
+  `chibi-crawl-best-fights`). The party (Knight / Mage / Cleric) jogs a
+  **winding, endlessly scrolling path** (`Course`: arenas planned ahead,
+  dead-straight through each arena's flat clearing, eased + wiggled between
+  them, so the battle axis is always +x); scenery is recycled **chunks**
+  (`CHUNK` long: a road ribbon + merged vertex-coloured props from
+  `buildProp`, one draw call per prop, plus one merged blob-shadow mesh) and a
+  ground plane snapped to its texture period; four **biomes** (Meadow /
+  Blossom / Autumn / Frost) blend ground + sky colour and swap prop palettes
+  every `BIOME_LEN`. Characters are toon-shaded primitives with inverted-hull
+  outlines; every unit owns its own materials (so hit-flash can drive
+  `emissive`) and shares unit geometries. `Game.step(dt)` is the simulation
+  and is independent of rendering — drive it headlessly (see below).
+  - **Experiments.** *Camera view* (Iso/Low/Tactical/Side = pitch/azimuth/
+    dist/fov of ONE damped perspective camera, so changing it mid-fight is a
+    dolly-zoom; portrait phones swing azimuth toward over-the-shoulder and
+    raise pitch, since the battle axis would otherwise need huge width).
+    *Battle camera*: **Fixed** (one arena shot from the static slot
+    footprint), **Fit** (`fit()` reframes to the live combatants' bounds in
+    camera-right/forward space) or **Director** (Fit + `Director` shots).
+    *Formations* (Wedge/Line/Column/Stagger via `formationSlot`, separately for
+    party and pack; the same slots drive run and fight, so changing it live
+    reshuffles everyone), *pack size* (1–6 or random; applies to the next
+    encounter, or re-rolls the pending one if the pack hasn't been sighted),
+    *UI* (Heads = DOM bars projected over heads / Panel = bottom party cards /
+    Both; in Panel mode foes only show a bar for 3s after being hit), *speed*.
+    Hotkeys: C B F E G U, 1/2/3, P (pause).
+  - **Director** (feasibility findings). Shots have a priority, hold and
+    ease in/out; a lower-priority event can't interrupt a holding higher one.
+    Routine hero swings only *nudge* (and only if idle, ≥0.5s apart) —
+    reacting to every swing made the camera constantly in motion. The big
+    ones are crits, kills, heals, the three hero specials (Whirlwind close-up
+    with slow-mo, Meteor that pans caster → impact point, Blessing pull-back),
+    the king's Body Slam, and a slow-mo **finishing shot** on the last kill.
+    Because shots blend *on top of* the Fit frame (strength 0..1), the whole
+    fight always stays framed and a shot ending just drifts back. Shots clamp
+    to a minimum distance (`3.3/tan(fov/2)`) and are zoomed less on portrait.
+    Hit-stop (`hitstopT`) and slow-mo (`slow`) are real-time timers feeding
+    `timeScale`; the sim never sees them directly.
+  - **Combat.** Units run a small act state machine (`Unit.stepAct`): melee
+    = dash → wind-up → strike → recover → return; ranged = cast → projectile.
+    Heroes have a special meter (+9 dealt, +7 taken) that auto-fires at 100,
+    one special at a time (`specialLock`). Cleric heals the most-hurt ally
+    below 62% and Blessing revives the fallen. Enemies: Slime, Shroom, Bat
+    (hunts the weakest hero) and a **King Slime boss every 5th fight**
+    (Body Slam). Party levels every `LEVEL_EVERY` wins; foes scale
+    `FOE_SCALE_PER_FIGHT` per fight. **Nobody permanently loses**: KO'd heroes
+    revive after the fight, and a full wipe is a "nap" — heroes get back up and
+    the loop continues (streak resets).
+  - **Headless testing.** `window.chibiCrawlGame.game` is the live `Game`.
+    Step it with `g.step(1/30)` in `page.evaluate` (no rendering needed; call
+    `g.renderFrame(dt)` only to refresh HUD/scenery before a screenshot), `g.
+    paused = true` to freeze for a shot, `g.camOverride = {x,z,dist,az,pitch,
+    fov}` + `g.updateCamera(dt, true)` for close-ups, `?cc=<seed>` for
+    reproducible courses. 150 fights run in ~10s headless and the loop stays
+    flat on scene objects/geometries/DOM (checked). SwiftShader needs the same
+    Chromium flags as the other three.js games.
+  - **Not done yet** (obvious next steps): audio, player agency (formation
+    drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
+    colour-blind-safe damage palette.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -675,6 +741,7 @@ src/nova-merge/nova-merge.js  Nova Merge physics merge game; window.launchNovaMe
 src/planetary-tycoon.js  Planetary Manufacturing Tycoon incremental factory game; window.launchPlanetaryTycoon()
 src/greenlit.js        Greenlit Reigns-style game-dev card game (DOM overlay); window.launchGreenlit()
 src/the-button.js      The Button — all-juice button pusher (DOM + 2 canvases, WebAudio); window.launchTheButton()
+src/chibi-crawl.js     Chibi Crawl isometric chibi party auto-battler (three.js, DOM HUD); window.launchChibiCrawl()
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
@@ -795,19 +862,20 @@ experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real mo
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
-  `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`);
+  `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
   `window.returnToMenu()` tears down whichever game is running (`window.game` /
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
-  `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame`) and
+  `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame` /
+  `chibiCrawlGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
   see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
-  `indieGrindGame`, `slopemanGame`, `greenlitGame` and `theButtonGame`, whose
-  handles take a plain `destroy()`.
+  `indieGrindGame`, `slopemanGame`, `greenlitGame`, `theButtonGame` and
+  `chibiCrawlGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The

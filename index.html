@@ -147,7 +147,8 @@
     }
 
     #page-2,
-    #page-3 {
+    #page-3,
+    #page-4 {
       position: absolute;
       top: 0;
       left: 0;
@@ -157,14 +158,22 @@
     /* Default (page 1): pages 2 and 3 wait off to the right. */
     #page-2 { transform: translateX(120%); }
     #page-3 { transform: translateX(240%); }
+    #page-4 { transform: translateX(360%); }
 
     #menu-screen[data-page="2"] #page-1 { transform: translateX(-120%); }
     #menu-screen[data-page="2"] #page-2 { transform: translateX(0); }
     #menu-screen[data-page="2"] #page-3 { transform: translateX(120%); }
+    #menu-screen[data-page="2"] #page-4 { transform: translateX(240%); }
 
     #menu-screen[data-page="3"] #page-1 { transform: translateX(-240%); }
     #menu-screen[data-page="3"] #page-2 { transform: translateX(-120%); }
     #menu-screen[data-page="3"] #page-3 { transform: translateX(0); }
+    #menu-screen[data-page="3"] #page-4 { transform: translateX(120%); }
+
+    #menu-screen[data-page="4"] #page-1 { transform: translateX(-360%); }
+    #menu-screen[data-page="4"] #page-2 { transform: translateX(-240%); }
+    #menu-screen[data-page="4"] #page-3 { transform: translateX(-120%); }
+    #menu-screen[data-page="4"] #page-4 { transform: translateX(0); }
 
     .menu-btn {
       font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
@@ -262,8 +271,8 @@
     .menu-arrow:active { transform: scale(0.9); }
 
     /* Hide the right arrow on the last page, the left arrow on the first page. */
-    #menu-screen[data-page="3"] .menu-arrow--right,
-    #menu-screen:not([data-page="2"]):not([data-page="3"]) .menu-arrow--left {
+    #menu-screen[data-page="4"] .menu-arrow--right,
+    #menu-screen:not([data-page="2"]):not([data-page="3"]):not([data-page="4"]) .menu-arrow--left {
       opacity: 0;
       pointer-events: none;
     }
@@ -334,6 +343,11 @@
             Greenlit
           </button>
         </div>
+        <div class="menu-page" id="page-4" aria-hidden="true">
+          <button id="btn-chibicrawl" class="menu-btn menu-btn--secondary" type="button">
+            Chibi Crawl
+          </button>
+        </div>
       </div>
     </div>
 
@@ -361,6 +375,8 @@
   <script src="src/planetary-tycoon.js"></script>
   <script src="src/greenlit.js"></script>
   <script src="src/the-button.js"></script>
+  <!-- Imports three.js (+ BufferGeometryUtils) on demand, same as slopeman.js. -->
+  <script src="src/chibi-crawl.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -397,7 +413,7 @@
       });
 
       // Page carousel: step between the pages of game buttons.
-      var PAGE_COUNT = 3;
+      var PAGE_COUNT = 4;
       function currentPage() {
         return parseInt(menu.dataset.page, 10) || 1;
       }
@@ -458,6 +474,11 @@
         if (typeof window.launchTheButton === "function") window.launchTheButton();
       });
 
+      document.getElementById("btn-chibicrawl").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchChibiCrawl === "function") window.launchChibiCrawl();
+      });
+
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying
       // mid-callback).
@@ -480,6 +501,7 @@
           if (window.slopemanGame) { try { window.slopemanGame.destroy(); } catch (e) {} window.slopemanGame = null; }
           if (window.tycoonGame) { try { window.tycoonGame.destroy(true); } catch (e) {} window.tycoonGame = null; }
           if (window.theButtonGame) { try { window.theButtonGame.destroy(); } catch (e) {} window.theButtonGame = null; }
+          if (window.chibiCrawlGame) { try { window.chibiCrawlGame.destroy(); } catch (e) {} window.chibiCrawlGame = null; }
           if (window.greenlitGame) { try { window.greenlitGame.destroy(); } catch (e) {} window.greenlitGame = null; }
         }, 0);
       };
