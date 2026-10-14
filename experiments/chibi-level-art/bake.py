@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Bake Meshy level-art GLBs into src/chibi-crawl/props.json.
 
-Usage: python3 -I bake.py <dir with <name>.glb> <out.json>
+Usage: python3 -I bake.py <dir with <name>.glb> <out.json> [name ...]
+  With names, only those props are (re)baked and merged into an existing <out.json>.
   pip install trimesh fast-simplification scipy rtree networkx numpy pillow
 
 Each Meshy model is: normalised (y-up, sitting on y=0, scaled to game size),
@@ -28,6 +29,11 @@ SPECS = {
     # pond: Meshy's came out as a flat disc that vertex colour can't hold detail on,
     # so the game keeps its primitive pond.
     "grass":    (550, "w", 1.05, 1.0, "green", ("grey", 0.20)),
+    # grass_a/b/c: three clumps from Meshy *smart topology* (meshy-t2.5, ~3k tris, no ground
+    # slab) decimated hard, since dozens are on screen at once. Don't need the slab rule.
+    "grass_a":  (160, "w", 0.85, 1.0, "green", None),
+    "grass_b":  (240, "w", 1.15, 1.0, "green", None),
+    "grass_c":  (180, "w", 1.0,  1.0, "green", None),
 }
 
 TRUNK = {"tree": (0.34, 0.5), "pine": (0.2, 0.62)}  # name: (height fraction, radius fraction)
@@ -90,7 +96,7 @@ def bake(name, glb, spec):
     # drop tiny floating shards
     comps = d.split(only_watertight=False)
     big = max(len(c.faces) for c in comps)
-    floor = 1.0 if name == "mushroom" else 0.03  # mushroom: stem+cap only, no base weeds
+    floor = 1.0 if name == "mushroom" else 0.003 if name.startswith("grass_") else 0.03  # mushroom: stem+cap only, no base weeds; grass_*: every blade is its own piece
     d = trimesh.util.concatenate([c for c in comps if len(c.faces) >= floor * big])
     v = np.asarray(d.vertices, dtype=np.float64)
     # normalise: sit on y=0, centred in xz (by bbox), scale
@@ -137,6 +143,8 @@ def bake(name, glb, spec):
 
 if __name__ == "__main__":
     src_dir, out_path = sys.argv[1], sys.argv[2]
-    res = {n: bake(n, f"{src_dir}/{n}.glb", s) for n, s in SPECS.items()}
+    only = sys.argv[3:]
+    res = json.load(open(out_path)) if only else {}
+    res.update({n: bake(n, f"{src_dir}/{n}.glb", s) for n, s in SPECS.items() if not only or n in only})
     json.dump(res, open(out_path, "w"), separators=(",", ":"))
     print("wrote", out_path)

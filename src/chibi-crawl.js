@@ -1728,7 +1728,8 @@
 
   /* ---------- scenery: ground, road, props, arena decals ---------- */
 
-  const PROP_SHADOW = { tree: 1.0, pine: 0.9, bush: 0.75, rock: 0.8, mushroom: 0.4, grass: 0.3 };
+  const GRASS_CLUMPS = ["grass_a", "grass_b", "grass_c"];
+  const PROP_SHADOW ={ tree: 1.0, pine: 0.9, bush: 0.75, rock: 0.8, mushroom: 0.4, grass: 0.3 };
 
   class Scenery {
     constructor(g) {
@@ -1846,8 +1847,57 @@
         sm.frustumCulled = false;
         group.add(sm);
       }
+      const geos = sg ? [rg, sg] : [rg];
+
+      // grass clumps: dozens per chunk, so they are baked into ONE merged mesh
+      // (one draw call) and kept to a couple of hundred tris each
+      const cg = this.buildGrass(ci, biome);
+      if (cg) {
+        group.add(new THREE.Mesh(cg, this.propMat));
+        geos.push(cg);
+      }
       this.group.add(group);
-      return { group: group, geos: sg ? [rg, sg] : [rg] };
+      return { group: group, geos: geos };
+    }
+
+    // Loose patches of 3 baked clump variants plus a few loners, tinted per
+    // biome. Own rng stream so adding/removing them never reshuffles the props.
+    buildGrass(ci, biome) {
+      if (!PROP_DATA || !GRASS_CLUMPS.every((t) => PROP_DATA[t])) return null;
+      const course = this.g.course;
+      const rng = mulberry32(hash2(ci + 9000, this.g.seed));
+      const x0 = ci * CHUNK;
+      const placed = [];
+      const spot = (cx, cz, r) => {
+        const x = cx + (rng() * 2 - 1) * r;
+        const zc = course.z(x);
+        const z = cz + (rng() * 2 - 1) * r;
+        if (Math.abs(z - zc) < ROAD_HALF + 0.45) return;
+        for (const a of course.arenas) if (Math.abs(x - a.x) < 12.5 && Math.abs(z - a.z) < 11) return;
+        const geo = buildProp(GRASS_CLUMPS[Math.floor(rng() * GRASS_CLUMPS.length)], biome.leaf[Math.floor(rng() * 3)], 0).geo;
+        const g = geo.clone();
+        g.applyMatrix4(
+          new THREE.Matrix4().compose(
+            _v().set(x, 0, z),
+            new THREE.Quaternion().setFromAxisAngle(_v().set(0, 1, 0), rng() * TAU),
+            _v().setScalar(0.75 + rng() * 0.6)
+          )
+        );
+        placed.push(g);
+      };
+      for (let p = 0; p < 5; p++) {
+        const px = x0 + rng() * CHUNK;
+        const side = rng() < 0.5 ? -1 : 1;
+        const pz = course.z(px) + side * (ROAD_HALF + 0.8 + Math.pow(rng(), 1.3) * 22);
+        const cnt = 3 + Math.floor(rng() * 5);
+        for (let k = 0; k < cnt; k++) spot(px, pz, 1.7);
+      }
+      for (let k = 0; k < 6; k++) {
+        const px = x0 + rng() * CHUNK;
+        const side = rng() < 0.5 ? -1 : 1;
+        spot(px, course.z(px) + side * (ROAD_HALF + 0.8 + rng() * 14), 0.01);
+      }
+      return placed.length ? merged(placed) : null;
     }
 
     tick(dt) {

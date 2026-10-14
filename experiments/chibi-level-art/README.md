@@ -15,6 +15,19 @@ slab Meshy adds under flowers/rock/fence/grass, decimates to a few hundred to
 `props-viewer.html` (serve the repo root, open it under `/experiments/chibi-level-art/`)
 lines the props up; `?tint=autumn|frost|blossom`, `?side=double`.
 
+**Grass clumps (`grass_a/b/c`)** use a different route: a concept image
+(`meshy text-to-image`, `nano-banana-2-lite`, `--remove-background true`, same
+style suffix as the prompts below) fed to `meshy image-to-3d --model-type
+smart-topology --ai-model meshy-t2.5 --target-polycount 3000 --should-texture
+true --texture-resolution 2k` (CLI v0.4.3; 18 credits each). Smart topology
+delivered ~2.9k tris (vs ~1.2M for the standard model) with no ground slab, so
+the bake only has to take it the rest of the way down to ~180-240 tris, since
+the game scatters ~30 of them per chunk. Note smart topology can't be textured
+through text-to-3d refine (t2/t2.5 aren't accepted there), hence the image route.
+Re-bake just those with `python3 -I bake.py <dir> src/chibi-crawl/props.json grass_a grass_b grass_c`
+(named props merge into the existing JSON; the other props' GLBs aren't kept).
+The game merges each chunk's clumps into one mesh (`Scenery.buildGrass`).
+
 Not Meshy: the ground texture (needs to tile seamlessly), road, arena decals
 (kept as primitives). The pond is a procedural bowl with a water shader (see `makeWaterMat` in `src/chibi-crawl.js`).
 
@@ -29,4 +42,7 @@ Not Meshy: the ground texture (needs to tile seamlessly), road, arena decals
 | fence | `01a13a81-36bd-74d4-bb5f-e87813a404d6` | a short rustic wooden picket fence section with two posts and two horizontal rails, cute chibi stylized hand-painted cartoon game asset, soft pastel colors, rounded shapes, single prop, no ground plane |
 | pond | `01a13a81-4e41-7137-a9db-b2f57f43b0fa` | a small round pond of blue water with a sandy rim, a green lily pad and a white lotus flower, very flat low profile, cute chibi stylized hand-painted cartoon game asset, soft pastel colors, rounded shapes, single prop, no ground plane — **unused (flat disc; vertex colour can't hold it)** |
 | grass | `01a13a7e-334d-72af-a764-dd337fa37225` | a small cute stylized grass tuft clump with a few blades, hand-painted cartoon game asset, single prop, no ground plane |
+| grass_a | `01a13c3a-454f-741e-99a1-0e72a926135d` (image-to-3d) | a small round tuft of short stubby bright green grass blades, dense compact clump — concept image `01a13c39-b386-70a8-8f63-932e1b3fda1e` |
+| grass_b | `01a13c3a-4a62-760f-a2d9-16df991a52f7` (image-to-3d) | a tall wispy clump of long thin arching green grass blades fanning outward, a few blades curling — concept image `01a13c39-b6bf-7000-933e-aa79653807a4` |
+| grass_c | `01a13c3a-50aa-7179-aa5f-cb4d7c3844eb` (image-to-3d) | a fat lush clump of broad leafy green grass blades in varied lengths with a couple of tiny white clover flowers — concept image `01a13c39-b9f8-701f-b2a9-312f71cf536f` |
 | grass2 | `01a13a81-84b2-72ac-8039-ee96058f7790` | a tall wispy tuft of long green grass blades with a couple of tiny wildflowers, cute chibi stylized hand-painted cartoon game asset, soft pastel colors, rounded shapes, single prop, no ground plane — **unused (olive, wispy)** |

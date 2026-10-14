@@ -735,6 +735,13 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     prop is its own mesh and ~200 are alive, so keep props ≤~1k tris (flowers are
     22% of spawns). Meshy gotchas: `meshy-5` is retired (use `meshy-6-lite`),
     output is unwelded (weld before decimating) and often includes a ground slab.
+  - **Grass clumps** (`grass_a/b/c` in `props.json`) come from Meshy *smart
+    topology* (`meshy-t2.5`, via the image route — t2/t2.5 can't go through
+    text-to-3d refine) at ~2.9k tris, baked down to ~180–240. Unlike other props
+    they are not individual meshes: `Scenery.buildGrass` scatters ~30 per chunk
+    (loose patches + loners, own rng stream) and merges them into one mesh per
+    chunk, so adding more costs triangles, not draw calls (the full scene was
+    ~79k tris / ~200 calls in a headless shot). See `experiments/chibi-level-art/README.md`.
   - **Not done yet** (obvious next steps): audio, player agency (formation
     drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
     colour-blind-safe damage palette.

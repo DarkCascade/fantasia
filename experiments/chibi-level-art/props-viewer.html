@@ -4,7 +4,7 @@ import * as THREE from "../../vendor/three.module.min.js";
 const q=new URLSearchParams(location.search); const side=q.get("side")==="double"?THREE.DoubleSide:THREE.FrontSide;
 const D=await (await fetch("../../src/chibi-crawl/props.json")).json();
 function b64(s,T){const r=atob(s),u=new Uint8Array(r.length);for(let i=0;i<r.length;i++)u[i]=r.charCodeAt(i);return T===Uint8Array?u:new T(u.buffer)}
-const tints={tree:0x6fcf6a,pine:0x5cbc69,bush:0x8fdc6c,grass:0x8fdc6c,flowers:0xff8fb1,mushroom:0xff6f7a};
+const tints={tree:0x6fcf6a,pine:0x5cbc69,bush:0x8fdc6c,grass:0x8fdc6c,grass_a:0x8fdc6c,grass_b:0x8fdc6c,grass_c:0x8fdc6c,flowers:0xff8fb1,mushroom:0xff6f7a};
 const biome=q.get("tint"); const alt={autumn:{tree:0xff9d4a,pine:0xe2693a,bush:0xf5c542,grass:0xd9cc7a,flowers:0xffd24a,mushroom:0xff8a4a},frost:{tree:0x9fd8d0,pine:0xcdeef0,bush:0x7cc4cc,grass:0xcdeef0,flowers:0x9fd8ff,mushroom:0x8fb4ff},blossom:{tree:0xffb3cf,pine:0xffb3cf,bush:0xff97c0,grass:0xffd1e2,flowers:0xffffff,mushroom:0xff6f7a}};
 const T=Object.assign({},tints,alt[biome]||{});
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0xa5e27d);
