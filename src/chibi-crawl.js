@@ -281,10 +281,10 @@
   /* ---------- biomes ---------- */
 
   const BIOMES = [
-    { name: "Meadow", ground: 0xa5e27d, sky: 0xcdeeff, leaf: [0x6fcf6a, 0x8fdc6c, 0x5cbc69], flower: [0xff8fb1, 0xfff27a, 0xffffff, 0xb48cff], pine: 0.8 },
-    { name: "Blossom", ground: 0xe8c6e0, sky: 0xffe3f0, leaf: [0xffb3cf, 0xff97c0, 0xffd1e2], flower: [0xffffff, 0xffe27a, 0xff8fb1, 0xc9a6ff], pine: 0.2 },
-    { name: "Autumn", ground: 0xd9cc7a, sky: 0xffe9c7, leaf: [0xff9d4a, 0xf5c542, 0xe2693a], flower: [0xffd24a, 0xff8a4a, 0xffffff, 0xd96a4a], pine: 1.0 },
-    { name: "Frost", ground: 0xe3f4ff, sky: 0xdff3ff, leaf: [0x9fd8d0, 0x7cc4cc, 0xcdeef0], flower: [0xffffff, 0x9fd8ff, 0xc9b6ff, 0xffffff], pine: 3.0 },
+    { name: "Meadow", ground: 0xa5e27d, sky: 0xcdeeff, leaf: [0x6fcf6a, 0x8fdc6c, 0x5cbc69], flower: [0xff8fb1, 0xfff27a, 0xffffff, 0xb48cff], pine: 0.8, water: 0x59c3f0 },
+    { name: "Blossom", ground: 0xe8c6e0, sky: 0xffe3f0, leaf: [0xffb3cf, 0xff97c0, 0xffd1e2], flower: [0xffffff, 0xffe27a, 0xff8fb1, 0xc9a6ff], pine: 0.2, water: 0x7ec8f2 },
+    { name: "Autumn", ground: 0xd9cc7a, sky: 0xffe9c7, leaf: [0xff9d4a, 0xf5c542, 0xe2693a], flower: [0xffd24a, 0xff8a4a, 0xffffff, 0xd96a4a], pine: 1.0, water: 0x58b4c4 },
+    { name: "Frost", ground: 0xe3f4ff, sky: 0xdff3ff, leaf: [0x9fd8d0, 0x7cc4cc, 0xcdeef0], flower: [0xffffff, 0x9fd8ff, 0xc9b6ff, 0xffffff], pine: 3.0, water: 0xbfe6f7, ice: true },
   ];
   function biomeAt(x) {
     const seg = Math.max(0, x) / BIOME_LEN;
@@ -594,6 +594,7 @@
     }
     const P = [];
     let shadow = 1;
+    let water = null;
     switch (type) {
       case "tree": {
         P.push(piece(G.cylLo, BROWN, 0, 0.5, 0, 0.17, 1.0, 0.17));
@@ -657,17 +658,61 @@
         break;
       }
       case "pond": {
-        P.push(piece(G.cyl, 0xe9d7a8, 0, 0.012, 0, 1.9, 0.024, 1.5));
-        P.push(piece(G.cyl, 0x8fd8ff, 0, 0.03, 0, 1.65, 0.03, 1.28));
-        P.push(piece(G.cyl, 0x66c46a, -0.45, 0.05, 0.2, 0.28, 0.02, 0.24));
-        P.push(piece(G.sphereLo, 0xffffff, -0.45, 0.09, 0.2, 0.08, 0.06, 0.08));
+        // A raised bank around a sunken-looking basin (the ground is a flat
+        // plane, so the "bowl" is a rim with the water just below its crest).
+        // The water itself is a separate mesh with its own shader (see
+        // makeWaterMat); `variant` 1 = frozen (Frost biome).
+        const prof = [
+          [1.5, 0.0, 0xe3d3a0],
+          [1.3, 0.05, 0xe9d7a8],
+          [1.12, 0.11, 0xd9c690],
+          [1.03, 0.1, 0xbfa874],
+          [0.97, 0.05, 0x7d6a4c],
+        ];
+        const lathe = new THREE.LatheGeometry(prof.map((q) => new THREE.Vector2(q[0], q[1])), 36);
+        lathe.applyMatrix4(new THREE.Matrix4().makeScale(1, 1, POND_SQUASH));
+        const cols = new Float32Array(lathe.attributes.position.count * 3);
+        const tmp = new THREE.Color();
+        for (let i = 0; i < lathe.attributes.position.count; i++) {
+          tmp.set(prof[i % prof.length][2]);
+          cols.set([tmp.r, tmp.g, tmp.b], i * 3);
+        }
+        lathe.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+        P.push(lathe);
+        const rng = mulberry32(variant * 17 + 3);
+        for (let k = 0; k < 10; k++) {
+          const a = (k / 10) * TAU + (rng() - 0.5) * 0.35;
+          const sz = 0.09 + rng() * 0.08;
+          P.push(piece(G.ico, k % 2 ? 0xb9c0d6 : 0xcdbfd6, Math.cos(a) * 1.1, 0.11, Math.sin(a) * 1.1 * POND_SQUASH, sz * 1.2, sz * 0.8, sz, rng() * 3, rng() * 3, 0));
+        }
+        if (variant !== 1) {
+          P.push(piece(G.cyl, 0x66c46a, -0.32, 0.085, 0.12, 0.22, 0.014, 0.19));
+          P.push(piece(G.cyl, 0x58b85a, 0.36, 0.085, -0.16, 0.15, 0.014, 0.13));
+          P.push(piece(G.sphereLo, 0xffffff, -0.32, 0.115, 0.12, 0.075, 0.05, 0.075));
+          P.push(piece(G.sphereLo, 0xffd1e2, -0.32, 0.14, 0.12, 0.038, 0.03, 0.038));
+        }
+        // ico pieces are non-indexed, the rest indexed; mergeGeometries needs one kind
+        for (let i = 0; i < P.length; i++) if (P[i].index) P[i] = P[i].toNonIndexed();
+        const wg = new THREE.CircleGeometry(POND_WATER_R, 40).rotateX(-Math.PI / 2);
+        wg.applyMatrix4(new THREE.Matrix4().makeScale(1, 1, POND_SQUASH));
+        wg.translate(0, 0.06, 0);
+        const wc = new THREE.Color(color);
+        const wcol = new Float32Array(wg.attributes.position.count * 3);
+        const wice = new Float32Array(wg.attributes.position.count);
+        for (let i = 0; i < wice.length; i++) {
+          wcol.set([wc.r, wc.g, wc.b], i * 3);
+          wice[i] = variant === 1 ? 1 : 0;
+        }
+        wg.setAttribute("color", new THREE.BufferAttribute(wcol, 3));
+        wg.setAttribute("aIce", new THREE.BufferAttribute(wice, 1));
+        water = wg;
         shadow = 0;
         break;
       }
       default:
         break;
     }
-    const out = { geo: merged(P), shadow: shadow };
+    const out = { geo: merged(P), shadow: shadow, water: water };
     propCache.set(key, out);
     return out;
   }
@@ -1623,6 +1668,64 @@
     }
   }
 
+  /* ---------- pond water: a small stylised shader ---------- */
+
+  const POND_SQUASH = 0.82; // ponds are ovals, narrower across z
+  const POND_WATER_R = 0.99;
+
+  // Cel-shaded water: depth-banded tint, scrolling ripple lines, a wobbling
+  // foam ring at the bank and a few twinkling sparkles. Unlit and opaque, so
+  // it costs one tiny fragment shader per pond. Frozen ponds (aIce) keep the
+  // lines but stop moving and lose the foam. Tint comes in on the vertex
+  // colour so one shared material serves every biome.
+  function makeWaterMat() {
+    return new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
+      vertexColors: true,
+      fog: true,
+      vertexShader: `
+        attribute float aIce;
+        varying vec2 vP; varying vec3 vTint; varying float vIce; varying float vSeed;
+        #include <fog_pars_vertex>
+        void main() {
+          vP = position.xz; vTint = color; vIce = aIce;
+          vSeed = fract(sin(dot(modelMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453) * 60.0;
+          vec4 mvPosition = viewMatrix * modelMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+          #include <fog_vertex>
+        }`,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec2 vP; varying vec3 vTint; varying float vIce; varying float vSeed;
+        #include <fog_pars_fragment>
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        void main() {
+          vec2 q = vec2(vP.x, vP.y / ${POND_SQUASH.toFixed(2)});
+          float d = length(q) / ${POND_WATER_R.toFixed(2)};
+          float t = (1.0 - vIce) * uTime + vSeed;
+          float depthT = smoothstep(0.2, 0.95, d);
+          depthT = mix(depthT, floor(depthT * 3.0 + 0.5) / 3.0, 0.55);
+          vec3 shallow = mix(vTint * 1.3, vec3(0.78, 0.72, 0.5), 0.22);
+          vec3 col = mix(vTint * 0.5, shallow, depthT);
+          vec2 p = q * 3.4 + vec2(0.0, vSeed);
+          float w1 = sin(p.x * 3.0 + sin(p.y * 2.1 + t * 0.8) * 1.4 + t * 0.7);
+          float w2 = sin(p.y * 3.4 - sin(p.x * 1.7 - t * 0.6) * 1.2 - t * 0.9);
+          col = mix(col, vec3(1.0), smoothstep(0.9, 0.97, max(w1, w2)) * 0.24);
+          float ang = atan(q.y, q.x);
+          float fr = d + 0.03 * sin(ang * 13.0 + t * 1.4) + 0.015 * sin(ang * 29.0 - t * 2.1);
+          col = mix(col, vec3(0.95, 0.99, 1.0), smoothstep(0.82, 0.88, fr) * (1.0 - vIce) * 0.85);
+          col = mix(col, vec3(0.9, 0.97, 1.0), vIce * 0.5);
+          vec2 cell = floor(q * 10.0 + vSeed);
+          float h = hash(cell);
+          col += step(0.975, h) * pow(max(0.0, sin(uTime * 2.5 + h * 60.0)), 10.0) * 0.9;
+          gl_FragColor = vec4(col, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+          #include <fog_fragment>
+        }`,
+    });
+  }
+
   /* ---------- scenery: ground, road, props, arena decals ---------- */
 
   const PROP_SHADOW = { tree: 1.0, pine: 0.9, bush: 0.75, rock: 0.8, mushroom: 0.4, grass: 0.3 };
@@ -1639,6 +1742,7 @@
       this.roadMat = new THREE.MeshToonMaterial({ map: TEX.dirt, transparent: true, depthWrite: false, gradientMap: GRAD, polygonOffset: true, polygonOffsetFactor: -1 });
       this.arenaMat = new THREE.MeshToonMaterial({ map: TEX.arena, transparent: true, depthWrite: false, gradientMap: GRAD, polygonOffset: true, polygonOffsetFactor: -1.5 });
       this.groundMat = new THREE.MeshToonMaterial({ map: TEX.ground, color: 0xa5e27d, gradientMap: GRAD });
+      this.waterMat = makeWaterMat();
       TEX.ground.repeat.set(240 / 8, 176 / 8);
       this.ground = new THREE.Mesh(new THREE.PlaneGeometry(240, 176).rotateX(-Math.PI / 2), this.groundMat);
       this.group.add(this.ground);
@@ -1688,14 +1792,14 @@
         ["rock", 1.2],
         ["mushroom", 1],
         ["fence", 0.5],
-        ["pond", 0.35],
+        ["pond", 0.7],
       ];
       const shadows = [];
       const n = 18 + Math.floor(rng() * 6);
       for (let k = 0; k < n; k++) {
         const x = x0 + rng() * CHUNK;
         const side = rng() < 0.5 ? -1 : 1;
-        const z = course.z(x) + side * (ROAD_HALF + 1.0 + Math.pow(rng(), 1.35) * 27);
+        let z = course.z(x) + side * (ROAD_HALF + 1.0 + Math.pow(rng(), 1.35) * 27);
         let blocked = false;
         for (const a of course.arenas) if (Math.abs(x - a.x) < 12.5 && Math.abs(z - a.z) < 11) blocked = true;
         if (blocked) continue;
@@ -1712,13 +1816,25 @@
         } else if (type === "rock") color = rng() < 0.5 ? 0xb9c0d6 : 0xcdbfd6;
         else if (type === "mushroom") color = biome === BIOMES[3] ? 0x8fb4ff : 0xff6f7a;
         else if (type === "fence") scale = 1;
-        else if (type === "pond") scale = 1 + rng() * 0.5;
+        else if (type === "pond") {
+          scale = 0.85 + rng() * 0.4;
+          color = biome.water;
+          variant = biome.ice ? 1 : 0;
+          z += side * 1.2; // a pond's bank is wide: keep it off the road
+        }
         const prop = buildProp(type, color, variant);
         const m = new THREE.Mesh(prop.geo, this.propMat);
         m.position.set(x, 0, z);
         m.rotation.y = type === "fence" ? course.heading(x) + (rng() < 0.3 ? 1.57 : 0) : rng() * TAU;
         m.scale.setScalar(scale);
         group.add(m);
+        if (prop.water) {
+          const wm = new THREE.Mesh(prop.water, this.waterMat);
+          wm.position.copy(m.position);
+          wm.rotation.y = m.rotation.y;
+          wm.scale.setScalar(scale);
+          group.add(wm);
+        }
         const sr = PROP_SHADOW[type];
         if (sr) shadows.push(piece(G.discFlat, 0x000000, x, 0.025, z, sr * scale * 0.95, 1, sr * scale * 0.85));
       }
@@ -1732,6 +1848,10 @@
       }
       this.group.add(group);
       return { group: group, geos: sg ? [rg, sg] : [rg] };
+    }
+
+    tick(dt) {
+      this.waterMat.uniforms.uTime.value += dt;
     }
 
     update(fx, fz) {
@@ -1769,7 +1889,7 @@
       this.chunks.clear();
       this.decalGeo.dispose();
       this.ground.geometry.dispose();
-      [this.propMat, this.shadowMat, this.roadMat, this.arenaMat, this.groundMat].forEach((m) => m.dispose());
+      [this.propMat, this.shadowMat, this.roadMat, this.arenaMat, this.groundMat, this.waterMat].forEach((m) => m.dispose());
     }
   }
 
@@ -3065,6 +3185,7 @@
     renderFrame(dt) {
       const x = this.cam.x;
       const z = this.cam.z;
+      this.scenery.tick(dt);
       this.scenery.update(x, z);
       const b = biomeAt(this.anchor.x);
       const gc = this.scenery.groundMat.color;

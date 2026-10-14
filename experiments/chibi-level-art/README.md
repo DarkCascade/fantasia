@@ -16,7 +16,7 @@ slab Meshy adds under flowers/rock/fence/grass, decimates to a few hundred to
 lines the props up; `?tint=autumn|frost|blossom`, `?side=double`.
 
 Not Meshy: the ground texture (needs to tile seamlessly), road, arena decals
-and the pond (kept as primitives).
+(kept as primitives). The pond is a procedural bowl with a water shader (see `makeWaterMat` in `src/chibi-crawl.js`).
 
 | Prop | Meshy task id (refine) | Prompt |
 |---|---|---|

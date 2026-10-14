@@ -720,9 +720,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     still ONE merged vertex-coloured mesh (no textures, same `propMat`), so the
     draw-call/chunk model is unchanged; vertices flagged in `mask` hold a grey
     shade that `meshyProp()` multiplies by the biome tint (foliage, petals,
-    mushroom cap), the rest keep baked colour. The ground texture, road, arena
-    decals and the **pond** stay primitive (the pond's Meshy model was a flat disc
-    vertex colour can't hold). The JSON is optional: if the fetch fails `buildProp`
+    mushroom cap), the rest keep baked colour. The ground texture, road and arena
+    decals stay procedural. The **pond** stays primitive too (its Meshy model was a
+    flat disc vertex colour can't hold) but is a real basin now: a raised
+    lathe bank with rim stones and lily pads (the ground is a flat plane, so
+    the "bowl" is the bank, water sitting just below its crest) plus a **separate
+    water mesh** on one shared `ShaderMaterial` (`makeWaterMat`): cel-banded
+    depth tint, scrolling ripple lines, wobbling foam ring, sparkles, fog-aware,
+    `uTime` ticked from `renderFrame`. Biome tint rides on the vertex `color`
+    and Frost ponds (`variant 1`, `aIce`) are still ice. Pond geometries are
+    cached with the other props and must be all non-indexed before
+    `mergeGeometries` (the ico pieces are non-indexed, lathe/cyl are indexed). The JSON is optional: if the fetch fails `buildProp`
     falls back to the primitive builders. **Budget triangles**: every spawned
     prop is its own mesh and ~200 are alive, so keep props ≤~1k tris (flowers are
     22% of spawns). Meshy gotchas: `meshy-5` is retired (use `meshy-6-lite`),
