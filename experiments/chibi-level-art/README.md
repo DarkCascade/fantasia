@@ -21,8 +21,8 @@ style suffix as the prompts below) fed to `meshy image-to-3d --model-type
 smart-topology --ai-model meshy-t2.5 --target-polycount 3000 --should-texture
 true --texture-resolution 2k` (CLI v0.4.3; 18 credits each). Smart topology
 delivered ~2.9k tris (vs ~1.2M for the standard model) with no ground slab, so
-the bake only has to take it the rest of the way down to ~180-240 tris, since
-the game scatters ~30 of them per chunk. Note smart topology can't be textured
+the bake only has to take it the rest of the way down to 110-243 tris, since
+the game scatters ~130 of them per chunk. Note smart topology can't be textured
 through text-to-3d refine (t2/t2.5 aren't accepted there), hence the image route.
 Re-bake just those with `python3 -I bake.py <dir> src/chibi-crawl/props.json grass_a grass_b grass_c`
 (named props merge into the existing JSON; the other props' GLBs aren't kept).

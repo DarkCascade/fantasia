@@ -31,9 +31,9 @@ SPECS = {
     "grass":    (550, "w", 1.05, 1.0, "green", ("grey", 0.20)),
     # grass_a/b/c: three clumps from Meshy *smart topology* (meshy-t2.5, ~3k tris, no ground
     # slab) decimated hard, since dozens are on screen at once. Don't need the slab rule.
-    "grass_a":  (160, "w", 0.85, 1.0, "green", None),
-    "grass_b":  (240, "w", 1.15, 1.0, "green", None),
-    "grass_c":  (180, "w", 1.0,  1.0, "green", None),
+    "grass_a":  (100, "w", 0.85, 1.0, "green", None),
+    "grass_b":  (150, "w", 1.15, 1.0, "green", None),
+    "grass_c":  (110, "w", 1.0,  1.0, "green", None),
 }
 
 TRUNK = {"tree": (0.34, 0.5), "pine": (0.2, 0.62)}  # name: (height fraction, radius fraction)

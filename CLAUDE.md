@@ -737,11 +737,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     output is unwelded (weld before decimating) and often includes a ground slab.
   - **Grass clumps** (`grass_a/b/c` in `props.json`) come from Meshy *smart
     topology* (`meshy-t2.5`, via the image route — t2/t2.5 can't go through
-    text-to-3d refine) at ~2.9k tris, baked down to ~180–240. Unlike other props
-    they are not individual meshes: `Scenery.buildGrass` scatters ~30 per chunk
-    (loose patches + loners, own rng stream) and merges them into one mesh per
-    chunk, so adding more costs triangles, not draw calls (the full scene was
-    ~79k tris / ~200 calls in a headless shot). See `experiments/chibi-level-art/README.md`.
+    text-to-3d refine) at ~2.9k tris, baked down to 243 / 150 / 110 (`grass_a`
+    is 30 closed blobs and can't decimate below ~8 tris each, so `GRASS_PICK`
+    draws it half as often). The hero path is deliberately **overgrown**: they
+    are not individual meshes — `Scenery.buildGrass` scatters ~130 per chunk (a
+    verge of `GRASS_VERGE` clumps hugging both road edges with a pow(rng, 2.4)
+    falloff, `GRASS_PATCHES` looser patches, a few loners; own rng stream;
+    arenas stay clear via the same box test props use) and merges them into one
+    mesh per chunk, so density costs **triangles, not draw calls**: ~150–230k
+    tris in view in a headless iso shot, so touch screens get `GRASS_DENSITY`
+    0.5. If perf bites, lower those constants first. See
+    `experiments/chibi-level-art/README.md`.
   - **Not done yet** (obvious next steps): audio, player agency (formation
     drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
     colour-blind-safe damage palette.

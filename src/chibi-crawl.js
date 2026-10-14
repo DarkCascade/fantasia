@@ -1729,6 +1729,11 @@
   /* ---------- scenery: ground, road, props, arena decals ---------- */
 
   const GRASS_CLUMPS = ["grass_a", "grass_b", "grass_c"];
+  const GRASS_PICK = ["grass_a", "grass_b", "grass_b", "grass_c", "grass_c"]; // grass_a is the pricey pom-pom (243 tris, can't decimate further), so it is drawn less
+  // per-chunk counts at full density; touch screens get half (triangles, not draw calls, are the cost)
+  const GRASS_VERGE = 70;
+  const GRASS_PATCHES = 8;
+  const GRASS_DENSITY = window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? 0.5 : 1;
   const PROP_SHADOW ={ tree: 1.0, pine: 0.9, bush: 0.75, rock: 0.8, mushroom: 0.4, grass: 0.3 };
 
   class Scenery {
@@ -1860,42 +1865,46 @@
       return { group: group, geos: geos };
     }
 
-    // Loose patches of 3 baked clump variants plus a few loners, tinted per
-    // biome. Own rng stream so adding/removing them never reshuffles the props.
+    // The hero path is overgrown: a dense verge hugging both road edges
+    // (heavily biased toward the road, a few clumps nibbling onto it), plus
+    // looser patches and loners further out. Arenas stay clear. Own rng stream
+    // so adding/removing them never reshuffles the props.
     buildGrass(ci, biome) {
       if (!PROP_DATA || !GRASS_CLUMPS.every((t) => PROP_DATA[t])) return null;
       const course = this.g.course;
       const rng = mulberry32(hash2(ci + 9000, this.g.seed));
       const x0 = ci * CHUNK;
       const placed = [];
-      const spot = (cx, cz, r) => {
+      const spot = (cx, cz, r, clear) => {
         const x = cx + (rng() * 2 - 1) * r;
-        const zc = course.z(x);
         const z = cz + (rng() * 2 - 1) * r;
-        if (Math.abs(z - zc) < ROAD_HALF + 0.45) return;
+        if (Math.abs(z - course.z(x)) < clear) return;
         for (const a of course.arenas) if (Math.abs(x - a.x) < 12.5 && Math.abs(z - a.z) < 11) return;
-        const geo = buildProp(GRASS_CLUMPS[Math.floor(rng() * GRASS_CLUMPS.length)], biome.leaf[Math.floor(rng() * 3)], 0).geo;
+        const geo = buildProp(GRASS_PICK[Math.floor(rng() * GRASS_PICK.length)], biome.leaf[Math.floor(rng() * 3)], 0).geo;
         const g = geo.clone();
         g.applyMatrix4(
           new THREE.Matrix4().compose(
             _v().set(x, 0, z),
             new THREE.Quaternion().setFromAxisAngle(_v().set(0, 1, 0), rng() * TAU),
-            _v().setScalar(0.75 + rng() * 0.6)
+            _v().setScalar(0.7 + rng() * 0.8)
           )
         );
         placed.push(g);
       };
-      for (let p = 0; p < 5; p++) {
+      const side = () => (rng() < 0.5 ? -1 : 1);
+      for (let k = 0, n = Math.round(GRASS_VERGE * GRASS_DENSITY); k < n; k++) {
         const px = x0 + rng() * CHUNK;
-        const side = rng() < 0.5 ? -1 : 1;
-        const pz = course.z(px) + side * (ROAD_HALF + 0.8 + Math.pow(rng(), 1.3) * 22);
-        const cnt = 3 + Math.floor(rng() * 5);
-        for (let k = 0; k < cnt; k++) spot(px, pz, 1.7);
+        spot(px, course.z(px) + side() * (ROAD_HALF - 0.3 + Math.pow(rng(), 2.4) * 13), 0.01, ROAD_HALF - 0.3);
+      }
+      for (let p = 0, n = Math.round(GRASS_PATCHES * GRASS_DENSITY); p < n; p++) {
+        const px = x0 + rng() * CHUNK;
+        const pz = course.z(px) + side() * (ROAD_HALF + 0.8 + Math.pow(rng(), 1.2) * 18);
+        const cnt = 4 + Math.floor(rng() * 5);
+        for (let k = 0; k < cnt; k++) spot(px, pz, 1.9, ROAD_HALF + 0.3);
       }
       for (let k = 0; k < 6; k++) {
         const px = x0 + rng() * CHUNK;
-        const side = rng() < 0.5 ? -1 : 1;
-        spot(px, course.z(px) + side * (ROAD_HALF + 0.8 + rng() * 14), 0.01);
+        spot(px, course.z(px) + side() * (ROAD_HALF + 0.8 + rng() * 18), 0.01, ROAD_HALF + 0.3);
       }
       return placed.length ? merged(placed) : null;
     }
