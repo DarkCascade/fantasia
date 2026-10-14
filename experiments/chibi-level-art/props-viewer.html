@@ -1,0 +1,21 @@
+<!doctype html><meta charset=utf-8><body style="margin:0;background:#cdeeff">
+<script type=module>
+import * as THREE from "../../vendor/three.module.min.js";
+const q=new URLSearchParams(location.search); const side=q.get("side")==="double"?THREE.DoubleSide:THREE.FrontSide;
+const D=await (await fetch("../../src/chibi-crawl/props.json")).json();
+function b64(s,T){const r=atob(s),u=new Uint8Array(r.length);for(let i=0;i<r.length;i++)u[i]=r.charCodeAt(i);return T===Uint8Array?u:new T(u.buffer)}
+const tints={tree:0x6fcf6a,pine:0x5cbc69,bush:0x8fdc6c,grass:0x8fdc6c,flowers:0xff8fb1,mushroom:0xff6f7a};
+const biome=q.get("tint"); const alt={autumn:{tree:0xff9d4a,pine:0xe2693a,bush:0xf5c542,grass:0xd9cc7a,flowers:0xffd24a,mushroom:0xff8a4a},frost:{tree:0x9fd8d0,pine:0xcdeef0,bush:0x7cc4cc,grass:0xcdeef0,flowers:0x9fd8ff,mushroom:0x8fb4ff},blossom:{tree:0xffb3cf,pine:0xffb3cf,bush:0xff97c0,grass:0xffd1e2,flowers:0xffffff,mushroom:0xff6f7a}};
+const T=Object.assign({},tints,alt[biome]||{});
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0xa5e27d);
+scene.add(new THREE.HemisphereLight(0xffffff,0x88aa66,1.6)); const dl=new THREE.DirectionalLight(0xffffff,2);dl.position.set(3,6,4);scene.add(dl);
+const names=Object.keys(D); let x=0;
+for(const n of names){const d=D[n];const t=new THREE.Color(T[n]||0xffffff);const pos=b64(d.pos,Float32Array),col=b64(d.col,Uint8Array),mask=b64(d.mask,Uint8Array);const out=new Float32Array(d.n*3);
+ for(let i=0;i<d.n;i++){if(mask[i]){const sh=col[i*3]/255*1.5;out[i*3]=t.r*sh;out[i*3+1]=t.g*sh;out[i*3+2]=t.b*sh}else{for(let k=0;k<3;k++)out[i*3+k]=col[i*3+k]/255}}
+ const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.BufferAttribute(pos,3));g.setAttribute("color",new THREE.BufferAttribute(out,3));g.setIndex(new THREE.BufferAttribute(b64(d.idx,Uint16Array),1));g.computeVertexNormals();
+ const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,side}));const w=Math.max(d.bounds[3]-d.bounds[0],1.4);x+=w/2;m.position.x=x;x+=w/2+0.3;scene.add(m);}
+const W=1500,H=420;const r=new THREE.WebGLRenderer({antialias:true});r.setSize(W,H);document.body.appendChild(r.domElement);
+const cam=new THREE.PerspectiveCamera(30,W/H,0.1,100);cam.position.set(x/2,2.4,x*0.62);cam.lookAt(x/2,0.8,0);
+const cyaw=Number(q.get("yaw")||0); cam.position.x=x/2+Math.sin(cyaw)*5;
+r.render(scene,cam);document.title="done";
+</script>

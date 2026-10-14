@@ -36,6 +36,10 @@
   }
   var THREE_URL = resolve("../vendor/three.module.min.js");
   var BGU_URL = resolve("../vendor/jsm/utils/BufferGeometryUtils.js");
+  // Meshy-generated level art (baked by experiments/chibi-level-art/bake.py).
+  // Optional: if it fails to load the primitive props below are used instead.
+  var PROPS_URL = resolve("./chibi-crawl/props.json");
+  var PROP_DATA = null;
   var THREE = null;
   var mergeGeometries = null;
 
@@ -544,9 +548,50 @@
   }
   const BROWN = 0x9a6b4b;
 
+  function b64(str, Type) {
+    const raw = atob(str);
+    const u8 = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+    return Type === Uint8Array ? u8 : new Type(u8.buffer);
+  }
+
+  // A baked Meshy prop. Vertices with mask > 0 hold a grey shade and are
+  // multiplied by the biome tint (foliage / petals / mushroom cap); the rest
+  // carry their baked colour untouched.
+  function meshyProp(d, tint) {
+    const pos = b64(d.pos, Float32Array);
+    const col = b64(d.col, Uint8Array);
+    const mask = b64(d.mask, Uint8Array);
+    const t = new THREE.Color(tint);
+    const out = new Float32Array(d.n * 3);
+    for (let i = 0; i < d.n; i++) {
+      if (mask[i]) {
+        const sh = (col[i * 3] / 255) * 1.5;
+        out[i * 3] = t.r * sh;
+        out[i * 3 + 1] = t.g * sh;
+        out[i * 3 + 2] = t.b * sh;
+      } else {
+        out[i * 3] = col[i * 3] / 255;
+        out[i * 3 + 1] = col[i * 3 + 1] / 255;
+        out[i * 3 + 2] = col[i * 3 + 2] / 255;
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.BufferAttribute(out, 3));
+    g.setIndex(new THREE.BufferAttribute(b64(d.idx, Uint16Array), 1));
+    g.computeVertexNormals();
+    return g;
+  }
+
   function buildProp(type, color, variant) {
     const key = type + ":" + color + ":" + variant;
     if (propCache.has(key)) return propCache.get(key);
+    if (PROP_DATA && PROP_DATA[type]) {
+      const mp = { geo: meshyProp(PROP_DATA[type], color), shadow: 0 };
+      propCache.set(key, mp);
+      return mp;
+    }
     const P = [];
     let shadow = 1;
     switch (type) {
@@ -1580,7 +1625,7 @@
 
   /* ---------- scenery: ground, road, props, arena decals ---------- */
 
-  const PROP_SHADOW = { tree: 1.0, pine: 0.9, bush: 0.75, rock: 0.8, mushroom: 0.4 };
+  const PROP_SHADOW = { tree: 1.0, pine: 0.9, bush: 0.75, rock: 0.8, mushroom: 0.4, grass: 0.3 };
 
   class Scenery {
     constructor(g) {
@@ -1639,6 +1684,7 @@
         ["pine", biome.pine],
         ["bush", 2.5],
         ["flowers", 4],
+        ["grass", PROP_DATA && PROP_DATA.grass ? 5 : 0],
         ["rock", 1.2],
         ["mushroom", 1],
         ["fence", 0.5],
@@ -1657,7 +1703,7 @@
         let color = 0xffffff;
         let variant = 0;
         let scale = 0.8 + rng() * 0.6;
-        if (type === "tree" || type === "bush") color = biome.leaf[Math.floor(rng() * 3)];
+        if (type === "tree" || type === "bush" || type === "grass") color = biome.leaf[Math.floor(rng() * 3)];
         else if (type === "pine") color = new THREE.Color(biome.leaf[Math.floor(rng() * 3)]).offsetHSL(0, 0, biome === BIOMES[3] ? 0 : -0.12).getHex();
         else if (type === "flowers") {
           color = biome.flower[Math.floor(rng() * 4)];
@@ -3088,6 +3134,13 @@
       .then((mod) => {
         mergeGeometries = mod.mergeGeometries;
         if (!G.sphere) initShared();
+        if (PROP_DATA) return null;
+        return fetch(PROPS_URL)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            PROP_DATA = d;
+          })
+          .catch(() => {});
       });
   }
 

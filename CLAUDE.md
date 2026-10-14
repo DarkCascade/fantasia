@@ -712,6 +712,21 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     reproducible courses. 150 fights run in ~10s headless and the loop stays
     flat on scene objects/geometries/DOM (checked). SwiftShader needs the same
     Chromium flags as the other three.js games.
+  - **Level art is Meshy-generated** (the 4th/5th exception to the
+    no-external-assets rule — characters are still primitives): tree, pine,
+    bush, flowers, rock, mushroom, fence and a new grass tuft come from
+    `src/chibi-crawl/props.json`, baked by `experiments/chibi-level-art/`
+    (README there has prompts/task ids; `bake.py` is the pipeline). Each prop is
+    still ONE merged vertex-coloured mesh (no textures, same `propMat`), so the
+    draw-call/chunk model is unchanged; vertices flagged in `mask` hold a grey
+    shade that `meshyProp()` multiplies by the biome tint (foliage, petals,
+    mushroom cap), the rest keep baked colour. The ground texture, road, arena
+    decals and the **pond** stay primitive (the pond's Meshy model was a flat disc
+    vertex colour can't hold). The JSON is optional: if the fetch fails `buildProp`
+    falls back to the primitive builders. **Budget triangles**: every spawned
+    prop is its own mesh and ~200 are alive, so keep props ≤~1k tris (flowers are
+    22% of spawns). Meshy gotchas: `meshy-5` is retired (use `meshy-6-lite`),
+    output is unwelded (weld before decimating) and often includes a ground slab.
   - **Not done yet** (obvious next steps): audio, player agency (formation
     drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
     colour-blind-safe damage palette.
@@ -750,6 +765,7 @@ vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitContr
 experiments/           Scratch prototypes kept out of the deploy's copy step; never shipped
 experiments/neon-ledger/  NEON//LEDGER: local-only Python/Streamlit personal-finance analyser (not a game; ./run.sh; see its README)
 experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules sim + balance sweeps, printable PDFs in dist/, Meshy mini prompts); not deployed
+experiments/chibi-level-art/  Meshy generate + bake pipeline and prop viewer for Chibi Crawl's level art
 experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real model (node experiments/greenlit-balance/sweep.js)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
