@@ -882,6 +882,24 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       sinks run dry; more tiers (or gear per guard) would extend them. Training
       alone (6 items, tier 3) makes trips risk-free again, which is why the
       wagon is the real payoff.
+    - **First-run tips (`Tips`, `TIP_TEXT`).** Sir Fish explains things once,
+      when they matter, in a speech card with his bowl as the avatar (not a forced
+      walkthrough). Seen ids persist in `localStorage` `chibi-crawl-tips`. Toasts
+      (`g.tips.show(id, html, {auto, buttons})`, one at a time, queued; a fresh
+      auto-dismissing event tip replaces an older one; `skipAuto()` clears them
+      when the town screen opens so they never cover it): `map` (how to start,
+      with a pulsing ring on the current town until its trade screen has been
+      opened once), `run` (guards fight alone, foes hit them first, thieves take
+      one item each), `plunder` (items gone: hire more or carry less), `quit` (a
+      fallen guard is gone for good). `noguards` is a one-time confirm (Hire
+      first / Go anyway) when leaving with cargo and no guards. Inline tips
+      inside `TownScreen` (`town`, `upgrades`, `hop2`; at most two per visit)
+      count as read when the visit ends or on their x. The map's `?` button
+      resets and replays everything; `?tips=0` disables all tips without using
+      them up (`mark()` is a no-op then), `?tips=reset` forgets what was seen.
+      Test gotcha: the 2-town hop animation runs on `requestAnimationFrame`, so
+      in a hidden browser pane the trade screen never auto-opens on arrival; call
+      `g.openTown()` yourself in headless runs.
     - **M3 (not built).** Sir Fish + wagon in 3D (generate him without the bowl
       and build the bowl as a glass sphere around him — transparent glass
       confuses image-to-3D; the current fish is a primitive blob), mercenary and

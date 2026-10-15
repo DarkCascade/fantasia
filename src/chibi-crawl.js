@@ -2687,6 +2687,22 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 @keyframes cc-ping { from { transform: scale(.35); opacity: .95; } to { transform: scale(1.9); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cc-pin-in { animation: none; } }
 .cc-sell { pointer-events: none; }
+.cc-tip { position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 66px); transform: translate(-50%, -14px); width: min(440px, calc(100% - 24px)); z-index: 14;
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 18px; background: #fff8e6; color: #3a2a55; border: 3px solid #fff; box-shadow: 0 8px 22px rgba(40,28,66,.45);
+  font-size: 14px; font-weight: 700; line-height: 1.3; opacity: 0; visibility: hidden; transition: opacity .2s ease, transform .28s cubic-bezier(.2,1.4,.4,1), visibility 0s .28s; }
+.cc-tip.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
+.cc-tip-av { flex: none; width: 46px; height: 50px; overflow: visible; }
+.cc-tip-tx { flex: 1; min-width: 0; }
+.cc-tip-tx b { color: #c2410c; }
+.cc-tip-btns { display: flex; flex-direction: column; gap: 5px; flex: none; }
+.cc-tip .cc-btn { color: #3a2a55; background: #fff; border: 2px solid #3a2a55; box-shadow: 0 3px 0 rgba(58,42,85,.35); padding: 5px 11px; font-size: 13px; border-radius: 11px; white-space: nowrap; }
+.cc-tip .cc-btn.gold { background: #ffd75a; }
+.cc-trade-tip { display: flex; gap: 8px; align-items: flex-start; margin: 8px 10px 0; padding: 8px 10px; border-radius: 14px; background: #e9f7ff; border: 2px solid #b8e2f8; font-size: 12px; font-weight: 700; line-height: 1.3; }
+.cc-trade-tip div { flex: 1; min-width: 0; }
+.cc-trade-tip button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(58,42,85,.12); color: #3a2a55; font-size: 16px; line-height: 1; cursor: pointer; }
+.cc-hintring { display: none; pointer-events: none; }
+.cc-town.hint .cc-hintring { display: block; transform-box: fill-box; transform-origin: center; animation: cc-hintpulse 1s ease-in-out infinite alternate; }
+@keyframes cc-hintpulse { from { transform: scale(.9); opacity: 1; } to { transform: scale(1.14); opacity: .5; } }
 .cc-town.far .cc-town-body, .cc-town.far .cc-name { opacity: .72; }
 .cc-town.nope .cc-town-body { animation: cc-nope .4s ease; }
 @keyframes cc-nope { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-1.4px); } 40% { transform: translateX(1.4px); } 60% { transform: translateX(-1px); } 80% { transform: translateX(1px); } }
@@ -3132,6 +3148,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         '<g class="cc-name"><rect x="' + -w / 2 + '" y="5.1" width="' + w + '" height="5" rx="2.5" fill="#fff8e6" stroke="' + t.roof + '" stroke-width="0.5"/>' +
         '<text x="0" y="8.65" text-anchor="middle" font-size="3.3" font-weight="900" fill="#3a2a55">' + t.name + "</text></g>" +
         '<text class="cc-sell" data-sell="' + t.id + '" x="0" y="14.2" text-anchor="middle" font-size="3" font-weight="900" fill="#3a2a55" stroke="#fff8e6" stroke-width="0.9" paint-order="stroke"></text>' +
+        '<circle class="cc-hintring" cx="0" cy="-1" r="12" fill="none" stroke="#ff5a7a" stroke-width="1" stroke-dasharray="2.4 1.8" stroke-linecap="round"/>' +
         '<circle class="cc-hit" cx="0" cy="0" r="13" fill="transparent"/>' +
         "</g>"
       );
@@ -3165,7 +3182,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         '<div class="cc-map"><div class="cc-map-top">' +
           '<button class="cc-btn cc-round" data-map="menu" type="button" aria-label="Menu">&#8801;</button>' +
           '<div class="cc-chip"><span data-map="where"></span><small data-map="sub"></small></div>' +
-          '<div class="cc-map-gap"></div></div>' +
+          '<button class="cc-btn cc-round" data-map="help" type="button" aria-label="Replay the tips">?</button></div>' +
           mapSvg() +
           "</div>"
       );
@@ -3175,6 +3192,11 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.pin = this.el.querySelector(".cc-pin");
       this.svg = this.el.querySelector("svg");
       g.listen(this.el.querySelector('[data-map="menu"]'), "click", () => window.returnToMenu && window.returnToMenu());
+      g.listen(this.el.querySelector('[data-map="help"]'), "click", () => {
+        g.tips.reset(); // replay everything from the top
+        this.updateHint();
+        g.tips.show("map", TIP_TEXT.map);
+      });
       g.listen(this.el, "click", (e) => {
         const t = e.target.closest && e.target.closest("[data-town]");
         if (t) this.pick(t.getAttribute("data-town"));
@@ -3205,6 +3227,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.el.classList.remove("leaving");
       this.root.classList.add("cc-mapmode");
       this.updateChip();
+      this.updateHint();
       const b = this.pinSpot(to);
       if (!from || from === to) {
         this.setPin(b.x, b.y);
@@ -3282,10 +3305,33 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         this.refuse(to); // the roads only link neighbouring towns
         return;
       }
+      const g = this.g;
+      if (!g.guards.length && cargoCount(g.cargo) > 0 && !g.tips.isSeen("noguards")) {
+        // once: a loaded wagon and nobody to guard it
+        g.tips.show("noguards", TIP_TEXT.noguards, {
+          buttons: [
+            { label: "Hire first", fn: () => g.openTown() },
+            { label: "Go anyway", fn: () => this.go(id) },
+          ],
+        });
+        return;
+      }
+      this.go(id);
+    }
+
+    go(id) {
+      if (this.busy || this.g.mode !== "map") return;
       this.busy = true;
       cancelAnimationFrame(this.raf);
       this.el.classList.add("leaving");
       this.hideT = setTimeout(() => this.g.beginTownRun(id), 230);
+    }
+
+    // A pulsing ring on Sir Fish's town until the player has opened its trade screen once.
+    updateHint() {
+      const g = this.g;
+      const on = !g.tips.isSeen("town");
+      this.el.querySelectorAll(".cc-town").forEach((el) => el.classList.toggle("hint", on && el.getAttribute("data-town") === g.town.id));
     }
 
     hide() {
@@ -3301,6 +3347,143 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
   }
 
   /* ---------- the town trade screen ---------- */
+
+  /* ---------- first-run tips: Sir Fish explains things once, when they matter ---------- */
+
+  const TIPS_KEY = "chibi-crawl-tips";
+  const TIP_TEXT = {
+    map: "Greetings! I am <b>Sir Fish</b>, merchant and knight. Tap my town to <b>trade</b>, then tap a neighbouring town to <b>set out</b>.",
+    town: "Buy this town&rsquo;s goods here and sell them in another town: the farther an item came from, the more it fetches. Hire <b>guards</b> below to protect the cargo on the road.",
+    hop2: "Psst: items from <b>two towns away</b> fetch the most. Carry them past a town without selling for a bigger payday, at the risk of a longer haul.",
+    upgrades: "Coins to spare? A <b>bigger wagon</b> carries more, but a full wagon draws more bandits, so pair it with <b>guard training</b>.",
+    noguards: "You have cargo but <b>no guards</b>. Every foe that reaches the wagon steals an item. Hire some first?",
+    run: "Your guards fight on their own, and foes go for <b>them</b> first. If every guard falls, each foe left <b>steals one item</b> and runs off.",
+    quit: "A guard who falls in a fight is <b>gone for good</b>. Hire a replacement in town (a Cleric&rsquo;s Blessing can revive one mid-fight).",
+  };
+
+  // Each tip shows once (remembered in localStorage). ?tips=0 turns them all off,
+  // ?tips=reset forgets what was seen; the map's ? button replays them.
+  class Tips {
+    constructor(g, root) {
+      this.g = g;
+      this.root = root;
+      this.off = /[?&]tips=0(?:&|$)/.test(window.location.search);
+      try {
+        if (/[?&]tips=reset(?:&|$)/.test(window.location.search)) localStorage.removeItem(TIPS_KEY);
+      } catch (e) {
+        /* storage may be unavailable */
+      }
+      this.seen = new Set();
+      try {
+        JSON.parse(localStorage.getItem(TIPS_KEY) || "[]").forEach((k) => this.seen.add(k));
+      } catch (e) {
+        /* a fresh profile */
+      }
+      this.queue = [];
+      this.cur = null;
+      this.timer = 0;
+      this.nextT = 0;
+      root.insertAdjacentHTML(
+        "beforeend",
+        '<div class="cc-tip" role="status"><svg class="cc-tip-av" viewBox="-6.5 -12.5 13 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + SIR_FISH_ICON + '</svg><div class="cc-tip-tx"></div><div class="cc-tip-btns"></div></div>'
+      );
+      this.el = root.querySelector(".cc-tip");
+      this.tx = this.el.querySelector(".cc-tip-tx");
+      this.btns = this.el.querySelector(".cc-tip-btns");
+      g.listen(this.btns, "click", (e) => {
+        const b = e.target.closest && e.target.closest("button");
+        if (b) this.answer(b.getAttribute("data-i"));
+      });
+    }
+
+    isSeen(id) {
+      return this.off || this.seen.has(id);
+    }
+
+    mark(id) {
+      if (this.off || this.seen.has(id)) return; // ?tips=0 must not use up the real tips
+      this.seen.add(id);
+      try {
+        localStorage.setItem(TIPS_KEY, JSON.stringify(Array.from(this.seen)));
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    // opts.auto = ms until it dismisses itself; opts.buttons = [{label, fn}] makes it a question.
+    show(id, html, opts) {
+      if (this.isSeen(id)) return false;
+      if (this.queue.some((t) => t.id === id) || (this.cur && this.cur.id === id)) return true;
+      opts = opts || {};
+      // a fresh event tip replaces an older self-dismissing one instead of waiting behind it
+      if (opts.auto && this.cur && this.cur.o.auto) this.answer(-1);
+      this.queue.push({ id: id, html: html, o: opts });
+      if (!this.cur && !this.nextPending) this.next();
+      return true;
+    }
+
+    // Opening the town screen: drop self-dismissing toasts so they don't sit on top of it.
+    skipAuto() {
+      this.queue = this.queue.filter((t) => !t.o.auto);
+      if (this.cur && this.cur.o.auto) this.answer(-1);
+    }
+
+    next() {
+      this.nextPending = false;
+      const t = this.queue.shift();
+      if (!t) return;
+      if (this.isSeen(t.id)) {
+        this.next();
+        return;
+      }
+      this.cur = t;
+      this.tx.innerHTML = t.html;
+      const btns = t.o.buttons || [{ label: "Got it" }];
+      this.btns.innerHTML = btns.map((b, i) => '<button class="cc-btn' + (i === 0 ? " gold" : "") + '" type="button" data-i="' + i + '">' + b.label + "</button>").join("");
+      this.el.classList.add("show");
+      clearTimeout(this.timer);
+      if (t.o.auto) this.timer = setTimeout(() => this.answer(-1), t.o.auto);
+    }
+
+    answer(i) {
+      const t = this.cur;
+      if (!t) return;
+      i = parseInt(i, 10);
+      this.cur = null;
+      clearTimeout(this.timer);
+      this.el.classList.remove("show");
+      this.mark(t.id);
+      const b = t.o.buttons && t.o.buttons[i];
+      if (b && b.fn) b.fn();
+      this.nextPending = true;
+      this.nextT = setTimeout(() => this.next(), 350);
+    }
+
+    // The player did what the tip asked (or moved on): retire it without a fuss.
+    dismiss(id) {
+      if (this.cur && this.cur.id === id) {
+        this.answer(-1);
+        return;
+      }
+      this.queue = this.queue.filter((t) => t.id !== id);
+      this.mark(id);
+    }
+
+    reset() {
+      this.seen.clear();
+      this.queue.length = 0;
+      try {
+        localStorage.removeItem(TIPS_KEY);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    dispose() {
+      clearTimeout(this.timer);
+      clearTimeout(this.nextT);
+    }
+  }
 
   function tradeRow(icon, title, sub, buttons) {
     return (
@@ -3325,6 +3508,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.g = g;
       this.root = root;
       this.town = null;
+      this.shown = new Set(); // inline tips displayed this visit: they count as read when it ends
       root.insertAdjacentHTML("beforeend", '<div class="cc-trade"><div class="cc-trade-card"></div></div>');
       this.el = root.querySelector(".cc-trade");
       this.card = this.el.querySelector(".cc-trade-card");
@@ -3342,6 +3526,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     }
 
     open(town) {
+      this.g.tips.skipAuto();
       this.town = town;
       this.root.classList.add("cc-townmode");
       this.render();
@@ -3351,13 +3536,22 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       if (!this.town) return;
       this.town = null;
       this.root.classList.remove("cc-townmode");
+      this.shown.forEach((id) => this.g.tips.mark(id));
+      this.shown.clear();
       this.g.worldMap.updateChip();
+      this.g.worldMap.updateHint();
     }
 
     act(a, id) {
       const g = this.g;
       const t = this.town;
       if (a === "close") return this.close();
+      if (a === "tipx") {
+        g.tips.mark(id);
+        this.shown.delete(id);
+        this.render();
+        return;
+      }
       if (a === "hire") {
         const d = HERO_DEFS.find((x) => x.kind === id);
         if (d && g.guards.indexOf(id) < 0 && g.coins >= HIRE_COST[id]) {
@@ -3409,7 +3603,19 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       let h =
         '<div class="cc-trade-head" style="background:' + t.roof + '"><div><div class="cc-trade-title">' + t.name + '</div><div class="cc-trade-sub">' +
         BIOMES[t.biome].name + ' town &middot; Sir Fish&rsquo;s stop</div></div><button class="cc-trade-x" type="button" data-act="close" aria-label="Close">&times;</button></div>';
-      h += '<div class="cc-trade-wallet"><span>🪙 ' + g.coins + "</span><span>📦 " + n + " / " + cap + "</span></div>";
+      // inline tips (at most two, in priority order); read once the visit ends
+      const tipList = [];
+      if (!g.tips.isSeen("town")) tipList.push(["town", TIP_TEXT.town]);
+      else {
+        if (!g.tips.isSeen("upgrades") && g.guards.length === HERO_DEFS.length && g.wagonTier === 0 && g.coins >= WAGON_COST[0]) tipList.push(["upgrades", TIP_TEXT.upgrades]);
+        if (!g.tips.isSeen("hop2") && TOWNS.some((o) => g.cargo[o.id] > 0 && ringDist(o, t) === 1)) tipList.push(["hop2", TIP_TEXT.hop2]);
+      }
+      let tipHtml = "";
+      tipList.slice(0, 2).forEach((tp) => {
+        this.shown.add(tp[0]);
+        tipHtml += '<div class="cc-trade-tip"><span>💡</span><div>' + tp[1] + '</div><button type="button" data-act="tipx" data-id="' + tp[0] + '" aria-label="Dismiss tip">&times;</button></div>';
+      });
+      h += '<div class="cc-trade-wallet"><span>🪙 ' + g.coins + "</span><span>📦 " + n + " / " + cap + "</span></div>" + tipHtml;
 
       h += "<h4>Sell</h4>";
       let rows = "";
@@ -3535,7 +3741,9 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.updateCamera(0.016, true);
       this.worldMap = new WorldMap(this, root);
       this.townScreen = new TownScreen(this, root);
+      this.tips = new Tips(this, root);
       this.openMap(null);
+      this.tips.show("map", TIP_TEXT.map);
 
       this.lastFrame = performance.now();
       this.tick = this.tick.bind(this);
@@ -3671,6 +3879,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     // The trade screen for the town Sir Fish is in.
     openTown() {
       if (this.mode !== "map") return;
+      this.tips.dismiss("map"); // they are doing what it said
       this.townScreen.open(this.town);
     }
 
@@ -3708,6 +3917,8 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.worldMap.hide();
       this.lastFrame = performance.now();
       this.hud.banner("Off to " + this.target.name + "!", "gold");
+      this.tips.dismiss("map");
+      this.tips.show("run", TIP_TEXT.run, { auto: 9000 });
     }
 
     beginArrival() {
@@ -4004,6 +4215,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         this.removeUnit(f);
       });
       this.hud.banner(this.stolen ? this.stolen + (this.stolen > 1 ? " items stolen!" : " item stolen!") : "Nothing to steal!", this.stolen ? "pink" : "gold");
+      if (this.stolen) this.tips.show("plunder", "Thieves! " + this.stolen + (this.stolen > 1 ? " items are" : " item is") + " gone. Hire more guards, or <b>carry less</b>: bandits are drawn to a full wagon.", { auto: 9000 });
       this.finishEncounter();
     }
 
@@ -4021,6 +4233,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.hud.buildPanel();
       this.persist();
       this.hud.updateChip();
+      this.tips.show("quit", TIP_TEXT.quit, { auto: 9000 });
     }
 
     revive(u, frac) {
@@ -4601,6 +4814,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.listeners.forEach((l) => l[0].removeEventListener(l[1], l[2], l[3]));
       this.worldMap.dispose();
       this.townScreen.dispose();
+      this.tips.dispose();
       this.hud.dispose();
       if (this.renderer.forceContextLoss) this.renderer.forceContextLoss();
       this.renderer.dispose();
