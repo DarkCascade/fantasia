@@ -900,6 +900,20 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       Test gotcha: the 2-town hop animation runs on `requestAnimationFrame`, so
       in a hidden browser pane the trade screen never auto-opens on arrival; call
       `g.openTown()` yourself in headless runs.
+    - **World-map art pass (done; the first art pass).** The map's code-drawn
+      houses, trees and pin are replaced by hand-painted Meshy 2D sprites
+      (`src/chibi-crawl/map/*.webp`, ~243 KB: Sir Fish, one village per town,
+      one tree per biome; provenance and prompts in the art README, source
+      script `experiments/chibi-level-art/mapart.py`). `loadMapArt()` loads them
+      with the props; it is all-or-nothing (`MAP_ART`), so any failure, or
+      `?art=0`, keeps the original vector map (the vector helpers are still the
+      fallback, so don't delete them). The lands also get the 3D scene's ground
+      textures multiplied over their flat colours (`landTexture`, SVG patterns).
+      The painted villages are big, so with art on Sir Fish stands beside his town
+      towards the map edge (`pinSpot`) instead of above it. The tip card's avatar
+      uses the same painted Sir Fish. Labels, trails, the Wilds ribbon and every
+      hit area are unchanged. The painted Sir Fish is also the reference for the
+      later 3D art pass.
     - **M3 (not built).** Sir Fish + wagon in 3D (generate him without the bowl
       and build the bowl as a glass sphere around him — transparent glass
       confuses image-to-3D; the current fish is a primitive blob), mercenary and

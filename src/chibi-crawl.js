@@ -45,6 +45,12 @@
   // to load, or the URL says ?tex=0, the procedural canvas textures are used.
   var TEX_BASE = resolve("./chibi-crawl/tex/");
   var PHOTO = null; // { ground: [img x3], road: img, sand: img }
+  // Generated hand-painted world-map sprites (experiments/chibi-level-art/mapart.py): Sir Fish,
+  // one picture per town, one tree per biome. All-or-nothing: if any fails to load, or the URL says
+  // ?art=0, the map keeps its original code-drawn houses, trees and marker.
+  var MAP_BASE = resolve("./chibi-crawl/map/");
+  var MAP_ART = null; // { fish, towns: {id: art}, trees: [art x4, by BIOMES index] }, each art = { url, aspect }
+  var MAP_ART_OFF = /[?&]art=0(?:&|$)/.test(window.location.search);
   var PHOTO_OFF = /[?&]tex=0(?:&|$)/.test(window.location.search);
   var THREE = null;
   var mergeGeometries = null;
@@ -2691,7 +2697,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 18px; background: #fff8e6; color: #3a2a55; border: 3px solid #fff; box-shadow: 0 8px 22px rgba(40,28,66,.45);
   font-size: 14px; font-weight: 700; line-height: 1.3; opacity: 0; visibility: hidden; transition: opacity .2s ease, transform .28s cubic-bezier(.2,1.4,.4,1), visibility 0s .28s; }
 .cc-tip.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
-.cc-tip-av { flex: none; width: 46px; height: 50px; overflow: visible; }
+.cc-tip-av { flex: none; width: 46px; height: 50px; overflow: visible; object-fit: contain; }
 .cc-tip-tx { flex: 1; min-width: 0; }
 .cc-tip-tx b { color: #c2410c; }
 .cc-tip-btns { display: flex; flex-direction: column; gap: 5px; flex: none; }
@@ -3017,6 +3023,12 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 
   function mapTree(kind, x, y, s, rng) {
     const col = MAP_TREE[kind].c[Math.floor(rng() * 3)];
+    if (MAP_ART) {
+      const a = MAP_ART.trees[kind];
+      const h = (MAP_TREE[kind].pine ? 6.6 : 5.4) * s;
+      const w = h * a.aspect;
+      return '<image href="' + a.url + '" x="' + (x - w / 2).toFixed(2) + '" y="' + (y + 0.9 - h).toFixed(2) + '" width="' + w.toFixed(2) + '" height="' + h.toFixed(2) + '" preserveAspectRatio="none"/>';
+    }
     if (MAP_TREE[kind].pine) {
       const k = 0.9 * s;
       return (
@@ -3053,9 +3065,27 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     '<circle cx="3.1" cy="-9" r="0.35" fill="#fff" opacity="0.8"/><circle cx="3.9" cy="-7.2" r="0.25" fill="#fff" opacity="0.8"/>' +
     '<path d="M-4.1,-8.4 A5.5 5.5 0 0 1 -1,-10.7" fill="none" stroke="#fff" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>';
 
+  // Painted art placed with its base at y = 0 (towns sit a little lower, on their shadow).
+  function artImage(a, maxW, maxH, baseY) {
+    const w = Math.min(maxW, maxH * a.aspect);
+    const h = w / a.aspect;
+    return '<image href="' + a.url + '" x="' + (-w / 2).toFixed(2) + '" y="' + (baseY - h).toFixed(2) + '" width="' + w.toFixed(2) + '" height="' + h.toFixed(2) + '" preserveAspectRatio="none"/>';
+  }
+  function fishArt() {
+    return '<ellipse cx="0" cy="0.5" rx="4.3" ry="1.1" fill="#000" opacity="0.22"/>' + artImage(MAP_ART.fish, 12.5, 12.5, 0.6);
+  }
+  // The same ground textures as the 3D scene, multiplied over each biome's flat colour.
+  function landTexture(t, ti) {
+    const f = 'fill="url(#cc-gt' + (ti % 3) + ')" opacity="0.5" style="mix-blend-mode:multiply"';
+    return (
+      '<ellipse cx="' + t.x + '" cy="' + t.y + '" rx="19.5" ry="17.5" ' + f + "/>" +
+      '<ellipse cx="' + (t.x + (t.x < 50 ? 4 : -4)) + '" cy="' + (t.y + (t.y < 50 ? 4 : -4)) + '" rx="14" ry="12.5" ' + f + "/>"
+    );
+  }
+
   function mapSvg() {
     const rng = mulberry32(7);
-    const lands = TOWNS.map((t) => {
+    const lands = TOWNS.map((t, ti) => {
       const b = BIOMES[t.biome];
       const g = "#" + b.ground.toString(16).padStart(6, "0");
       return (
@@ -3063,6 +3093,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         '<ellipse cx="' + t.x + '" cy="' + t.y + '" rx="19.5" ry="17.5" fill="' + g + '" stroke="#fff8e6" stroke-width="0.9"/>' +
         '<ellipse cx="' + (t.x + (t.x < 50 ? 4 : -4)) + '" cy="' + (t.y + (t.y < 50 ? 4 : -4)) + '" rx="14" ry="12.5" fill="' + g + '" stroke="#fff8e6" stroke-width="0.9"/>' +
         '<ellipse cx="' + t.x + '" cy="' + t.y + '" rx="18.2" ry="16.2" fill="' + g + '"/>' +
+        (MAP_ART ? landTexture(t, ti) : "") +
         "</g>"
       );
     }).join("");
@@ -3133,6 +3164,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       return (
         '<g class="cc-town" data-town="' + t.id + '" role="button" tabindex="0" aria-label="Travel to ' + t.name + '" transform="translate(' + t.x + " " + t.y + ')">' +
         '<ellipse cx="0" cy="3.3" rx="9" ry="2.3" fill="#000" opacity="0.16"/>' +
+        (MAP_ART ? '<g class="cc-town-body">' + artImage(MAP_ART.towns[t.id], 25, 22, 4.4) + "</g>" : (
         '<g class="cc-town-body">' +
         '<rect x="-9" y="-0.6" width="5" height="3.8" rx="0.6" fill="' + t.wall + '" ' + stroke + "/>" +
         '<path d="M-9.9,-0.6 L-6.5,-3.6 L-3.1,-0.6 Z" fill="' + t.roof + '" ' + stroke + "/>" +
@@ -3144,7 +3176,8 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         '<rect x="-1" y="0.7" width="2.5" height="2.5" rx="0.5" fill="#8a5a3a"/>' +
         '<rect x="-3" y="-2" width="1.6" height="1.6" rx="0.3" fill="#bfe6ff" stroke="#7b5a3a" stroke-width="0.25"/>' +
         '<rect x="2" y="-2" width="1.6" height="1.6" rx="0.3" fill="#bfe6ff" stroke="#7b5a3a" stroke-width="0.25"/>' +
-        "</g>" +
+        "</g>"
+        )) +
         '<g class="cc-name"><rect x="' + -w / 2 + '" y="5.1" width="' + w + '" height="5" rx="2.5" fill="#fff8e6" stroke="' + t.roof + '" stroke-width="0.5"/>' +
         '<text x="0" y="8.65" text-anchor="middle" font-size="3.3" font-weight="900" fill="#3a2a55">' + t.name + "</text></g>" +
         '<text class="cc-sell" data-sell="' + t.id + '" x="0" y="14.2" text-anchor="middle" font-size="3" font-weight="900" fill="#3a2a55" stroke="#fff8e6" stroke-width="0.9" paint-order="stroke"></text>' +
@@ -3158,14 +3191,17 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       '<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="World map">' +
       '<defs><linearGradient id="cc-wilds" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfeeb4"/><stop offset="1" stop-color="#cfe3a0"/></linearGradient>' +
       '<filter id="cc-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4.5"/></filter>' +
-      '<filter id="cc-lift" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="1.4" stdDeviation="1.1" flood-color="#2a4a6a" flood-opacity="0.35"/></filter></defs>' +
+      '<filter id="cc-lift" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="1.4" stdDeviation="1.1" flood-color="#2a4a6a" flood-opacity="0.35"/></filter>' +
+      (MAP_ART ? ["a", "b", "c"].map((k, i) => '<pattern id="cc-gt' + i + '" patternUnits="userSpaceOnUse" width="24" height="24"><image href="' + TEX_BASE + "ground-" + k + '.jpg" width="24" height="24" preserveAspectRatio="none"/></pattern>').join("") : "") +
+      "</defs>" +
       '<rect x="3" y="3" width="94" height="94" rx="17" fill="url(#cc-wilds)" stroke="#fff8e6" stroke-width="1.6" filter="url(#cc-lift)"/>' +
       '<g filter="url(#cc-blur)">' + seasonGlow + "</g>" +
+      (MAP_ART ? '<rect x="3" y="3" width="94" height="94" rx="17" fill="url(#cc-gt1)" opacity="0.4" style="mix-blend-mode:multiply"/>' : "") +
       wild + lands + decor +
       '<g class="cc-ribbon"><rect x="22" y="45.6" width="56" height="8.8" rx="4.4" fill="#fff8e6" fill-opacity="0.93" stroke="#e5c98a" stroke-width="0.6"/>' +
       '<text x="50" y="51.35" text-anchor="middle" font-size="3.7" font-weight="900" letter-spacing="0.45" fill="#6a5230">' + AREA_NAME.toUpperCase() + "</text></g>" +
       roads + towns +
-      '<g class="cc-pin" transform="translate(50 50)"><g class="cc-pin-in">' + SIR_FISH_ICON + "</g></g>" +
+      '<g class="cc-pin" transform="translate(50 50)"><g class="cc-pin-in">' + (MAP_ART ? fishArt() : SIR_FISH_ICON) + "</g></g>" +
       "</svg>"
     );
   }
@@ -3212,6 +3248,8 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     }
 
     pinSpot(t) {
+      // painted towns are big, so Sir Fish stands beside his town on the outer land (towards the map edge)
+      if (MAP_ART) return { x: t.x + (t.x < 50 ? -15.5 : 15.5), y: t.y + 1.5 };
       return { x: t.x, y: t.y - 9.6 };
     }
     setPin(x, y) {
@@ -3385,7 +3423,9 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.nextT = 0;
       root.insertAdjacentHTML(
         "beforeend",
-        '<div class="cc-tip" role="status"><svg class="cc-tip-av" viewBox="-6.5 -12.5 13 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + SIR_FISH_ICON + '</svg><div class="cc-tip-tx"></div><div class="cc-tip-btns"></div></div>'
+        '<div class="cc-tip" role="status">' +
+          (MAP_ART ? '<img class="cc-tip-av" src="' + MAP_ART.fish.url + '" alt="">' : '<svg class="cc-tip-av" viewBox="-6.5 -12.5 13 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + SIR_FISH_ICON + "</svg>") +
+          '<div class="cc-tip-tx"></div><div class="cc-tip-btns"></div></div>'
       );
       this.el = root.querySelector(".cc-tip");
       this.tx = this.el.querySelector(".cc-tip-tx");
@@ -4859,8 +4899,28 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
               })
               .catch(() => {});
         const photo = PHOTO || PHOTO_OFF ? null : loadPhoto();
-        return Promise.all([props, photo]);
+        const mapArt = MAP_ART || MAP_ART_OFF ? null : loadMapArt();
+        return Promise.all([props, photo, mapArt]);
       });
+  }
+
+  function loadMapArt() {
+    const files = ["sir-fish", "town-maybough", "town-breezewick", "town-oakhaven", "town-shiverpine", "tree-meadow", "tree-blossom", "tree-autumn", "tree-frost"];
+    return Promise.all(
+      files.map(
+        (n) =>
+          new Promise((res, rej) => {
+            const im = new Image();
+            im.onload = () => res({ url: MAP_BASE + n + ".webp", aspect: im.naturalWidth / im.naturalHeight });
+            im.onerror = rej;
+            im.src = MAP_BASE + n + ".webp";
+          })
+      )
+    )
+      .then((a) => {
+        MAP_ART = { fish: a[0], towns: { maybough: a[1], breezewick: a[2], oakhaven: a[3], shiverpine: a[4] }, trees: [a[5], a[6], a[7], a[8]] }; // trees by BIOMES index: Meadow, Blossom, Autumn, Frost
+      })
+      .catch(() => {});
   }
 
   function loadPhoto() {
