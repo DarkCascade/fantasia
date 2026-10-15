@@ -771,8 +771,9 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     **ground colour is a spatial gradient** too: the ground shader (`blendGround`)
     tints each fragment by world x from `uColA/uColB/uX0/uX1` (kept current by
     `Scenery.syncGround`), so the next biome is visible ahead; only the sky/fog
-    colour follows the party (`renderFrame`). Tapping the town you are already in
-    is a single-biome trip (`a === b`). The "Entering The Turning Wilds" banner
+    colour follows the party (`renderFrame`). (Tapping the town you are in no longer
+    starts a trip: it opens that town's trade screen, so `a === b` runs only
+    happen if you call `beginTownRun` directly.) The "Entering The Turning Wilds" banner
     fires once `A.x >= x0 + 8`. With `?tex=0` (no ground hook) the ground colour
     falls back to the old party-position lerp; props still mix. `Scenery.reset()`
     drops every chunk so they rebuild with the new biomes, `startRun()` builds a fresh
@@ -785,6 +786,34 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     to the Fantasia menu, not back to the map (no abort-trip button yet).
     Headless: `g.beginTownRun("oakhaven")`, then `g.step(1/30)` until
     `g.mode === "map"`.
+  - **Sir Fish trading (M1: the economy shell).** The game is becoming a
+    cargo-trading game starring **Sir Fish**, a knighted fish who is never
+    without his bowl; he replaces the map pin (`SIR_FISH_ICON`, SVG, facing
+    left). Design (user-confirmed; M2/M3 not built yet): he carries each
+    town's signature item (`TOWNS[].item`: Blossom Honey, Meadow Cheese, Maple
+    Syrup, Frostberry Jam — placeholder names) to the other towns; hired
+    guards will protect the cargo, foes hit guards first, KO'd guards are
+    **permanently kicked from the party**, and if every guard is down each
+    surviving foe steals exactly one item and runs off (no catching thieves);
+    Sir Fish can neither fight nor be hurt. **M1 has no combat change.** What
+    exists: `TownScreen` (the sell/buy overlay: `ITEM_COST` 20 at home, wagon
+    `CARGO_CAP` 6, `START_COINS` 100), opened by tapping the town Sir Fish is
+    in and **auto-opened on arrival** after the pin hops over; resale is
+    `ITEM_COST * SELL_MULT[ringDist]` (1 town away x1.9 = 38, 2 away x2.6 =
+    52, a town never buys its own item) — "towns away" is the ring distance on
+    the 4-town wheel (`TOWNS` order). The map shows "cargo worth N" under every
+    other town (`WorldMap.updateChip`). Money and cargo live on `g.coins` /
+    `g.cargo` and persist in `localStorage` `chibi-crawl-save` (`persist()`,
+    on every trade and at the end of a run); kills still drop a few coins.
+    **Known balance wrinkle:** every trip is 3 encounters whatever the
+    distance, so opposite-corner (2-away) trips pay ~37% more for the same
+    risk. Fixes to weigh: scale encounters with distance, or restrict travel
+    to neighbours. Next (M2): the wagon behind the party, hireable guards
+    (the Knight/Mage/Cleric archetypes become mercenaries; the hire UI goes in
+    `TownScreen`), guards-first foe targeting, theft, permanent KO. M3: Sir
+    Fish + wagon in 3D (generate him without the bowl and build the bowl as a
+    glass sphere around him — transparent glass confuses image-to-3D),
+    mercenary and biome-themed foe art.
   - **Grass clumps** (`grass_a/b/c` in `props.json`) come from Meshy *smart
     topology* (`meshy-t2.5`, via the image route — t2/t2.5 can't go through
     text-to-3d refine) at ~2.9k tris, baked down to 243 / 150 / 110 (`grass_a`

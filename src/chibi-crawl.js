@@ -332,12 +332,57 @@
   const AREA_NAME = "The Turning Wilds";
   const RUN_FIGHTS = 3; // encounters per trip between towns
   const WORLD_KEY = "chibi-crawl-town";
+  // `item` is the town's signature trade good (names/icons are placeholders).
   const TOWNS = [
-    { id: "maybough", name: "Maybough", biome: 1, x: 25, y: 27, roof: "#ff8fb1", wall: "#fff1f6", trim: "#ffd0e0" },
-    { id: "breezewick", name: "Breezewick", biome: 0, x: 75, y: 27, roof: "#e8625c", wall: "#fff6e0", trim: "#ffe3b0" },
-    { id: "oakhaven", name: "Oakhaven", biome: 2, x: 75, y: 73, roof: "#d9792a", wall: "#fff0d2", trim: "#ffd79a" },
-    { id: "shiverpine", name: "Shiverpine", biome: 3, x: 25, y: 73, roof: "#5fa8e0", wall: "#f4fbff", trim: "#cfeaff" },
+    { id: "maybough", name: "Maybough", biome: 1, x: 25, y: 27, roof: "#ff8fb1", wall: "#fff1f6", trim: "#ffd0e0", item: { name: "Blossom Honey", icon: "🍯" } },
+    { id: "breezewick", name: "Breezewick", biome: 0, x: 75, y: 27, roof: "#e8625c", wall: "#fff6e0", trim: "#ffe3b0", item: { name: "Meadow Cheese", icon: "🧀" } },
+    { id: "oakhaven", name: "Oakhaven", biome: 2, x: 75, y: 73, roof: "#d9792a", wall: "#fff0d2", trim: "#ffd79a", item: { name: "Maple Syrup", icon: "🍁" } },
+    { id: "shiverpine", name: "Shiverpine", biome: 3, x: 25, y: 73, roof: "#5fa8e0", wall: "#f4fbff", trim: "#cfeaff", item: { name: "Frostberry Jam", icon: "🫐" } },
   ];
+
+  /* ---------- trade: Sir Fish carries each town's signature item to the others ---------- */
+
+  const ITEM_COST = 20; // what a signature item costs in its home town
+  const CARGO_CAP = 6; // the wagon holds this many items
+  const START_COINS = 100;
+  // Resale multiplier by how many towns away an item came from, around the wheel of
+  // four (1 = next door, 2 = across the Wilds). 0 = its own town, which won't buy it.
+  const SELL_MULT = [0, 1.9, 2.6];
+  const SAVE_KEY = "chibi-crawl-save";
+
+  function ringDist(a, b) {
+    const d = Math.abs(TOWNS.indexOf(a) - TOWNS.indexOf(b));
+    return Math.min(d, TOWNS.length - d);
+  }
+  // What `at` pays for one item that came from `origin`.
+  function sellPrice(origin, at) {
+    return Math.round(ITEM_COST * SELL_MULT[ringDist(origin, at)]);
+  }
+  function cargoCount(cargo) {
+    return TOWNS.reduce((n, t) => n + (cargo[t.id] || 0), 0);
+  }
+  function cargoValueAt(cargo, at) {
+    return TOWNS.reduce((v, t) => v + (cargo[t.id] || 0) * sellPrice(t, at), 0);
+  }
+  function loadSave() {
+    const s = { coins: START_COINS, cargo: {} };
+    TOWNS.forEach((t) => (s.cargo[t.id] = 0));
+    try {
+      const o = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+      if (o && typeof o.coins === "number") s.coins = Math.max(0, Math.floor(o.coins));
+      if (o && o.cargo) TOWNS.forEach((t) => (s.cargo[t.id] = Math.max(0, Math.floor(o.cargo[t.id] || 0))));
+    } catch (e) {
+      /* storage may be unavailable: a fresh purse each visit */
+    }
+    return s;
+  }
+  function writeSave(coins, cargo) {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ coins: coins, cargo: cargo }));
+    } catch (e) {
+      /* ignore */
+    }
+  }
   function townById(id) {
     return TOWNS.find((t) => t.id === id) || TOWNS[1];
   }
@@ -2351,6 +2396,29 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 .cc-pulse { fill: none; stroke: #ff5a7a; stroke-width: 1.1; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: cc-ping .9s ease-out forwards; }
 @keyframes cc-ping { from { transform: scale(.35); opacity: .95; } to { transform: scale(1.9); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cc-pin-in { animation: none; } }
+.cc-sell { pointer-events: none; }
+.cc-trade { position: absolute; inset: 0; z-index: 8; display: none; align-items: center; justify-content: center; padding: 12px; background: rgba(40,28,66,.55); }
+#cc-root.cc-townmode .cc-trade { display: flex; animation: cc-mapin .22s ease both; }
+.cc-trade-card { width: min(440px, 100%); max-height: 100%; overflow-y: auto; border-radius: 20px; background: #fff8e6; color: #3a2a55; border: 3px solid #fff; box-shadow: 0 10px 30px rgba(40,28,66,.5); padding-bottom: 12px; }
+.cc-trade-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; color: #fff; border-radius: 17px 17px 0 0; text-shadow: 0 2px 0 rgba(58,42,85,.45); }
+.cc-trade-title { font-size: 26px; font-weight: 900; line-height: 1.05; }
+.cc-trade-sub { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .92; }
+.cc-trade-x { width: 36px; height: 36px; flex: none; font-size: 24px; line-height: 1; cursor: pointer; color: #fff; background: rgba(58,42,85,.4); border: 2px solid #fff; border-radius: 50%; }
+.cc-trade-wallet { display: flex; gap: 8px; padding: 8px 14px; background: #fff1cf; font-weight: 900; font-size: 15px; }
+.cc-trade-wallet span { padding: 3px 11px; border-radius: 12px; background: #fff; border: 2px solid #f2d9a6; animation: cc-pop .3s ease-out; }
+@keyframes cc-pop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+.cc-trade h4 { margin: 12px 14px 4px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8a6a3a; }
+.cc-trade-row { display: flex; align-items: center; gap: 10px; margin: 0 10px 6px; padding: 8px 10px; border-radius: 14px; background: #fff; border: 2px solid #f2e2bb; }
+.cc-trade-ic { flex: none; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 24px; border-radius: 50%; background: #fff1cf; }
+.cc-trade-tx { flex: 1; min-width: 0; }
+.cc-trade-tx b { display: block; font-size: 15px; font-weight: 900; }
+.cc-trade-tx small { display: block; font-size: 11px; font-weight: 700; opacity: .7; line-height: 1.25; }
+.cc-trade-btns { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.cc-trade .cc-btn { color: #3a2a55; background: #fff; border: 2px solid #3a2a55; box-shadow: 0 3px 0 rgba(58,42,85,.35); padding: 5px 10px; font-size: 13px; border-radius: 11px; white-space: nowrap; }
+.cc-trade .cc-btn.gold { background: #ffd75a; }
+.cc-trade .cc-btn:disabled { opacity: .4; pointer-events: none; }
+.cc-trade-empty { margin: 0 14px 6px; font-size: 13px; font-weight: 700; opacity: .65; }
+.cc-trade .cc-trade-go { display: block; width: calc(100% - 24px); margin: 14px 12px 0; padding: 11px; font-size: 16px; background: #8dffb0; }
 `;
 
   const HUD_HTML = `
@@ -2607,7 +2675,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const where = g.target ? "to " + g.target.name + " &middot; " : "";
       this.el.chip.innerHTML =
         "Encounter " + Math.min(g.runDone + 1, RUN_FIGHTS) + "/" + RUN_FIGHTS + " &middot; Lv " + g.level + " &middot; 🪙 " + g.coins +
-        "<small>" + where + g.streak + " streak &middot; best " + g.best + "</small>";
+        "<small>" + where + "📦 " + cargoCount(g.cargo) + "/" + CARGO_CAP + " &middot; best " + g.best + "</small>";
     }
 
     dispose() {
@@ -2648,6 +2716,27 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       '<circle cx="' + (x - 0.7 * s) + '" cy="' + (y - 2.5 * s) + '" r="' + 0.85 * s + '" fill="#fff" opacity="0.38"/>'
     );
   }
+
+  // Sir Fish, in his bowl (he is never without it): the map's location marker.
+  // Drawn with its base at (0,0) and facing left, like the concept art.
+  const SIR_FISH_ICON =
+    '<ellipse cx="0" cy="0.5" rx="4.3" ry="1.1" fill="#000" opacity="0.22"/>' +
+    '<circle cx="0" cy="-5.9" r="5.5" fill="#bfe9ff" fill-opacity="0.92" stroke="#fff" stroke-width="0.9"/>' +
+    '<ellipse cx="0" cy="-10.6" rx="3.1" ry="0.85" fill="none" stroke="#fff" stroke-width="0.7"/>' +
+    '<path d="M-4.6,-3.4 Q0,-1.6 4.6,-3.4" fill="#8fd2f5" opacity="0.7"/>' +
+    '<path d="M2.4,-5.6 L5.1,-7.8 L5.1,-3.5 Z" fill="#3b8fe0" stroke="#1d5fa8" stroke-width="0.3" stroke-linejoin="round"/>' +
+    '<path d="M-0.4,-7.9 L1.5,-9.8 L1.9,-7.6 Z" fill="#3b8fe0" stroke="#1d5fa8" stroke-width="0.3" stroke-linejoin="round"/>' +
+    '<ellipse cx="-0.4" cy="-5.3" rx="3.3" ry="2.7" fill="#2fb3b0" stroke="#17717a" stroke-width="0.35"/>' +
+    '<path d="M0.3,-4.3 q0.8,0.9 1.6,0 M1.2,-5.4 q0.8,0.9 1.6,0 M0.2,-6.3 q0.8,0.9 1.6,0" fill="none" stroke="#17717a" stroke-width="0.25" opacity="0.7"/>' +
+    '<path d="M-3.6,-6.1 A3 3 0 0 1 1.9,-7.2 L1.7,-5.3 L-3.6,-5.3 Z" fill="#b6c0d0" stroke="#6b7588" stroke-width="0.35" stroke-linejoin="round"/>' +
+    '<path d="M-2.6,-6.5 v1.1 M-1.6,-6.8 v1.4 M-0.6,-6.9 v1.5" stroke="#6b7588" stroke-width="0.3" stroke-linecap="round"/>' +
+    '<path d="M-0.6,-9.1 q1.5,-1.9 3.2,-0.8 q-1.4,0.1 -1.9,1.3 z" fill="#f2a22e" stroke="#b9701a" stroke-width="0.2"/>' +
+    '<ellipse cx="-0.7" cy="-8.3" rx="2.4" ry="0.7" fill="none" stroke="#f5b83a" stroke-width="0.55"/>' +
+    '<circle cx="-2.5" cy="-4.5" r="0.62" fill="#fff"/><circle cx="-2.6" cy="-4.45" r="0.32" fill="#2a2340"/>' +
+    '<path d="M-3.4,-3.4 q1,0.7 2,0" fill="none" stroke="#17717a" stroke-width="0.3" stroke-linecap="round"/>' +
+    '<circle cx="-1" cy="-2.7" r="0.5" fill="#6fe8d8" stroke="#f5b83a" stroke-width="0.25"/>' +
+    '<circle cx="3.1" cy="-9" r="0.35" fill="#fff" opacity="0.8"/><circle cx="3.9" cy="-7.2" r="0.25" fill="#fff" opacity="0.8"/>' +
+    '<path d="M-4.1,-8.4 A5.5 5.5 0 0 1 -1,-10.7" fill="none" stroke="#fff" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>';
 
   function mapSvg() {
     const rng = mulberry32(7);
@@ -2743,6 +2832,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         "</g>" +
         '<g class="cc-name"><rect x="' + -w / 2 + '" y="5.1" width="' + w + '" height="5" rx="2.5" fill="#fff8e6" stroke="' + t.roof + '" stroke-width="0.5"/>' +
         '<text x="0" y="8.65" text-anchor="middle" font-size="3.3" font-weight="900" fill="#3a2a55">' + t.name + "</text></g>" +
+        '<text class="cc-sell" data-sell="' + t.id + '" x="0" y="14.2" text-anchor="middle" font-size="3" font-weight="900" fill="#3a2a55" stroke="#fff8e6" stroke-width="0.9" paint-order="stroke"></text>' +
         '<circle class="cc-hit" cx="0" cy="0" r="13" fill="transparent"/>' +
         "</g>"
       );
@@ -2759,10 +2849,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       '<g class="cc-ribbon"><rect x="22" y="45.6" width="56" height="8.8" rx="4.4" fill="#fff8e6" fill-opacity="0.93" stroke="#e5c98a" stroke-width="0.6"/>' +
       '<text x="50" y="51.35" text-anchor="middle" font-size="3.7" font-weight="900" letter-spacing="0.45" fill="#6a5230">' + AREA_NAME.toUpperCase() + "</text></g>" +
       roads + towns +
-      '<g class="cc-pin" transform="translate(50 50)"><g class="cc-pin-in">' +
-      '<ellipse cx="0" cy="0.4" rx="3.2" ry="1" fill="#000" opacity="0.22"/>' +
-      '<path d="M0,0 C-2.6,-3.8 -4.4,-5.4 -4.4,-8 a4.4,4.4 0 1 1 8.8,0 C4.4,-5.4 2.6,-3.8 0,0 Z" fill="#ff5a7a" stroke="#fff" stroke-width="0.9" stroke-linejoin="round"/>' +
-      '<circle cx="0" cy="-8" r="1.8" fill="#fff"/></g></g>' +
+      '<g class="cc-pin" transform="translate(50 50)"><g class="cc-pin-in">' + SIR_FISH_ICON + "</g></g>" +
       "</svg>"
     );
   }
@@ -2778,13 +2865,14 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         "beforeend",
         '<div class="cc-map"><div class="cc-map-top">' +
           '<button class="cc-btn cc-round" data-map="menu" type="button" aria-label="Menu">&#8801;</button>' +
-          '<div class="cc-chip"><span data-map="where"></span><small>Tap a town to set out &middot; ' + RUN_FIGHTS + " encounters</small></div>" +
+          '<div class="cc-chip"><span data-map="where"></span><small data-map="sub"></small></div>' +
           '<div class="cc-map-gap"></div></div>' +
           mapSvg() +
           "</div>"
       );
       this.el = root.querySelector(".cc-map");
       this.where = this.el.querySelector('[data-map="where"]');
+      this.sub = this.el.querySelector('[data-map="sub"]');
       this.pin = this.el.querySelector(".cc-pin");
       this.svg = this.el.querySelector("svg");
       g.listen(this.el.querySelector('[data-map="menu"]'), "click", () => window.returnToMenu && window.returnToMenu());
@@ -2817,7 +2905,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.busy = false;
       this.el.classList.remove("leaving");
       this.root.classList.add("cc-mapmode");
-      this.where.textContent = "📍 " + to.name;
+      this.updateChip();
       const b = this.pinSpot(to);
       if (!from || from === to) {
         this.setPin(b.x, b.y);
@@ -2831,11 +2919,30 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const frame = (now) => {
         const p = clamp((now - t0) / dur, 0, 1);
         const e = smooth(p);
-        this.setPin(lerp(a.x, b.x, e), lerp(a.y, b.y, e) - Math.sin(Math.PI * e) * 11);
+        this.setPin(lerp(a.x, b.x, e), lerp(a.y, b.y, e) - Math.sin(Math.PI * e) * 8);
         if (p < 1) this.raf = requestAnimationFrame(frame);
-        else this.pulse(to);
+        else {
+          this.pulse(to);
+          this.hideT = setTimeout(() => this.g.openTown(), 450); // arrived: open the town to trade
+        }
       };
       this.raf = requestAnimationFrame(frame);
+    }
+
+    // Chip text + the "what my cargo is worth there" tag under each town.
+    updateChip() {
+      const g = this.g;
+      this.where.textContent = "🐟 " + g.town.name;
+      this.sub.innerHTML = "🪙 " + g.coins + " &middot; 📦 " + cargoCount(g.cargo) + "/" + CARGO_CAP + " &middot; tap a town";
+      const n = cargoCount(g.cargo);
+      this.el.querySelectorAll("[data-sell]").forEach((el) => {
+        const t = townById(el.getAttribute("data-sell"));
+        if (!n || t === g.town) el.textContent = "";
+        else {
+          const v = cargoValueAt(g.cargo, t);
+          el.textContent = v ? "cargo worth 🪙 " + v : "won't buy it";
+        }
+      });
     }
 
     pulse(t) {
@@ -2850,6 +2957,10 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 
     pick(id) {
       if (this.busy || this.g.mode !== "map") return;
+      if (id === this.g.town.id) {
+        this.g.openTown(); // tapping the town Sir Fish is in = trade there
+        return;
+      }
       this.busy = true;
       cancelAnimationFrame(this.raf);
       this.el.classList.add("leaving");
@@ -2865,6 +2976,118 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       cancelAnimationFrame(this.raf);
       clearTimeout(this.hideT);
     }
+  }
+
+  /* ---------- the town trade screen ---------- */
+
+  function tradeRow(icon, title, sub, buttons) {
+    return (
+      '<div class="cc-trade-row"><div class="cc-trade-ic">' + icon + '</div><div class="cc-trade-tx"><b>' + title + "</b><small>" + sub + "</small></div>" +
+      '<div class="cc-trade-btns">' + buttons + "</div></div>"
+    );
+  }
+  function tradeBtn(label, act, id, opts) {
+    opts = opts || {};
+    return '<button class="cc-btn' + (opts.gold ? " gold" : "") + '" type="button" data-act="' + act + '" data-id="' + (id || "") + '"' + (opts.off ? " disabled" : "") + ">" + label + "</button>";
+  }
+
+  // Sell what Sir Fish carries, buy this town's signature item. (Hiring guards is next.)
+  class TownScreen {
+    constructor(g, root) {
+      this.g = g;
+      this.root = root;
+      this.town = null;
+      root.insertAdjacentHTML("beforeend", '<div class="cc-trade"><div class="cc-trade-card"></div></div>');
+      this.el = root.querySelector(".cc-trade");
+      this.card = this.el.querySelector(".cc-trade-card");
+      g.listen(this.el, "click", (e) => {
+        if (e.target === this.el) {
+          this.close(); // the dim backdrop
+          return;
+        }
+        const b = e.target.closest && e.target.closest("[data-act]");
+        if (b && !b.disabled) this.act(b.getAttribute("data-act"), b.getAttribute("data-id"));
+      });
+      g.listen(window, "keydown", (e) => {
+        if (e.key === "Escape" && this.town) this.close();
+      });
+    }
+
+    open(town) {
+      this.town = town;
+      this.root.classList.add("cc-townmode");
+      this.render();
+    }
+
+    close() {
+      if (!this.town) return;
+      this.town = null;
+      this.root.classList.remove("cc-townmode");
+      this.g.worldMap.updateChip();
+    }
+
+    act(a, id) {
+      const g = this.g;
+      const t = this.town;
+      if (a === "close") return this.close();
+      if (a === "sell1" || a === "sellall") {
+        const o = townById(id);
+        const k = a === "sell1" ? Math.min(1, g.cargo[o.id]) : g.cargo[o.id];
+        g.cargo[o.id] -= k;
+        g.coins += k * sellPrice(o, t);
+      } else if (a === "buy1" || a === "fill") {
+        const room = CARGO_CAP - cargoCount(g.cargo);
+        const k = a === "buy1" ? Math.min(1, room, Math.floor(g.coins / ITEM_COST)) : Math.min(room, Math.floor(g.coins / ITEM_COST));
+        g.cargo[t.id] += k;
+        g.coins -= k * ITEM_COST;
+      }
+      g.persist();
+      g.hud.updateChip();
+      this.render();
+    }
+
+    render() {
+      const g = this.g;
+      const t = this.town;
+      if (!t) return;
+      const n = cargoCount(g.cargo);
+      const room = CARGO_CAP - n;
+      let h =
+        '<div class="cc-trade-head" style="background:' + t.roof + '"><div><div class="cc-trade-title">' + t.name + '</div><div class="cc-trade-sub">' +
+        BIOMES[t.biome].name + ' town &middot; Sir Fish&rsquo;s stop</div></div><button class="cc-trade-x" type="button" data-act="close" aria-label="Close">&times;</button></div>';
+      h += '<div class="cc-trade-wallet"><span>🪙 ' + g.coins + "</span><span>📦 " + n + " / " + CARGO_CAP + "</span></div>";
+
+      h += "<h4>Sell</h4>";
+      let rows = "";
+      TOWNS.forEach((o) => {
+        const c = g.cargo[o.id];
+        if (!c) return;
+        const d = ringDist(o, t);
+        const ttl = o.item.name + " &times;" + c;
+        if (!d) rows += tradeRow(o.item.icon, ttl, "Grown here, so " + t.name + " won&rsquo;t buy it", "");
+        else {
+          const price = sellPrice(o, t);
+          rows += tradeRow(o.item.icon, ttl, "from " + o.name + " &middot; " + d + " town" + (d > 1 ? "s" : "") + " away &middot; 🪙 " + price + " each",
+            tradeBtn("Sell 1", "sell1", o.id) + tradeBtn("Sell all +" + price * c, "sellall", o.id, { gold: true }));
+        }
+      });
+      h += rows || '<div class="cc-trade-empty">The wagon is empty.</div>';
+
+      h += "<h4>Buy</h4>";
+      const afford = Math.floor(g.coins / ITEM_COST);
+      const fillN = Math.min(room, afford);
+      const near = sellPrice(t, TOWNS[(TOWNS.indexOf(t) + 1) % TOWNS.length]);
+      const far = sellPrice(t, TOWNS[(TOWNS.indexOf(t) + 2) % TOWNS.length]);
+      h += tradeRow(t.item.icon, t.item.name, "🪙 " + ITEM_COST + " each &middot; sells for " + near + " next door, " + far + " across the Wilds",
+        tradeBtn("Buy 1", "buy1", "", { off: fillN < 1 }) + tradeBtn(fillN > 0 ? "Fill (" + fillN + ")" : "Fill", "fill", "", { gold: true, off: fillN < 1 }));
+      if (room < 1) h += '<div class="cc-trade-empty">The wagon is full.</div>';
+      else if (afford < 1) h += '<div class="cc-trade-empty">Not enough coins.</div>';
+
+      h += '<button class="cc-btn cc-trade-go" type="button" data-act="close">Back to the map &#10140;</button>';
+      this.card.innerHTML = h;
+    }
+
+    dispose() {}
   }
 
   /* ---------- the game ---------- */
@@ -2901,7 +3124,9 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.level = 1;
       this.wins = 0;
       this.streak = 0;
-      this.coins = 0;
+      this.save = loadSave();
+      this.coins = this.save.coins; // money: kills drop a little, trade earns the rest
+      this.cargo = this.save.cargo; // signature items on the wagon, by home town id
       this.fightNo = 1;
       this.doneIdx = 0;
       this.biomeName = "";
@@ -2928,6 +3153,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.scenery = new Scenery(this);
       this.updateCamera(0.016, true);
       this.worldMap = new WorldMap(this, root);
+      this.townScreen = new TownScreen(this, root);
       this.openMap(null);
 
       this.lastFrame = performance.now();
@@ -3049,6 +3275,16 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       return 1 + LEVEL_BONUS * (this.level - 1);
     }
 
+    persist() {
+      writeSave(this.coins, this.cargo);
+    }
+
+    // The trade screen for the town Sir Fish is in.
+    openTown() {
+      if (this.mode !== "map") return;
+      this.townScreen.open(this.town);
+    }
+
     openMap(from) {
       this.mode = "map";
       this.hud.el.sheet.classList.remove("open");
@@ -3097,6 +3333,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.town = this.target;
       this.target = null;
       saveTown(this.town.id);
+      this.persist();
       this.openMap(from);
     }
 
@@ -3882,6 +4119,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       if (this.raf) cancelAnimationFrame(this.raf);
       this.listeners.forEach((l) => l[0].removeEventListener(l[1], l[2], l[3]));
       this.worldMap.dispose();
+      this.townScreen.dispose();
       this.hud.dispose();
       if (this.renderer.forceContextLoss) this.renderer.forceContextLoss();
       this.renderer.dispose();
