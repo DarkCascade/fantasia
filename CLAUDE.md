@@ -713,9 +713,10 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     below 62% and Blessing revives the fallen. Enemies: Slime, Shroom, Bat
     (hunts the weakest hero) and a **King Slime boss every 5th fight**
     (Body Slam). Party levels every `LEVEL_EVERY` wins; foes scale
-    `FOE_SCALE_PER_FIGHT` per fight. **Nobody permanently loses**: KO'd heroes
-    revive after the fight, and a full wipe is a "nap" — heroes get back up and
-    the loop continues (streak resets).
+    `FOE_SCALE_PER_FIGHT` per fight. **KO'd guards are permanent now** (Sir
+    Fish; see below): a guard still down when a fight ends is kicked from the
+    party for good (`kickFallen`, only a mid-fight Blessing can save one), and
+    when every guard is down the foes plunder the wagon instead of a "nap".
   - **Headless testing.** `window.chibiCrawlGame.game` is the live `Game`.
     Step it with `g.step(1/30)` in `page.evaluate` (no rendering needed; call
     `g.renderFrame(dt)` only to refresh HUD/scenery before a screenshot), `g.
@@ -780,40 +781,62 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     course. After `RUN_FIGHTS` (3) finished encounters `finishEncounter` goes to
     the `"arrive"` phase ("Welcome to <town>!"), then `endRun()` saves the town
     (`localStorage` `chibi-crawl-town`) and reopens the map with the pin hopping
-    from the old town to the new one. **A wipe still counts as an encounter** (the
-    game never lets you lose). The party level / wins persist across trips within
+    from the old town to the new one. **Plunder counts as an encounter** (the
+    foes steal and leave, so the trip carries on). The party level / wins persist across trips within
     a session; the run chip reads "Encounter n/3 · to <town>". The ≡ in a run goes
     to the Fantasia menu, not back to the map (no abort-trip button yet).
     Headless: `g.beginTownRun("oakhaven")`, then `g.step(1/30)` until
     `g.mode === "map"`.
-  - **Sir Fish trading (M1: the economy shell).** The game is becoming a
-    cargo-trading game starring **Sir Fish**, a knighted fish who is never
-    without his bowl; he replaces the map pin (`SIR_FISH_ICON`, SVG, facing
-    left). Design (user-confirmed; M2/M3 not built yet): he carries each
-    town's signature item (`TOWNS[].item`: Blossom Honey, Meadow Cheese, Maple
-    Syrup, Frostberry Jam — placeholder names) to the other towns; hired
-    guards will protect the cargo, foes hit guards first, KO'd guards are
-    **permanently kicked from the party**, and if every guard is down each
-    surviving foe steals exactly one item and runs off (no catching thieves);
-    Sir Fish can neither fight nor be hurt. **M1 has no combat change.** What
-    exists: `TownScreen` (the sell/buy overlay: `ITEM_COST` 20 at home, wagon
-    `CARGO_CAP` 6, `START_COINS` 100), opened by tapping the town Sir Fish is
-    in and **auto-opened on arrival** after the pin hops over; resale is
-    `ITEM_COST * SELL_MULT[ringDist]` (1 town away x1.9 = 38, 2 away x2.6 =
-    52, a town never buys its own item) — "towns away" is the ring distance on
-    the 4-town wheel (`TOWNS` order). The map shows "cargo worth N" under every
-    other town (`WorldMap.updateChip`). Money and cargo live on `g.coins` /
-    `g.cargo` and persist in `localStorage` `chibi-crawl-save` (`persist()`,
-    on every trade and at the end of a run); kills still drop a few coins.
-    **Known balance wrinkle:** every trip is 3 encounters whatever the
-    distance, so opposite-corner (2-away) trips pay ~37% more for the same
-    risk. Fixes to weigh: scale encounters with distance, or restrict travel
-    to neighbours. Next (M2): the wagon behind the party, hireable guards
-    (the Knight/Mage/Cleric archetypes become mercenaries; the hire UI goes in
-    `TownScreen`), guards-first foe targeting, theft, permanent KO. M3: Sir
-    Fish + wagon in 3D (generate him without the bowl and build the bowl as a
-    glass sphere around him — transparent glass confuses image-to-3D),
-    mercenary and biome-themed foe art.
+  - **Sir Fish trading (M1 economy + M2 danger are built; M3 art is not).**
+    The game is a cargo-trading game starring **Sir Fish**, a knighted fish
+    who is never without his bowl. He is the map marker (`SIR_FISH_ICON`, SVG,
+    facing left) and rides his **wagon** (`Wagon`, primitives built with the
+    unit `Builder`, so outlined toon; his bowl is a glass sphere on the seat,
+    the bed's crates show the cargo by home town) trailing the party by
+    `WAGON_GAP`. Design (user-confirmed): he carries each town's signature item
+    (`TOWNS[].item`: Blossom Honey, Meadow Cheese, Maple Syrup, Frostberry Jam
+    — placeholder names) to the other towns; hired guards protect the cargo;
+    Sir Fish can neither fight nor be hurt.
+    - **Economy (M1).** `TownScreen` (the sell/buy/hire overlay: `ITEM_COST` 20
+      at home, wagon `CARGO_CAP` 6, `START_COINS` 100) opens by tapping the
+      town Sir Fish is in and **auto-opens on arrival** after the pin hops over;
+      resale is `ITEM_COST * SELL_MULT[ringDist]` (1 town away x1.9 = 38, 2
+      away x2.6 = 52, a town never buys its own item): "towns away" is the ring
+      distance on the 4-town wheel (`TOWNS` order). The map shows "cargo worth
+      N" under every other town (`WorldMap.updateChip`). Money, cargo and the
+      hired guards live on `g.coins` / `g.cargo` / `g.guards` and persist in
+      `localStorage` `chibi-crawl-save` (`persist()`, on every trade, loss and
+      at the end of a run); kills still drop a few coins.
+    - **Guards (M2).** Hired in any town for `HIRE_COST` (Knight 60, Mage 70,
+      Cleric 70), one of each kind; **you start with none** and 100 coins.
+      `startRun` spawns only `guardDefs()`; the status panel is rebuilt
+      (`Hud.buildPanel`) for whoever is hired, with a hint card when nobody is.
+      Foes only ever target guards (`opponents()`), so "guards first" is free.
+      **A guard still down when the fight ends is permanently kicked**
+      (`kickFallen`: a Blessing mid-fight can still rescue one) and removed from
+      the save. Party level/wins are still per-session, and apply to whoever is
+      in the party.
+    - **Plunder (M2).** When no guard is alive in a fight (or there never were
+      any: the very first battle tick) `beginPlunder` runs instead of the old
+      "nap": every surviving foe becomes a thief (`Unit.plunder`, driven by
+      `stepPlunder`: wait its turn, sprint to the wagon at `THIEF_SPEED`, grab
+      **exactly one** item via `Game.stealOne` (random, weighted by count),
+      then flee with the item's emoji overhead and vanish). Thieves are never
+      fought or caught. An empty wagon just means "empty!". `endPlunder` ends
+      the encounter with a "N items stolen!" banner. The fight camera now
+      frames the wagon too (`partyPts(true)`), and handles an empty party.
+    - **Known balance wrinkles.** Every trip is 3 encounters whatever the
+      distance, so opposite-corner (2-away) trips pay ~37% more for the same
+      risk (fixes to weigh: scale encounters with distance, or restrict travel
+      to neighbours). A single dead guard in a pack of N foes can cost N items,
+      and a no-guard trip loses up to the whole wagon in the first encounter:
+      that is the intended tension, but expect to retune `HIRE_COST`, foe pack
+      size and `SELL_MULT` together.
+    - **M3 (not built).** Sir Fish + wagon in 3D (generate him without the bowl
+      and build the bowl as a glass sphere around him — transparent glass
+      confuses image-to-3D; the current fish is a primitive blob), mercenary and
+      biome-themed foe art. The concept photo is in
+      `experiments/chibi-level-art/ref/`.
   - **Grass clumps** (`grass_a/b/c` in `props.json`) come from Meshy *smart
     topology* (`meshy-t2.5`, via the image route — t2/t2.5 can't go through
     text-to-3d refine) at ~2.9k tris, baked down to 243 / 150 / 110 (`grass_a`

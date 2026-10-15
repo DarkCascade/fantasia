@@ -63,7 +63,6 @@
   const SIGHT_DIST = 17; // foes notice the party (and the camera pulls back) at this range
   const INTRO_S = 1.1;
   const VICTORY_S = 2.5;
-  const WIPE_S = 2.4;
   const WILDS_HALF = 24; // the biome blend spans 2x this around the middle arena (arena gaps are >= 34, so the first/last arenas stay pure)
   const ARRIVE_S = 2.8; // "Welcome to <town>!" beat before the map returns
   const DASH_SPEED = 13;
@@ -76,7 +75,6 @@
   const LEVEL_BONUS = 0.1; // hero hp/atk per level
   const FOE_SCALE_PER_FIGHT = 0.06;
   const RUN_REGEN = 0.045; // fraction of max hp regained per second while jogging
-  const REVIVE_FRAC = 0.4;
   const CHUNK = 10; // scenery chunk length along the path
   const CHUNK_BEHIND = 3;
   const CHUNK_AHEAD = 7;
@@ -349,6 +347,11 @@
   // four (1 = next door, 2 = across the Wilds). 0 = its own town, which won't buy it.
   const SELL_MULT = [0, 1.9, 2.6];
   const SAVE_KEY = "chibi-crawl-save";
+  // Mercenaries for hire in every town. One of each kind: the panel and formations
+  // are built for a party of three, and a kind lost in a fight can be hired again.
+  const HIRE_COST = { knight: 60, mage: 70, cleric: 70 };
+  const WAGON_GAP = 6.4; // how far behind the party anchor the wagon trails
+  const THIEF_SPEED = 9; // thieves sprint to the wagon, then run off with their loot
 
   function ringDist(a, b) {
     const d = Math.abs(TOWNS.indexOf(a) - TOWNS.indexOf(b));
@@ -365,20 +368,21 @@
     return TOWNS.reduce((v, t) => v + (cargo[t.id] || 0) * sellPrice(t, at), 0);
   }
   function loadSave() {
-    const s = { coins: START_COINS, cargo: {} };
+    const s = { coins: START_COINS, cargo: {}, guards: [] };
     TOWNS.forEach((t) => (s.cargo[t.id] = 0));
     try {
       const o = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
       if (o && typeof o.coins === "number") s.coins = Math.max(0, Math.floor(o.coins));
       if (o && o.cargo) TOWNS.forEach((t) => (s.cargo[t.id] = Math.max(0, Math.floor(o.cargo[t.id] || 0))));
+      if (o && Array.isArray(o.guards)) s.guards = o.guards.filter((k, i) => HIRE_COST[k] && o.guards.indexOf(k) === i);
     } catch (e) {
       /* storage may be unavailable: a fresh purse each visit */
     }
     return s;
   }
-  function writeSave(coins, cargo) {
+  function writeSave(coins, cargo, guards) {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ coins: coins, cargo: cargo }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ coins: coins, cargo: cargo, guards: guards }));
     } catch (e) {
       /* ignore */
     }
@@ -601,6 +605,16 @@
       c.beginPath();
       c.ellipse(w / 2, w / 2, w * 0.2, w * 0.4, 0.6, 0, TAU);
       c.fill();
+    });
+
+    // one emoji sprite per trade good (the wagon's stolen-item pop and the thieves' loot)
+    TOWNS.forEach((t) => {
+      TEX["item_" + t.id] = canvasTex(64, 64, (c, w) => {
+        c.font = "46px sans-serif";
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        c.fillText(t.item.icon, w / 2, w / 2 + 3);
+      });
     });
 
     // Ground: tintable tileable grass — a soft checker, blotches and tufts,
@@ -1688,6 +1702,11 @@
         this.kb.z *= d;
       }
 
+      if (this.plunder) {
+        this.stepPlunder(dt);
+        if (!this.gone) this.syncVisual(dt, t);
+        return;
+      }
       if (this.act) this.stepAct(dt);
       else {
         const h = g.slotPos(this);
@@ -1695,7 +1714,7 @@
         this.pos.x += (h.x - this.pos.x) * k;
         this.pos.z += (h.z - this.pos.z) * k;
         if (g.phase === "run") this.faceYaw = this.side === "hero" ? Math.PI / 2 - g.anchor.h : -Math.PI / 2;
-        else if (g.phase === "victory" || g.phase === "wipe") {
+        else if (g.phase === "victory" || g.phase === "plunder") {
           /* keep whatever facing we had */
         } else {
           const ops = g.opponents(this);
@@ -1710,6 +1729,45 @@
         }
       }
       this.syncVisual(dt, t);
+    }
+
+    // A thief (a foe once every guard is down): wait its turn, sprint to the wagon,
+    // grab one item if there is any, then run off with it. Never caught.
+    stepPlunder(dt) {
+      const g = this.g;
+      const p = this.plunder;
+      p.t += dt;
+      const w = g.wagon.pos;
+      if (p.ph === "wait") {
+        this.faceToward(w.x, w.z);
+        if (p.t >= p.delay) {
+          p.ph = "run";
+          p.t = 0;
+        }
+      } else if (p.ph === "run") {
+        const left = this.moveToward(w.x + p.ox, w.z + p.oz, THIEF_SPEED, dt);
+        if (left < 0.1 || p.t > 6) {
+          p.ph = "grab";
+          p.t = 0;
+        }
+      } else if (p.ph === "grab") {
+        this.faceToward(w.x, w.z);
+        if (!p.took && p.t >= 0.3) {
+          p.took = true;
+          g.stealOne(this);
+        }
+        if (p.t >= 0.6) {
+          p.ph = "flee";
+          p.t = 0;
+        }
+      } else {
+        this.moveToward(this.pos.x + p.fx * 9, this.pos.z + p.fz * 9, THIEF_SPEED * 1.15, dt);
+        if (p.t >= 1.5) {
+          g.poof(this.pos.x, 0.8, this.pos.z, 0xffffff, 6);
+          this.gone = true;
+          g.removeUnit(this);
+        }
+      }
     }
 
     computePose(dt, t) {
@@ -1818,6 +1876,128 @@
     dispose() {
       this.g.world.remove(this.root);
       this.g.world.remove(this.shadow);
+      this.toons.forEach((m) => m.dispose());
+      this.others.forEach((m) => m.dispose());
+      this.ownGeo.forEach((m) => m.dispose());
+    }
+  }
+
+  /* ---------- Sir Fish's wagon ---------- */
+
+  const CRATE_COLORS = { maybough: 0xff9fc0, breezewick: 0xffd24a, oakhaven: 0xe2793a, shiverpine: 0x6fb8d8 };
+
+  // Trails the party along the road. Sir Fish rides at the front in his bowl (he is
+  // never without it); the crates in the bed are the cargo, one per item. Primitives
+  // for now, built with the same outlined toon Builder as the units.
+  class Wagon {
+    constructor(g) {
+      this.g = g;
+      this.toons = [];
+      this.others = [];
+      this.ownGeo = [];
+      this.pos = new THREE.Vector3();
+      this.wheel = 0;
+      this.yaw = 0;
+      this.t = 0;
+      this.shake = 0;
+      this.placed = false;
+      const b = (this.b = new Builder(this));
+      const root = (this.root = new THREE.Group());
+      g.world.add(root);
+      const body = (this.body = b.group(root, [0, 0, 0]));
+      const wood = 0xb9814f;
+      const board = 0xcf9a62;
+      b.part(body, G.box, wood, [0, 0.62, 0], [2.1, 0.16, 1.3]);
+      b.part(body, G.box, board, [0, 0.88, 0.62], [2.1, 0.36, 0.09]);
+      b.part(body, G.box, board, [0, 0.88, -0.62], [2.1, 0.36, 0.09]);
+      b.part(body, G.box, board, [1.0, 0.88, 0], [0.09, 0.36, 1.3]);
+      b.part(body, G.box, board, [-1.0, 0.88, 0], [0.09, 0.36, 1.3]);
+      b.part(body, G.box, wood, [1.75, 0.5, 0], [1.3, 0.09, 0.12]); // the tongue, pointing at the party
+      this.wheels = [];
+      for (const wx of [-0.72, 0.72]) {
+        for (const wz of [-0.8, 0.8]) {
+          const w = b.group(body, [wx, 0.42, wz]);
+          b.part(w, G.cyl, 0x6b4a33, [0, 0, 0], [0.42, 0.1, 0.42], { rot: [Math.PI / 2, 0, 0] });
+          b.part(w, G.box, 0xe8c89a, [0, 0, 0], [0.8, 0.06, 0.06], { outline: false });
+          b.part(w, G.box, 0xe8c89a, [0, 0, 0], [0.06, 0.8, 0.06], { outline: false });
+          this.wheels.push(w);
+        }
+      }
+      // crates: a pool of six, shown/coloured by cargo
+      this.crateMats = {};
+      TOWNS.forEach((t) => (this.crateMats[t.id] = b.mat(CRATE_COLORS[t.id])));
+      this.crates = [];
+      for (let i = 0; i < CARGO_CAP; i++) {
+        const c = b.part(body, G.box, 0xffffff, [-0.5 - (i % 2) * 0.46, 0.92, (Math.floor(i / 2) - 1) * 0.36], [0.4, 0.34, 0.32], { ol: 0.03 });
+        c.visible = false;
+        this.crates.push(c);
+      }
+      this.crateKey = "";
+
+      // Sir Fish, in his bowl, up front
+      const bowl = b.group(body, [0.42, 1.28, 0]);
+      this.bowl = bowl;
+      b.part(bowl, G.sphere, 0x9fdcff, [0, 0, 0], [0.5, 0.46, 0.5], { outline: false, mat: { transparent: true, opacity: 0.55 } });
+      const fish = (this.fish = b.group(bowl, [0, -0.02, 0]));
+      b.part(fish, G.sphere, 0x2fb3b0, [0, 0, 0], [0.27, 0.2, 0.19], { ol: 0.02 });
+      b.part(fish, G.cone, 0x3b8fe0, [-0.3, 0, 0], [0.13, 0.2, 0.03], { rot: [0, 0, Math.PI / 2], ol: 0.015 }); // tail
+      b.part(fish, G.cone, 0x3b8fe0, [-0.02, 0.2, 0], [0.09, 0.12, 0.03], { ol: 0.015 }); // dorsal fin
+      b.part(fish, G.sphere, 0xb6c0d0, [0.11, 0.06, 0], [0.19, 0.16, 0.17], { ol: 0.018 }); // helmet
+      b.part(fish, G.box, 0xf2a22e, [0.1, 0.24, 0], [0.04, 0.12, 0.1], { ol: 0.012 }); // plume
+      const ring = new THREE.TorusGeometry(1, 0.16, 6, 18);
+      this.ownGeo.push(ring);
+      b.part(fish, ring, 0xf5b83a, [0.08, 0.2, 0], [0.13, 0.13, 0.13], { rot: [Math.PI / 2, 0, 0], outline: false });
+      for (const sz of [-1, 1]) b.part(fish, G.sphere, 0xffffff, [0.22, 0.04, sz * 0.09], [0.035, 0.04, 0.025], { basic: true });
+      this.refreshCrates();
+    }
+
+    // Show one crate per cargo item, grouped by home town.
+    refreshCrates() {
+      const g = this.g;
+      const key = TOWNS.map((t) => g.cargo[t.id] || 0).join(",");
+      if (key === this.crateKey) return;
+      this.crateKey = key;
+      let i = 0;
+      TOWNS.forEach((t) => {
+        for (let k = 0; k < (g.cargo[t.id] || 0) && i < this.crates.length; k++, i++) {
+          this.crates[i].material = this.crateMats[t.id];
+          this.crates[i].visible = true;
+        }
+      });
+      for (; i < this.crates.length; i++) this.crates[i].visible = false;
+    }
+
+    // Snap behind the party (a new trip) or ease after it.
+    update(dt, snap) {
+      const g = this.g;
+      const tx = g.anchor.x - WAGON_GAP;
+      const tz = g.course.z(tx);
+      if (snap || !this.placed) {
+        this.pos.set(tx, 0, tz);
+        this.placed = true;
+      }
+      const px = this.pos.x;
+      const pz = this.pos.z;
+      const k = 1 - Math.exp(-7 * dt);
+      this.pos.x += (tx - px) * k;
+      this.pos.z += (tz - pz) * k;
+      const moved = Math.hypot(this.pos.x - px, this.pos.z - pz);
+      this.wheel += moved / 0.42;
+      for (const w of this.wheels) w.rotation.z = -this.wheel;
+      this.t += dt;
+      this.shake = Math.max(0, this.shake - dt * 3);
+      const rolling = Math.min(1, moved / Math.max(dt, 1e-4) / 3);
+      const sx = Math.sin(this.t * 60) * this.shake * 0.06;
+      this.yaw += angleDelta(this.yaw, -g.course.heading(this.pos.x)) * (1 - Math.exp(-8 * dt));
+      this.root.position.set(this.pos.x + sx, Math.sin(this.t * 9) * 0.02 * rolling, this.pos.z);
+      this.root.rotation.y = this.yaw;
+      this.fish.position.y = -0.02 + Math.sin(this.t * 2.2) * 0.012;
+      this.fish.rotation.z = Math.sin(this.t * 1.7) * 0.05;
+      this.refreshCrates();
+    }
+
+    dispose() {
+      this.g.world.remove(this.root);
       this.toons.forEach((m) => m.dispose());
       this.others.forEach((m) => m.dispose());
       this.ownGeo.forEach((m) => m.dispose());
@@ -2417,6 +2597,10 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 .cc-trade .cc-btn { color: #3a2a55; background: #fff; border: 2px solid #3a2a55; box-shadow: 0 3px 0 rgba(58,42,85,.35); padding: 5px 10px; font-size: 13px; border-radius: 11px; white-space: nowrap; }
 .cc-trade .cc-btn.gold { background: #ffd75a; }
 .cc-trade .cc-btn:disabled { opacity: .4; pointer-events: none; }
+.cc-trade-tag { padding: 4px 10px; border-radius: 10px; background: #8dffb0; border: 2px solid #3a2a55; font-size: 12px; font-weight: 900; }
+.cc-card.cc-noguard { text-align: center; padding: 12px; }
+.cc-card.cc-noguard b { display: block; font-size: 14px; }
+.cc-card.cc-noguard small { display: block; font-size: 11px; font-weight: 700; opacity: .8; }
 .cc-trade-empty { margin: 0 14px 6px; font-size: 13px; font-weight: 700; opacity: .65; }
 .cc-trade .cc-trade-go { display: block; width: calc(100% - 24px); margin: 14px 12px 0; padding: 11px; font-size: 16px; background: #8dffb0; }
 `;
@@ -2485,14 +2669,16 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 
     buildPanel() {
       let h = "";
-      HERO_DEFS.forEach((d, i) => {
+      const defs = this.g.guardDefs();
+      defs.forEach((d, i) => {
         h +=
           '<div class="cc-card" data-card="' + i + '"><div class="cc-card-h"><div class="cc-ava" style="background:' + d.color + '">' + d.icon + '</div>' +
           '<div class="cc-card-n">' + d.name + "<small>" + d.special + '</small></div></div>' +
           '<div class="cc-bar"><i class="lag"></i><i class="fill"></i><span></span></div><div class="cc-sp"><i></i></div></div>';
       });
+      if (!defs.length) h = '<div class="cc-card cc-noguard"><b>No guards hired</b><small>Foes will go straight for the wagon. Hire some in town.</small></div>';
       this.el.panel.innerHTML = h;
-      this.cards = Array.from(this.el.panel.querySelectorAll(".cc-card")).map((c) => ({
+      this.cards = Array.from(this.el.panel.querySelectorAll(".cc-card[data-card]")).map((c) => ({
         el: c,
         fill: c.querySelector(".fill"),
         lag: c.querySelector(".lag"),
@@ -2933,7 +3119,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     updateChip() {
       const g = this.g;
       this.where.textContent = "🐟 " + g.town.name;
-      this.sub.innerHTML = "🪙 " + g.coins + " &middot; 📦 " + cargoCount(g.cargo) + "/" + CARGO_CAP + " &middot; tap a town";
+      this.sub.innerHTML = "🪙 " + g.coins + " &middot; 📦 " + cargoCount(g.cargo) + "/" + CARGO_CAP + " &middot; 🛡️ " + g.guards.length + " &middot; tap a town";
       const n = cargoCount(g.cargo);
       this.el.querySelectorAll("[data-sell]").forEach((el) => {
         const t = townById(el.getAttribute("data-sell"));
@@ -2991,7 +3177,13 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     return '<button class="cc-btn' + (opts.gold ? " gold" : "") + '" type="button" data-act="' + act + '" data-id="' + (id || "") + '"' + (opts.off ? " disabled" : "") + ">" + label + "</button>";
   }
 
-  // Sell what Sir Fish carries, buy this town's signature item. (Hiring guards is next.)
+  const GUARD_BLURB = {
+    knight: "Whirlwind. Sturdy front-liner: foes go for him first.",
+    mage: "Meteor. Hits hard from range, but fragile.",
+    cleric: "Blessing. Heals the guards and can revive a fallen one.",
+  };
+
+  // Sell what Sir Fish carries, buy this town's signature item, hire guards.
   class TownScreen {
     constructor(g, root) {
       this.g = g;
@@ -3030,6 +3222,17 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const g = this.g;
       const t = this.town;
       if (a === "close") return this.close();
+      if (a === "hire") {
+        const d = HERO_DEFS.find((x) => x.kind === id);
+        if (d && g.guards.indexOf(id) < 0 && g.coins >= HIRE_COST[id]) {
+          g.coins -= HIRE_COST[id];
+          g.guards.push(id);
+        }
+        g.persist();
+        g.hud.updateChip();
+        this.render();
+        return;
+      }
       if (a === "sell1" || a === "sellall") {
         const o = townById(id);
         const k = a === "sell1" ? Math.min(1, g.cargo[o.id]) : g.cargo[o.id];
@@ -3083,6 +3286,15 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       if (room < 1) h += '<div class="cc-trade-empty">The wagon is full.</div>';
       else if (afford < 1) h += '<div class="cc-trade-empty">Not enough coins.</div>';
 
+      h += "<h4>Hire guards</h4>";
+      HERO_DEFS.forEach((d) => {
+        const hired = g.guards.indexOf(d.kind) >= 0;
+        const cost = HIRE_COST[d.kind];
+        h += tradeRow(d.icon, d.name, GUARD_BLURB[d.kind],
+          hired ? '<span class="cc-trade-tag">Hired</span>' : tradeBtn("Hire 🪙 " + cost, "hire", d.kind, { gold: true, off: g.coins < cost }));
+      });
+      h += '<div class="cc-trade-empty">A guard who falls in a fight is gone for good. With no guards left, every surviving foe steals one item from the wagon.</div>';
+
       h += '<button class="cc-btn cc-trade-go" type="button" data-act="close">Back to the map &#10140;</button>';
       this.card.innerHTML = h;
     }
@@ -3127,6 +3339,8 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.save = loadSave();
       this.coins = this.save.coins; // money: kills drop a little, trade earns the rest
       this.cargo = this.save.cargo; // signature items on the wagon, by home town id
+      this.guards = this.save.guards; // hired mercenary kinds; KO'd ones are lost for good
+      this.stolen = 0; // items taken in the current plunder
       this.fightNo = 1;
       this.doneIdx = 0;
       this.biomeName = "";
@@ -3145,6 +3359,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.aspect = 1.6;
 
       this.setupRenderer();
+      this.wagon = new Wagon(this);
       this.hud = new Hud(this, root);
       this.director = new Director(this);
       this.scenery = null;
@@ -3276,7 +3491,12 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     }
 
     persist() {
-      writeSave(this.coins, this.cargo);
+      writeSave(this.coins, this.cargo, this.guards);
+    }
+
+    // The hired guards, in formation order (front-liner first).
+    guardDefs() {
+      return HERO_DEFS.filter((d) => this.guards.indexOf(d.kind) >= 0);
     }
 
     // The trade screen for the town Sir Fish is in.
@@ -3287,6 +3507,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 
     openMap(from) {
       this.mode = "map";
+      this.wagon.root.visible = false;
       this.hud.el.sheet.classList.remove("open");
       this.worldMap.show(from, this.town);
     }
@@ -3313,6 +3534,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.biomeName = "";
       this.updateCamera(0.016, true);
       this.mode = "run";
+      this.wagon.root.visible = true;
       this.worldMap.hide();
       this.lastFrame = performance.now();
       this.hud.banner("Off to " + this.target.name + "!", "gold");
@@ -3343,7 +3565,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.heroes.slice().forEach((u) => this.removeUnit(u));
       this.foes.slice().forEach((u) => this.removeUnit(u));
       this.heroes = [];
-      HERO_DEFS.forEach((d, i) => {
+      this.guardDefs().forEach((d, i) => {
         const u = this.addUnit(d, "hero");
         u.slot = i;
         u.setStats(this.heroMult());
@@ -3353,6 +3575,8 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         u.lastZ = p.z;
         this.heroes.push(u);
       });
+      this.wagon.update(0.016, true);
+      this.hud.buildPanel();
       this.spawnEncounter();
       this.hud.updateChip();
     }
@@ -3413,8 +3637,17 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     }
     partyCenter() {
       const live = this.heroes.filter((h) => h.alive);
+      if (!live.length && !this.heroes.length) return { x: this.anchor.x, z: this.anchor.z };
       const c = centroid(live.length ? live : this.heroes);
       return { x: c.x, z: c.z };
+    }
+    // Points the camera frames for "the party": the guards, or the anchor if there are none,
+    // plus the wagon when it matters.
+    partyPts(withWagon) {
+      const pts = this.heroes.map((h) => h.pos);
+      if (!pts.length) pts.push({ x: this.anchor.x, z: this.anchor.z });
+      if (withWagon) pts.push(this.wagon.pos);
+      return pts;
     }
     later(sec, fn) {
       this.timers.push({ t: sec, fn: fn });
@@ -3446,7 +3679,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
           break;
         case "battle":
           if (!this.foes.some((f) => f.targetable)) this.beginVictory();
-          else if (!this.heroes.some((h) => h.alive)) this.beginWipe();
+          else if (!this.heroes.some((h) => h.alive)) this.beginPlunder();
           break;
         case "victory":
           if (this.phaseT >= VICTORY_S) this.finishEncounter();
@@ -3454,13 +3687,9 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         case "arrive":
           if (this.phaseT >= ARRIVE_S) this.endRun();
           break;
-        case "wipe":
-          if (this.phaseT >= WIPE_S) {
-            this.heroes.forEach((h) => !h.alive && this.revive(h, 0.6));
-            this.heroes.forEach((h) => (h.hp = Math.max(h.hp, h.maxHp * 0.6)));
-            this.foes.forEach((f) => this.poof(f.pos.x, 0.8, f.pos.z, 0xffffff, 6));
-            this.finishEncounter();
-          }
+        case "plunder":
+          // over once every thief has run off (the cap is a safety net)
+          if (!this.foes.some((f) => !f.dying) || this.phaseT > 14) this.endPlunder();
           break;
         default:
           break;
@@ -3469,6 +3698,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       for (let i = 0; i < units.length; i++) units[i].update(dt, this.t);
       this.updateProjectiles(dt);
       this.updateRings(dt);
+      this.wagon.update(dt);
     }
 
     stepRun(dt) {
@@ -3524,7 +3754,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.hud.banner("VICTORY!", "gold");
       const c = this.partyCenter();
       this.confetti(c.x + 1.5, c.z);
-      this.later(0.7, () => this.heroes.forEach((h) => !h.alive && this.revive(h, REVIVE_FRAC)));
+      this.later(0.9, () => this.kickFallen()); // a guard still down at the end of the fight is gone for good
       const newLevel = 1 + Math.floor(this.wins / LEVEL_EVERY);
       if (newLevel > this.level) {
         this.level = newLevel;
@@ -3543,13 +3773,79 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.hud.updateChip();
     }
 
-    beginWipe() {
-      this.phase = "wipe";
+    // Every guard is down (or there never were any): each surviving foe becomes a
+    // thief. They are NOT fought: they run to the wagon, take one item, run off.
+    beginPlunder() {
+      this.phase = "plunder";
       this.phaseT = 0;
       this.streak = 0;
-      this.foes.forEach((f) => f.targetable && (f.cheerT = WIPE_S));
-      this.hud.banner("Oh no!  Nap time…", "pink");
+      this.stolen = 0;
       this.director.clear();
+      this.hud.banner(this.heroes.length ? "Out of guards!" : "Ambush!", "pink");
+      this.foes
+        .filter((f) => f.targetable)
+        .forEach((f, i) => {
+          const side = i % 2 ? 1 : -1;
+          f.act = null;
+          f.plunder = { ph: "wait", t: 0, delay: 0.5 + i * 0.3, ox: (this.rng() - 0.5) * 1.2, oz: side * 1.5, fx: -0.45, fz: side * 0.89, took: false };
+        });
+      this.later(1.0, () => this.kickFallen());
+      this.hud.updateChip();
+    }
+
+    // One item leaves the wagon (the thief carries it overhead as it runs).
+    stealOne(thief) {
+      const bag = TOWNS.filter((t) => this.cargo[t.id] > 0);
+      if (!bag.length) {
+        this.hud.float("empty!", this.wagon.pos.x, 2.0, this.wagon.pos.z, "call", 1, 1);
+        return;
+      }
+      let r = this.rng() * cargoCount(this.cargo);
+      let pick = bag[0];
+      for (const t of bag) {
+        r -= this.cargo[t.id];
+        if (r <= 0) {
+          pick = t;
+          break;
+        }
+      }
+      this.cargo[pick.id]--;
+      this.stolen++;
+      this.persist();
+      this.hud.updateChip();
+      this.wagon.shake = 1;
+      this.shake(0.22);
+      this.hud.float("-1 " + pick.item.icon, this.wagon.pos.x, 2.1, this.wagon.pos.z, "hurt", 1.15, 1.3);
+      const mat = new THREE.SpriteMaterial({ map: TEX["item_" + pick.id], transparent: true, depthWrite: false });
+      thief.others.push(mat);
+      const sp = new THREE.Sprite(mat);
+      sp.position.set(0, thief.def.headY * thief.scale + 0.6, 0);
+      sp.scale.set(0.85, 0.85, 0.85);
+      thief.root.add(sp);
+    }
+
+    endPlunder() {
+      this.foes.slice().forEach((f) => {
+        this.poof(f.pos.x, 0.8, f.pos.z, 0xffffff, 6);
+        this.removeUnit(f);
+      });
+      this.hud.banner(this.stolen ? this.stolen + (this.stolen > 1 ? " items stolen!" : " item stolen!") : "Nothing to steal!", this.stolen ? "pink" : "gold");
+      this.finishEncounter();
+    }
+
+    // Guards that are down when a fight ends are permanently defeated: kicked from the party.
+    kickFallen() {
+      const out = this.heroes.filter((h) => !h.alive);
+      if (!out.length) return;
+      out.forEach((h) => {
+        this.poof(h.pos.x, 0.8, h.pos.z, 0xffffff, 8);
+        this.hud.float(h.def.name + " quits!", h.pos.x, 2.4, h.pos.z, "hurt", 1.1, 1.4);
+        this.guards = this.guards.filter((k) => k !== h.def.kind);
+        this.removeUnit(h);
+      });
+      this.heroes.forEach((h, i) => (h.slot = i));
+      this.hud.buildPanel();
+      this.persist();
       this.hud.updateChip();
     }
 
@@ -3983,7 +4279,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const base = this.baseView();
       if (this.camOverride) return Object.assign({ y: 0.9, shot: false }, base, this.camOverride);
       const ph = this.phase;
-      const fight = ph === "intro" || ph === "battle" || ph === "victory" || ph === "wipe";
+      const fight = ph === "intro" || ph === "battle" || ph === "victory" || ph === "plunder";
       let fr;
       if (fight && S.battleCam === "fixed") {
         const a = this.enc.arena;
@@ -3992,16 +4288,16 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         fr = this.fit([{ x: x0, z: a.z - 4.2 }, { x: x0, z: a.z + 4.2 }, { x: x1, z: a.z - 4.2 }, { x: x1, z: a.z + 4.2 }], base, 1.4);
         fr.dist = Math.max(fr.dist, base.dist * 0.95);
       } else if (fight || (this.enc && this.enc.alerted && S.battleCam !== "fixed")) {
-        let pts = this.heroes.map((h) => h.pos).concat(this.foes.filter((f) => !f.dying).map((f) => f.pos));
-        if (ph === "victory" || ph === "wipe") pts = (ph === "victory" ? this.heroes : this.heroes.concat(this.foes)).map((h) => h.pos);
+        let pts = this.partyPts(true).concat(this.foes.filter((f) => !f.dying).map((f) => f.pos));
+        if (ph === "victory") pts = this.partyPts(false);
         fr = this.fit(pts, base, 1.6);
         fr.dist = Math.max(fr.dist, base.dist * (fight ? 0.88 : 0.95));
         if (ph === "victory") {
-          fr.dist = Math.max(this.fit(this.heroes.map((h) => h.pos), base, 1.6).dist, base.dist * 0.8);
+          fr.dist = Math.max(this.fit(this.partyPts(false), base, 1.6).dist, base.dist * 0.8);
           fr.az += 18 * smooth(this.phaseT / 1.2);
         }
       } else {
-        fr = this.fit(this.heroes.map((h) => h.pos), base, 2.0);
+        fr = this.fit(this.partyPts(true), base, 2.0);
         fr.dist = Math.max(fr.dist, base.dist);
         fr.x += Math.cos(this.anchor.h) * 3.2;
         fr.z += Math.sin(this.anchor.h) * 3.2;
