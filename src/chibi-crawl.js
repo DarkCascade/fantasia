@@ -64,6 +64,7 @@
   const INTRO_S = 1.1;
   const VICTORY_S = 2.5;
   const WIPE_S = 2.4;
+  const ARRIVE_S = 2.8; // "Welcome to <town>!" beat before the map returns
   const DASH_SPEED = 13;
   const RETURN_SPEED = 10;
   const SPECIAL_MAX = 100;
@@ -292,8 +293,11 @@
     { name: "Autumn", ground: 0xd9cc7a, sky: 0xffe9c7, leaf: [0xff9d4a, 0xf5c542, 0xe2693a], flower: [0xffd24a, 0xff8a4a, 0xffffff, 0xd96a4a], pine: 1.0, water: 0x58b4c4 },
     { name: "Frost", ground: 0xe3f4ff, sky: 0xdff3ff, leaf: [0x9fd8d0, 0x7cc4cc, 0xcdeef0], flower: [0xffffff, 0x9fd8ff, 0xc9b6ff, 0xffffff], pine: 3.0, water: 0xbfe6f7, ice: true },
   ];
+  // Which biome a run starts in: the destination town's biome index. A 3-encounter
+  // run ends well before the first blend (x = 0.7 * BIOME_LEN), so one run = one biome.
+  let biomeShift = 0;
   function biomeAt(x) {
-    const seg = Math.max(0, x) / BIOME_LEN;
+    const seg = Math.max(0, x) / BIOME_LEN + biomeShift;
     const i = Math.floor(seg);
     const f = smooth((seg - i - 0.7) / 0.3);
     return { a: BIOMES[i % BIOMES.length], b: BIOMES[(i + 1) % BIOMES.length], f: f };
@@ -301,6 +305,37 @@
   function biomeDiscrete(x) {
     const b = biomeAt(x);
     return b.f > 0.5 ? b.b : b.a;
+  }
+
+  /* ---------- the world: four towns, one per biome ---------- */
+
+  // The four biomes are the four seasons, so the towns sit in a clockwise
+  // wheel of the year, and the land between them is where the seasons turn.
+  const AREA_NAME = "The Turning Wilds";
+  const RUN_FIGHTS = 3; // encounters per trip between towns
+  const WORLD_KEY = "chibi-crawl-town";
+  const TOWNS = [
+    { id: "maybough", name: "Maybough", biome: 1, x: 25, y: 27, roof: "#ff8fb1", wall: "#fff1f6", trim: "#ffd0e0" },
+    { id: "breezewick", name: "Breezewick", biome: 0, x: 75, y: 27, roof: "#e8625c", wall: "#fff6e0", trim: "#ffe3b0" },
+    { id: "oakhaven", name: "Oakhaven", biome: 2, x: 75, y: 73, roof: "#d9792a", wall: "#fff0d2", trim: "#ffd79a" },
+    { id: "shiverpine", name: "Shiverpine", biome: 3, x: 25, y: 73, roof: "#5fa8e0", wall: "#f4fbff", trim: "#cfeaff" },
+  ];
+  function townById(id) {
+    return TOWNS.find((t) => t.id === id) || TOWNS[1];
+  }
+  function loadTown() {
+    try {
+      return townById(localStorage.getItem(WORLD_KEY));
+    } catch (e) {
+      return TOWNS[1];
+    }
+  }
+  function saveTown(id) {
+    try {
+      localStorage.setItem(WORLD_KEY, id);
+    } catch (e) {
+      /* private mode: the pin just starts at Breezewick next time */
+    }
   }
 
   /* ---------- three.js-dependent caches (built after the import) ---------- */
@@ -2016,6 +2051,15 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       this.waterMat.uniforms.uTime.value += dt;
     }
 
+    // New run, possibly a new biome: drop every chunk so they rebuild with its props.
+    reset() {
+      for (const ch of this.chunks.values()) {
+        this.group.remove(ch.group);
+        ch.geos.forEach((g) => g.dispose());
+      }
+      this.chunks.clear();
+    }
+
     update(fx, fz) {
       const course = this.g.course;
       const c0 = Math.floor(fx / CHUNK) - CHUNK_BEHIND;
@@ -2229,6 +2273,29 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
 .cc-fatal { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #2a2340; color: #fff; font-weight: 700; }
 .cc-fatal p { margin: 0 0 16px; opacity: .85; font-weight: 500; }
 @media (max-width: 520px) { .cc-card-n small { display: none; } .cc-ava { width: 26px; height: 26px; font-size: 14px; } }
+.cc-map { position: absolute; inset: 0; z-index: 6; display: none; flex-direction: column; align-items: stretch; touch-action: manipulation;
+  padding: calc(max(10px, env(safe-area-inset-top)) + 54px) 10px calc(10px + env(safe-area-inset-bottom));
+  background: radial-gradient(circle at 50% 45%, #d6f1fb 0%, #a9dcf2 62%, #8ec9ea 100%); transition: opacity .22s ease; }
+#cc-root.cc-mapmode .cc-map { display: flex; animation: cc-mapin .35s ease both; }
+#cc-root.cc-mapmode .cc-ui { visibility: hidden; }
+.cc-map.leaving { opacity: 0; animation: none !important; }
+@keyframes cc-mapin { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+.cc-map svg { flex: 1; min-height: 0; width: 100%; height: 100%; display: block; overflow: visible; }
+.cc-map-top { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; z-index: 2; }
+.cc-map-gap { width: 42px; flex: none; }
+.cc-map .cc-chip { color: #fff; }
+.cc-town { cursor: pointer; outline: none; }
+.cc-town .cc-town-body { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .15s cubic-bezier(.3,1.6,.5,1); }
+.cc-town:hover .cc-town-body, .cc-town:focus-visible .cc-town-body { transform: scale(1.1); }
+.cc-town:active .cc-town-body { transform: scale(.96); }
+.cc-town:focus-visible .cc-name rect { stroke-width: 1.2; }
+.cc-hit { pointer-events: all; }
+.cc-pin { pointer-events: none; }
+.cc-pin-in { animation: cc-bob .9s ease-in-out infinite alternate; }
+@keyframes cc-bob { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
+.cc-pulse { fill: none; stroke: #ff5a7a; stroke-width: 1.1; pointer-events: none; transform-box: fill-box; transform-origin: center; animation: cc-ping .9s ease-out forwards; }
+@keyframes cc-ping { from { transform: scale(.35); opacity: .95; } to { transform: scale(1.9); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cc-pin-in { animation: none; } }
 `;
 
   const HUD_HTML = `
@@ -2463,12 +2530,266 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
 
     updateChip() {
       const g = this.g;
+      const where = g.target ? "to " + g.target.name + " &middot; " : "";
       this.el.chip.innerHTML =
-        "Fight " + g.fightNo + " &middot; Lv " + g.level + " &middot; 🪙 " + g.coins + "<small>" + g.streak + " win streak &middot; best " + g.best + " &middot; " + g.biomeName + "</small>";
+        "Encounter " + Math.min(g.runDone + 1, RUN_FIGHTS) + "/" + RUN_FIGHTS + " &middot; Lv " + g.level + " &middot; 🪙 " + g.coins +
+        "<small>" + where + g.streak + " streak &middot; best " + g.best + "</small>";
     }
 
     dispose() {
       clearTimeout(this.bannerTimer);
+    }
+  }
+
+  /* ---------- world map (DOM / SVG overlay) ---------- */
+
+  const MAP_TREE = {
+    // [canopy colours], pine?
+    1: { c: ["#ff97c0", "#ffb3cf", "#ffd1e2"] },
+    0: { c: ["#6fcf6a", "#8fdc6c", "#5cbc69"] },
+    2: { c: ["#ff9d4a", "#f5c542", "#e2693a"] },
+    3: { c: ["#bfe6e0", "#9fd8d0", "#e3f6f4"], pine: true },
+  };
+  // Land blobs and roads share these so the pin can hover over the right spot.
+  const MAP_ROADS = [
+    [0, 1, 50, 17],
+    [1, 2, 84, 50],
+    [2, 3, 50, 83],
+    [3, 0, 16, 50],
+  ];
+
+  function mapTree(kind, x, y, s, rng) {
+    const col = MAP_TREE[kind].c[Math.floor(rng() * 3)];
+    if (MAP_TREE[kind].pine) {
+      const k = 0.9 * s;
+      return (
+        '<rect x="' + (x - 0.4) + '" y="' + y + '" width="0.8" height="1.3" fill="#9a6b4b"/>' +
+        '<path d="M' + (x - 2 * k) + "," + y + " L" + x + "," + (y - 3.6 * k) + " L" + (x + 2 * k) + "," + y + ' Z" fill="' + col + '" stroke="#5a8f96" stroke-width="0.25" stroke-linejoin="round"/>' +
+        '<path d="M' + (x - 1.5 * k) + "," + (y - 2 * k) + " L" + x + "," + (y - 5 * k) + " L" + (x + 1.5 * k) + "," + (y - 2 * k) + ' Z" fill="#fff" opacity="0.85"/>'
+      );
+    }
+    return (
+      '<rect x="' + (x - 0.45) + '" y="' + (y - 0.4) + '" width="0.9" height="1.8" rx="0.3" fill="#9a6b4b"/>' +
+      '<circle cx="' + x + '" cy="' + (y - 1.7 * s) + '" r="' + 2.3 * s + '" fill="' + col + '" stroke="rgba(60,40,70,0.28)" stroke-width="0.25"/>' +
+      '<circle cx="' + (x - 0.7 * s) + '" cy="' + (y - 2.5 * s) + '" r="' + 0.85 * s + '" fill="#fff" opacity="0.38"/>'
+    );
+  }
+
+  function mapSvg() {
+    const rng = mulberry32(7);
+    const lands = TOWNS.map((t) => {
+      const b = BIOMES[t.biome];
+      const g = "#" + b.ground.toString(16).padStart(6, "0");
+      return (
+        '<g class="cc-land">' +
+        '<ellipse cx="' + t.x + '" cy="' + t.y + '" rx="19.5" ry="17.5" fill="' + g + '" stroke="#fff8e6" stroke-width="0.9"/>' +
+        '<ellipse cx="' + (t.x + (t.x < 50 ? 4 : -4)) + '" cy="' + (t.y + (t.y < 50 ? 4 : -4)) + '" rx="14" ry="12.5" fill="' + g + '" stroke="#fff8e6" stroke-width="0.9"/>' +
+        '<ellipse cx="' + t.x + '" cy="' + t.y + '" rx="18.2" ry="16.2" fill="' + g + '"/>' +
+        "</g>"
+      );
+    }).join("");
+
+    let decor = "";
+    TOWNS.forEach((t) => {
+      const pts = [];
+      for (let n = 0; n < 60 && pts.length < 11; n++) {
+        const a = rng() * TAU;
+        const r = Math.sqrt(rng());
+        const x = t.x + Math.cos(a) * r * 17;
+        const y = t.y + Math.sin(a) * r * 14.5;
+        if (Math.abs(x - t.x) < 11 && y > t.y - 10 && y < t.y + 12) continue; // the town and its name tag
+        if (pts.some((p) => Math.abs(p[0] - x) < 3.8 && Math.abs(p[1] - y) < 3.4)) continue;
+        pts.push([x, y]);
+      }
+      pts.sort((a, b) => a[1] - b[1]);
+      pts.forEach((p) => (decor += mapTree(t.biome, +p[0].toFixed(1), +p[1].toFixed(1), 0.8 + rng() * 0.45, rng)));
+      for (let k = 0; k < 7; k++) {
+        const x = t.x + (rng() * 2 - 1) * 16;
+        const y = t.y + (rng() * 2 - 1) * 13.5;
+        if (Math.abs(x - t.x) < 11 && y > t.y - 10 && y < t.y + 12) continue;
+        const dot = t.biome === 3 ? "#ffffff" : ["#fff", "#ffe27a", "#ff8fb1", "#ffd1e2"][Math.floor(rng() * 4)];
+        decor += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="0.65" fill="' + dot + '" opacity="0.9"/>';
+      }
+    });
+
+    // the Wilds: sparse tufts, stones and mushrooms down the cross between the lands
+    let wild = "";
+    for (let n = 0; n < 70; n++) {
+      const horiz = n % 2 === 0;
+      const x = horiz ? 10 + rng() * 80 : 45 + rng() * 10;
+      const y = horiz ? 45 + rng() * 10 : 10 + rng() * 80;
+      if (y > 44.5 && y < 55.5 && x > 21 && x < 79) continue; // under the name ribbon
+      if (Math.abs(x - 50) > 40) continue;
+      const k = rng();
+      if (k < 0.5) {
+        wild += '<path d="M' + (x - 1.2).toFixed(1) + "," + y.toFixed(1) + " L" + (x - 0.7).toFixed(1) + "," + (y - 2).toFixed(1) + " L" + x.toFixed(1) + "," + (y - 0.6).toFixed(1) + " L" + (x + 0.7).toFixed(1) + "," + (y - 2.3).toFixed(1) + " L" + (x + 1.2).toFixed(1) + "," + y.toFixed(1) + '" fill="none" stroke="#6aa956" stroke-width="0.55" stroke-linecap="round" stroke-linejoin="round"/>';
+      } else if (k < 0.72) {
+        wild += '<ellipse cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" rx="1.5" ry="1" fill="#c7c3d6" stroke="#8d88a8" stroke-width="0.25"/>';
+      } else if (k < 0.84) {
+        wild += '<rect x="' + (x - 0.35).toFixed(1) + '" y="' + y.toFixed(1) + '" width="0.7" height="1.1" fill="#fff3d6"/><ellipse cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" rx="1.1" ry="0.8" fill="#ff6f7a"/>';
+      } else {
+        const kind = Math.floor(rng() * 4);
+        wild += mapTree(kind, +x.toFixed(1), +y.toFixed(1), 0.55, rng);
+      }
+    }
+
+    const seasonGlow = [
+      [41, 40, 1],
+      [59, 40, 0],
+      [59, 60, 2],
+      [41, 60, 3],
+    ]
+      .map((g) => '<circle cx="' + g[0] + '" cy="' + g[1] + '" r="14" fill="#' + BIOMES[g[2]].ground.toString(16).padStart(6, "0") + '" opacity="0.7"/>')
+      .join("");
+
+    const roads = MAP_ROADS.map((r) => {
+      const a = TOWNS[r[0]];
+      const b = TOWNS[r[1]];
+      return '<path d="M' + a.x + "," + (a.y + 2.4) + " Q" + r[2] + "," + r[3] + " " + b.x + "," + (b.y + 2.4) + '" fill="none" stroke="#c99a5e" stroke-opacity="0.45" stroke-width="2.4" stroke-linecap="round"/>' +
+        '<path d="M' + a.x + "," + (a.y + 2.4) + " Q" + r[2] + "," + r[3] + " " + b.x + "," + (b.y + 2.4) + '" fill="none" stroke="#fff6d6" stroke-width="1.35" stroke-dasharray="0.1 2.5" stroke-linecap="round"/>';
+    }).join("");
+
+    const towns = TOWNS.map((t) => {
+      const stroke = 'stroke="#7b5a3a" stroke-width="0.35" stroke-linejoin="round"';
+      const w = t.name.length * 2.15 + 4.6;
+      return (
+        '<g class="cc-town" data-town="' + t.id + '" role="button" tabindex="0" aria-label="Travel to ' + t.name + '" transform="translate(' + t.x + " " + t.y + ')">' +
+        '<ellipse cx="0" cy="3.3" rx="9" ry="2.3" fill="#000" opacity="0.16"/>' +
+        '<g class="cc-town-body">' +
+        '<rect x="-9" y="-0.6" width="5" height="3.8" rx="0.6" fill="' + t.wall + '" ' + stroke + "/>" +
+        '<path d="M-9.9,-0.6 L-6.5,-3.6 L-3.1,-0.6 Z" fill="' + t.roof + '" ' + stroke + "/>" +
+        '<rect x="4.6" y="0.2" width="4.6" height="3" rx="0.6" fill="' + t.wall + '" ' + stroke + "/>" +
+        '<path d="M3.8,0.2 L6.9,-2.4 L10,0.2 Z" fill="' + t.roof + '" ' + stroke + "/>" +
+        '<rect x="1.7" y="-9" width="1.4" height="3.2" fill="' + t.trim + '" ' + stroke + "/>" +
+        '<rect x="-3.6" y="-3.9" width="7.8" height="7.1" rx="0.8" fill="' + t.wall + '" ' + stroke + "/>" +
+        '<path d="M-4.9,-3.9 L0.3,-8.7 L5.5,-3.9 Z" fill="' + t.roof + '" ' + stroke + "/>" +
+        '<rect x="-1" y="0.7" width="2.5" height="2.5" rx="0.5" fill="#8a5a3a"/>' +
+        '<rect x="-3" y="-2" width="1.6" height="1.6" rx="0.3" fill="#bfe6ff" stroke="#7b5a3a" stroke-width="0.25"/>' +
+        '<rect x="2" y="-2" width="1.6" height="1.6" rx="0.3" fill="#bfe6ff" stroke="#7b5a3a" stroke-width="0.25"/>' +
+        "</g>" +
+        '<g class="cc-name"><rect x="' + -w / 2 + '" y="5.1" width="' + w + '" height="5" rx="2.5" fill="#fff8e6" stroke="' + t.roof + '" stroke-width="0.5"/>' +
+        '<text x="0" y="8.65" text-anchor="middle" font-size="3.3" font-weight="900" fill="#3a2a55">' + t.name + "</text></g>" +
+        '<circle class="cc-hit" cx="0" cy="0" r="13" fill="transparent"/>' +
+        "</g>"
+      );
+    }).join("");
+
+    return (
+      '<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="World map">' +
+      '<defs><linearGradient id="cc-wilds" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfeeb4"/><stop offset="1" stop-color="#cfe3a0"/></linearGradient>' +
+      '<filter id="cc-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4.5"/></filter>' +
+      '<filter id="cc-lift" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="1.4" stdDeviation="1.1" flood-color="#2a4a6a" flood-opacity="0.35"/></filter></defs>' +
+      '<rect x="3" y="3" width="94" height="94" rx="17" fill="url(#cc-wilds)" stroke="#fff8e6" stroke-width="1.6" filter="url(#cc-lift)"/>' +
+      '<g filter="url(#cc-blur)">' + seasonGlow + "</g>" +
+      wild + lands + decor +
+      '<g class="cc-ribbon"><rect x="22" y="45.6" width="56" height="8.8" rx="4.4" fill="#fff8e6" fill-opacity="0.93" stroke="#e5c98a" stroke-width="0.6"/>' +
+      '<text x="50" y="51.35" text-anchor="middle" font-size="3.7" font-weight="900" letter-spacing="0.45" fill="#6a5230">' + AREA_NAME.toUpperCase() + "</text></g>" +
+      roads + towns +
+      '<g class="cc-pin" transform="translate(50 50)"><g class="cc-pin-in">' +
+      '<ellipse cx="0" cy="0.4" rx="3.2" ry="1" fill="#000" opacity="0.22"/>' +
+      '<path d="M0,0 C-2.6,-3.8 -4.4,-5.4 -4.4,-8 a4.4,4.4 0 1 1 8.8,0 C4.4,-5.4 2.6,-3.8 0,0 Z" fill="#ff5a7a" stroke="#fff" stroke-width="0.9" stroke-linejoin="round"/>' +
+      '<circle cx="0" cy="-8" r="1.8" fill="#fff"/></g></g>' +
+      "</svg>"
+    );
+  }
+
+  class WorldMap {
+    constructor(g, root) {
+      this.g = g;
+      this.root = root;
+      this.raf = 0;
+      this.busy = false;
+      this.hideT = 0;
+      root.insertAdjacentHTML(
+        "beforeend",
+        '<div class="cc-map"><div class="cc-map-top">' +
+          '<button class="cc-btn cc-round" data-map="menu" type="button" aria-label="Menu">&#8801;</button>' +
+          '<div class="cc-chip"><span data-map="where"></span><small>Tap a town to set out &middot; ' + RUN_FIGHTS + " encounters</small></div>" +
+          '<div class="cc-map-gap"></div></div>' +
+          mapSvg() +
+          "</div>"
+      );
+      this.el = root.querySelector(".cc-map");
+      this.where = this.el.querySelector('[data-map="where"]');
+      this.pin = this.el.querySelector(".cc-pin");
+      this.svg = this.el.querySelector("svg");
+      g.listen(this.el.querySelector('[data-map="menu"]'), "click", () => window.returnToMenu && window.returnToMenu());
+      g.listen(this.el, "click", (e) => {
+        const t = e.target.closest && e.target.closest("[data-town]");
+        if (t) this.pick(t.getAttribute("data-town"));
+      });
+      g.listen(this.el, "keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const t = e.target.closest && e.target.closest("[data-town]");
+        if (t) {
+          e.preventDefault();
+          this.pick(t.getAttribute("data-town"));
+        }
+      });
+    }
+
+    pinSpot(t) {
+      return { x: t.x, y: t.y - 9.6 };
+    }
+    setPin(x, y) {
+      this.pin.setAttribute("transform", "translate(" + x.toFixed(2) + " " + y.toFixed(2) + ")");
+    }
+
+    // Open the map with the pin over `to`; if it is arriving from another
+    // town the pin hops along the road first.
+    show(from, to) {
+      cancelAnimationFrame(this.raf);
+      clearTimeout(this.hideT);
+      this.busy = false;
+      this.el.classList.remove("leaving");
+      this.root.classList.add("cc-mapmode");
+      this.where.textContent = "📍 " + to.name;
+      const b = this.pinSpot(to);
+      if (!from || from === to) {
+        this.setPin(b.x, b.y);
+        if (from === to) this.pulse(to);
+        return;
+      }
+      const a = this.pinSpot(from);
+      this.setPin(a.x, a.y);
+      const t0 = performance.now() + 350;
+      const dur = 1250;
+      const frame = (now) => {
+        const p = clamp((now - t0) / dur, 0, 1);
+        const e = smooth(p);
+        this.setPin(lerp(a.x, b.x, e), lerp(a.y, b.y, e) - Math.sin(Math.PI * e) * 11);
+        if (p < 1) this.raf = requestAnimationFrame(frame);
+        else this.pulse(to);
+      };
+      this.raf = requestAnimationFrame(frame);
+    }
+
+    pulse(t) {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("class", "cc-pulse");
+      c.setAttribute("cx", t.x);
+      c.setAttribute("cy", t.y + 2);
+      c.setAttribute("r", "7");
+      c.addEventListener("animationend", () => c.remove());
+      this.svg.insertBefore(c, this.pin);
+    }
+
+    pick(id) {
+      if (this.busy || this.g.mode !== "map") return;
+      this.busy = true;
+      cancelAnimationFrame(this.raf);
+      this.el.classList.add("leaving");
+      this.hideT = setTimeout(() => this.g.beginTownRun(id), 230);
+    }
+
+    hide() {
+      this.root.classList.remove("cc-mapmode");
+      this.el.classList.remove("leaving");
+    }
+
+    dispose() {
+      cancelAnimationFrame(this.raf);
+      clearTimeout(this.hideT);
     }
   }
 
@@ -2497,6 +2818,12 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       this.destroyed = false;
       this.phase = "run";
       this.phaseT = 0;
+      // "map" = the world map is up (sim and renderer idle); "run" = travelling.
+      this.mode = "map";
+      this.town = loadTown(); // the town the pin is over
+      this.target = null; // the town the current run is heading to
+      this.runDone = 0; // encounters finished this run
+      biomeShift = this.town.biome;
       this.level = 1;
       this.wins = 0;
       this.streak = 0;
@@ -2526,6 +2853,8 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       this.startRun();
       this.scenery = new Scenery(this);
       this.updateCamera(0.016, true);
+      this.worldMap = new WorldMap(this, root);
+      this.openMap(null);
 
       this.lastFrame = performance.now();
       this.tick = this.tick.bind(this);
@@ -2637,6 +2966,52 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
     }
     heroMult() {
       return 1 + LEVEL_BONUS * (this.level - 1);
+    }
+
+    openMap(from) {
+      this.mode = "map";
+      this.hud.el.sheet.classList.remove("open");
+      this.worldMap.show(from, this.town);
+    }
+
+    // Tapped a town on the map: reset the world to that town's biome and set out.
+    beginTownRun(id) {
+      if (this.destroyed) return;
+      this.target = townById(id);
+      biomeShift = this.target.biome;
+      this.runDone = 0;
+      this.doneIdx = 0;
+      this.fightNo = 1;
+      this.phase = "run";
+      this.phaseT = 0;
+      this.timers.length = 0;
+      this.director.clear();
+      this.scenery.reset();
+      this.startRun();
+      this.biomeName = "";
+      this.updateCamera(0.016, true);
+      this.mode = "run";
+      this.worldMap.hide();
+      this.lastFrame = performance.now();
+      this.hud.banner("Off to " + this.target.name + "!", "gold");
+    }
+
+    beginArrival() {
+      this.phase = "arrive";
+      this.phaseT = 0;
+      this.hud.banner("Welcome to " + this.target.name + "!", "gold");
+      const c = this.partyCenter();
+      this.confetti(c.x + 1.5, c.z);
+      this.heroes.forEach((h) => h.alive && (h.cheerT = ARRIVE_S - 0.3));
+      this.hud.updateChip();
+    }
+
+    endRun() {
+      const from = this.town;
+      this.town = this.target;
+      this.target = null;
+      saveTown(this.town.id);
+      this.openMap(from);
     }
 
     startRun() {
@@ -2752,6 +3127,9 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
           break;
         case "victory":
           if (this.phaseT >= VICTORY_S) this.finishEncounter();
+          break;
+        case "arrive":
+          if (this.phaseT >= ARRIVE_S) this.endRun();
           break;
         case "wipe":
           if (this.phaseT >= WIPE_S) {
@@ -2872,6 +3250,11 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       });
       this.timers.length = 0;
       this.director.clear();
+      this.runDone++;
+      if (this.runDone >= RUN_FIGHTS) {
+        this.beginArrival(); // the trip is over: no further encounter
+        return;
+      }
       this.spawnEncounter();
       this.phase = "run";
       this.phaseT = 0;
@@ -3340,6 +3723,7 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       const now = performance.now();
       const dt = Math.min(0.05, (now - this.lastFrame) / 1000);
       this.lastFrame = now;
+      if (this.mode === "map") return; // the map is plain DOM/SVG: nothing to simulate or draw
       this.step(dt);
       this.renderFrame(dt);
     }
@@ -3382,6 +3766,7 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       this.destroyed = true;
       if (this.raf) cancelAnimationFrame(this.raf);
       this.listeners.forEach((l) => l[0].removeEventListener(l[1], l[2], l[3]));
+      this.worldMap.dispose();
       this.hud.dispose();
       if (this.renderer.forceContextLoss) this.renderer.forceContextLoss();
       this.renderer.dispose();

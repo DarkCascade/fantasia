@@ -652,8 +652,10 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
 - **Chibi Crawl** (`src/chibi-crawl.js`) — an isometric, cutesy-chibi **party
   auto-battler** on three.js (DOM HUD, three imported on demand like Slopeman),
   alone on **menu page 4** (`PAGE_COUNT` is 4; page 4 has its own `translateX`
-  rules). A first-draft *lab*: nothing to press, an endless loop of **run →
-  sight → intro → battle → victory/wipe → run**, with most design questions
+  rules). A first-draft *lab*: it opens on a **world map** (below); tapping a town
+  starts a 3-encounter trip, a loop of **run → sight → intro → battle →
+  victory/wipe → run** that ends in an arrival beat and back to the map, with
+  most design questions
   exposed as live settings (⚙ sheet or hotkeys, persisted in
   `localStorage` `chibi-crawl-settings`; best win streak in
   `chibi-crawl-best-fights`). The party (Knight / Mage / Cleric) jogs a
@@ -735,6 +737,28 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     prop is its own mesh and ~200 are alive, so keep props ≤~1k tris (flowers are
     22% of spawns). Meshy gotchas: `meshy-5` is retired (use `meshy-6-lite`),
     output is unwelded (weld before decimating) and often includes a ground slab.
+  - **World map** (`WorldMap`, `TOWNS`, `RUN_FIGHTS`). The four biomes are the
+    four seasons, so there are four towns in a clockwise wheel of the year:
+    **Maybough** (Blossom, NW), **Breezewick** (Meadow, NE, the default start),
+    **Oakhaven** (Autumn, SE), **Shiverpine** (Frost, SW). Every area between
+    towns is **"The Turning Wilds"** (chosen over "The Equinox": the seasons turn
+    there, and an equinox is a moment, not a place). The map is a DOM/SVG overlay
+    (`.cc-map`, drawn in code: seasonal lands, the Wilds as the cross between
+    them, dotted roads, a red pin) on top of the same renderer; `Game.mode` is
+    `"map"` (`tick()` skips the sim *and* the render, and `#cc-root.cc-mapmode`
+    hides the run HUD) or `"run"`. Tapping a town calls `beginTownRun(id)`: sets
+    the module-level `biomeShift` (so `biomeAt` starts in that town's biome; a
+    3-encounter run ends before the first biome blend at x = 224, so one trip =
+    one biome), `Scenery.reset()` drops every chunk, `startRun()` builds a fresh
+    course. After `RUN_FIGHTS` (3) finished encounters `finishEncounter` goes to
+    the `"arrive"` phase ("Welcome to <town>!"), then `endRun()` saves the town
+    (`localStorage` `chibi-crawl-town`) and reopens the map with the pin hopping
+    from the old town to the new one. **A wipe still counts as an encounter** (the
+    game never lets you lose). The party level / wins persist across trips within
+    a session; the run chip reads "Encounter n/3 · to <town>". The ≡ in a run goes
+    to the Fantasia menu, not back to the map (no abort-trip button yet).
+    Headless: `g.beginTownRun("oakhaven")`, then `g.step(1/30)` until
+    `g.mode === "map"`.
   - **Grass clumps** (`grass_a/b/c` in `props.json`) come from Meshy *smart
     topology* (`meshy-t2.5`, via the image route — t2/t2.5 can't go through
     text-to-3d refine) at ~2.9k tris, baked down to 243 / 150 / 110 (`grass_a`
