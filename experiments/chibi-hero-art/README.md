@@ -38,3 +38,38 @@ off pivots that follow the hand bones. Toon shading is a `MeshToonMaterial` on t
 outline an inverted-hull second `SkinnedMesh` on the same skeleton (a one-line `onBeforeCompile` pushes
 vertices along their skinned normals). The geometry is shared by every clone (`SkeletonUtils.clone`), so
 `Unit.dispose` only frees the per-unit materials and the skeleton's bone texture.
+
+## Foes: the slime (static, unrigged) and what the one-slime test taught us
+
+`src/chibi-crawl/foes/slime.glb` (336 KB, 5k tris, 512px) is the plain Meadow slime; Petal / Pumpkin / Ice
+slimes, the King, shrooms and bats are still primitives. Loaded by `loadFoeArt()` (`?foeart=0` falls back).
+The slime has no skeleton: the pose vector's squash, hop, lean and KO tip-over are transforms on `body`
+already, so a static mesh animates for free. Its texture is a pale cream jelly and `color` (the slime's
+random pastel from `SLIME_COLORS`) multiplies in as a tint (`buildMeshySlime`).
+
+**Do not use the humanoid recipe for a blob.** Findings, in the order we hit them:
+1. *Single-image smart topology gives a flat sticker.* The 2.5k-tri mesh was 0.83 wide and 0.37 deep: fine
+   head-on, a slice of bread from the game's 3/4 camera. Stretching z does not fix it.
+2. *Use a multi-view concept + `multi-image-to-3d`.* `meshy text-to-image ... --generate-multi-view true`
+   returns three views (left, front, back; `--remove-background` works) and `meshy multi-image-to-3d create
+   --input-task-id <task> --should-texture true --texture-resolution 2k` gives a properly round 1.9 x 1.9 x 1.9
+   mesh (standard model, 72k tris, ~25 credits; no smart-topology / polycount option).
+3. *Ask for NO outline in the concept.* With "soft dark outline" in the prompt, every view's silhouette
+   outline is projected onto the model and shows up as dark smears down its sides. The game draws its own
+   outline hull, so the concept should be shaded colour only.
+4. *The texture atlas is a mosaic of projected patches*, so a plain decimate smears the face and trimesh /
+   fast-simplification drop UVs. `decimate_blender.py` decimates a copy in Blender (headless, ~1 min),
+   smart-UVs it, and Cycles-bakes the original's diffuse colour onto it, then `bake_static.py` (pygltflib)
+   repacks it (standing on y=0, 512px JPEG). Bake settings that matter: selected-to-active, diffuse colour
+   only, cage extrusion 0.08.
+5. A painted face survives all this only roughly (eyes come out a little sketchy); the game's primitive
+   slimes have blinking eyes, a Meshy one cannot (no `R.eyes`).
+
+Task ids (final slime): concept `01a14150-b468-723f-bc61-f0886ee2bdcc` (multi-view), 3D
+`01a14151-26de-75c7-b581-32622426224d`. Prompt: *A cute chibi jelly slime monster with a milky pale
+cream-white soft jelly body shaped like a rounded water droplet with a tiny curl on top, two big glossy dark
+eyes, a tiny smile, soft pink blush cheeks, one small glossy highlight, no arms, no legs. cute chibi
+hand-painted storybook game character, soft rounded shapes, soft painted shading, NO outline, no black edge
+lines, no dark borders, warm pastel colors, full body, plain white background, no ground, no shadow, no text.*
+Pipeline: `blender --background --python decimate_blender.py -- model.glb out.glb 5000 1024`, then
+`python3 -I bake_static.py out.glb ../../src/chibi-crawl/foes/slime.glb 512`.

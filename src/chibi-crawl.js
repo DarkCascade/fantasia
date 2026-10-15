@@ -58,7 +58,10 @@
   var SKU_URL = resolve("../vendor/jsm/utils/SkeletonUtils.js");
   var HERO_BASE = resolve("./chibi-crawl/heroes/");
   var HERO_ART = null; // { knight: gltf.scene, mage, cleric }
+  var FOE_BASE = resolve("./chibi-crawl/foes/");
+  var FOE_ART = null; // { slime: gltf.scene } static (unrigged) Meshy foes; the game squashes and hops the whole mesh
   var HERO_OFF = /[?&]heroes=0(?:&|$)/.test(window.location.search);
+  var FOES_OFF = /[?&]foeart=0(?:&|$)/.test(window.location.search);
   var cloneSkinned = null;
   var THREE = null;
   var mergeGeometries = null;
@@ -1279,8 +1282,41 @@
     }
   }
 
+  // A static Meshy foe: one mesh, no bones. Everything the pose vector does to a primitive blob (squash,
+  // hop, lean, KO tip-over) is already a transform on `body`, so that is all the animation it needs.
+  // The texture is a pale cream jelly, so `color` (the slime's random pastel) multiplies in as a tint.
+  const SLIME_FIT = { h: 0.95, depth: 1 }; // world height; z stretch (1 = as modelled)
+
+  function buildMeshySlime(u, o) {
+    const b = new Builder(u);
+    const root = new THREE.Group();
+    const body = b.group(root, [0, 0, 0]);
+    const R = { root: root, body: body, kind: "blob", meshy: true };
+    const src = FOE_ART.slime.getObjectByProperty("isMesh", true);
+    if (!src.geometry.boundingBox) src.geometry.computeBoundingBox();
+    const bb = src.geometry.boundingBox;
+    const k = SLIME_FIT.h / (bb.max.y - bb.min.y);
+    const toon = new THREE.MeshToonMaterial({ map: src.material.map, gradientMap: GRAD, color: new THREE.Color(o.color).lerp(new THREE.Color(0xffffff), 0.12) });
+    u.toons.push(toon);
+    const mesh = new THREE.Mesh(src.geometry, toon);
+    mesh.scale.set(k, k, k * SLIME_FIT.depth);
+    body.add(mesh);
+    const th = 0.03 / k;
+    const olm = new THREE.MeshBasicMaterial({ color: 0x4a3347, side: THREE.BackSide });
+    olm.onBeforeCompile = (sh) => {
+      sh.uniforms.uOl = { value: th };
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform float uOl;").replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed += normalize(normal) * uOl;");
+    };
+    u.others.push(olm);
+    const ol = new THREE.Mesh(src.geometry, olm);
+    ol.scale.copy(mesh.scale);
+    body.add(ol);
+    return R;
+  }
+
   function buildSlime(u, o) {
     const sk = o.skin;
+    if (!sk && !o.crown && FOE_ART && FOE_ART.slime) return buildMeshySlime(u, o);
     const b = new Builder(u);
     const root = new THREE.Group();
     const body = b.group(root, [0, 0, 0]);
@@ -5033,8 +5069,23 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         const photo = PHOTO || PHOTO_OFF ? null : loadPhoto();
         const mapArt = MAP_ART || MAP_ART_OFF ? null : loadMapArt();
         const heroes = HERO_ART || HERO_OFF ? null : loadHeroArt();
-        return Promise.all([props, photo, mapArt, heroes]);
+        const foes = FOE_ART || FOES_OFF ? null : loadFoeArt();
+        return Promise.all([props, photo, mapArt, heroes, foes]);
       });
+  }
+
+  function loadFoeArt() {
+    return import(GLTF_URL)
+      .then((mod) => {
+        const loader = new mod.GLTFLoader();
+        const kinds = ["slime"];
+        return Promise.all(kinds.map((k) => loader.loadAsync(FOE_BASE + k + ".glb"))).then((gl) => {
+          const art = {};
+          kinds.forEach((k, i) => (art[k] = gl[i].scene));
+          FOE_ART = art;
+        });
+      })
+      .catch(() => {});
   }
 
   function loadHeroArt() {

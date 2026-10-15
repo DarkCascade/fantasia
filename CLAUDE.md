@@ -943,9 +943,21 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       trips holds textures flat); robes get 0.7x leg swing (`legK`) so the skirt
       doesn't stretch; frustum culling is off on the skinned meshes (their bounds
       are the bind pose). There are no eyes to blink (the face is painted).
-      **Next art passes:** enemies (the foes are still primitives, so they now
-      look plainer than the heroes), Sir Fish + wagon in 3D, and possibly
-      Meshy-made weapons.
+      **Enemy art pass, step one: the plain Meadow slime** (`src/chibi-crawl/foes/
+      slime.glb`, 5k tris, `loadFoeArt()`, `buildMeshySlime`, `?foeart=0` falls
+      back). It is a *static* mesh: squash/hop/lean/KO are already transforms on
+      `body`, and `color` (the random pastel from `SLIME_COLORS`) tints a pale cream
+      texture. The other slimes (Petal/Pumpkin/Ice/King), shrooms and bats are
+      still primitives, so mixed fights mix styles for now. The test found the
+      recipe for non-humanoids, which is NOT the hero one: single-image smart
+      topology makes a flat sticker; use a multi-view concept
+      (`--generate-multi-view`) + `multi-image-to-3d`, put NO outline in the prompt
+      (it projects as dark smears), then decimate-and-rebake in Blender
+      (`decimate_blender.py`) and pack with `bake_static.py`. Full notes and task
+      ids in `experiments/chibi-hero-art/README.md`.
+      **Next art passes:** the other foes (rig contract per kind: slimes static;
+      shrooms need legs; bats need wing parts), Sir Fish + wagon in 3D, and
+      possibly Meshy-made weapons.
     - **M3 (partly built).** Sir Fish + wagon in 3D (generate him without the bowl
       and build the bowl as a glass sphere around him — transparent glass
       confuses image-to-3D; the current fish is a primitive blob) and
