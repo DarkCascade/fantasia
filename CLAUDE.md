@@ -699,7 +699,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   - **Combat.** Units run a small act state machine (`Unit.stepAct`): melee
     = dash → wind-up → strike → recover → return; ranged = cast → projectile.
     Heroes have a special meter (+9 dealt, +7 taken) that auto-fires at 100,
-    one special at a time (`specialLock`). Cleric heals the most-hurt ally
+    one special at a time (`specialLock`). The **Special charge** setting
+    (hotkey T) is an experiment in *tapping the status cards to charge*:
+    `auto` (default, as above), `mix` (taps add `TAP_CHARGE` = 7 on top of the
+    damage charge) or `tap` (heroes get no damage charge at all, via
+    `passiveCharge`; foes still do, so the king's slam is unchanged). Taps are
+    `pointerdown` on `.cc-card` (so several fingers and rapid taps all count),
+    only count in `intro`/`battle`, and in the tap modes the party panel is
+    forced on even when UI is "Heads". A full tap-charged meter fires the moment
+    the hero is free (`endAct` clamps the cooldown), except the Cleric, whose
+    Blessing still waits for a hurt ally (`think()`), so she can sit at READY.
+    Cards show a pulsing TAP! badge while charging and READY at full. Cleric heals the most-hurt ally
     below 62% and Blessing revives the fallen. Enemies: Slime, Shroom, Bat
     (hunts the weakest hero) and a **King Slime boss every 5th fight**
     (Body Slam). Party levels every `LEVEL_EVERY` wins; foes scale

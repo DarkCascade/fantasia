@@ -69,6 +69,7 @@
   const DASH_SPEED = 13;
   const RETURN_SPEED = 10;
   const SPECIAL_MAX = 100;
+  const TAP_CHARGE = 7; // special meter per tap on a hero's status card (15 taps from empty)
   const CRIT_CHANCE = 0.12;
   const CRIT_MULT = 1.7;
   const LEVEL_EVERY = 3; // party levels up every N victories
@@ -93,6 +94,7 @@
     foeFormation: "stagger",
     foes: 0,
     ui: "both",
+    charge: "auto",
     speed: 1,
   };
 
@@ -138,6 +140,16 @@
         ["heads", "Heads"],
         ["panel", "Panel"],
         ["both", "Both"],
+      ],
+    },
+    {
+      key: "charge",
+      label: "Special charge",
+      hot: "T",
+      opts: [
+        ["auto", "Auto"],
+        ["mix", "Auto + Tap"],
+        ["tap", "Tap only"],
       ],
     },
     { key: "speed", label: "Speed", hot: "1-3", opts: [[1, "1×"], [2, "2×"], [3, "3×"]] },
@@ -1362,6 +1374,8 @@
     endAct() {
       this.act = null;
       this.cdT = this.cd * (0.9 + this.g.rng() * 0.2);
+      // a tap-charged special should go off the moment the hero is free, not a full attack cooldown later
+      if (this.side === "hero" && this.meter >= SPECIAL_MAX && this.g.S.charge !== "auto") this.cdT = Math.min(this.cdT, 0.12);
       if (this.g.specialLock === this) this.g.specialLock = null;
     }
 
@@ -2284,6 +2298,15 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 .cc-card { flex: 1; min-width: 0; padding: 7px 9px 8px; border-radius: 16px; background: rgba(58,42,85,.78); border: 2px solid #fff; box-shadow: 0 4px 0 rgba(58,42,85,.5); transition: filter .3s, transform .15s; }
 .cc-card.ko { filter: grayscale(.9) brightness(.8); }
 .cc-card.act { transform: translateY(-4px); }
+.cc-card { position: relative; }
+.cc-panel.tap .cc-card { pointer-events: auto; cursor: pointer; touch-action: none; }
+.cc-card.tap { animation: cc-tapbump .16s ease-out; }
+@keyframes cc-tapbump { 0% { transform: scale(.93); } 55% { transform: scale(1.05); } 100% { transform: scale(1); } }
+.cc-card.tapme { border-color: #8fe8ff; box-shadow: 0 4px 0 rgba(58,42,85,.5), 0 0 10px rgba(143,232,255,.7); }
+.cc-card.tapme::after { content: "TAP!"; position: absolute; top: -10px; right: 8px; font-size: 10px; font-weight: 900; letter-spacing: .06em; padding: 1px 7px; border-radius: 8px; background: #8fe8ff; color: #3a2a55; animation: cc-tapme .45s ease-in-out infinite alternate; }
+@keyframes cc-tapme { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+.cc-card.ready { border-color: #ffe27a; box-shadow: 0 4px 0 rgba(58,42,85,.5), 0 0 12px rgba(255,226,122,.85); }
+.cc-card.ready::after { content: "READY"; position: absolute; top: -10px; right: 8px; font-size: 10px; font-weight: 900; letter-spacing: .06em; padding: 1px 7px; border-radius: 8px; background: #ffe27a; color: #3a2a55; }
 .cc-card-h { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .cc-ava { width: 30px; height: 30px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid #fff; }
 .cc-card-n { font-size: 13px; font-weight: 900; line-height: 1.05; min-width: 0; }
@@ -2379,6 +2402,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         });
         h += "</div></div>";
       });
+      h += '<div class="cc-note">Special charge: Tap = hammer a hero card to charge their special (15 taps from empty; hits no longer charge it). Auto + Tap adds taps on top of the normal damage charge.</div>';
       h += '<div class="cc-note">Formation changes apply live. Pack size applies to the next encounter. Director = Fit + event-driven shots (wind-ups, crits, kills, specials, slow-mo finisher).</div>';
       this.el.sheet.innerHTML = h;
       this.el.sheet.querySelectorAll(".cc-seg button").forEach((b) => {
@@ -2418,12 +2442,27 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         seg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.getAttribute("data-v") === String(S[key])));
       });
       this.el.speed.innerHTML = S.speed + "&times;";
-      this.el.panel.classList.toggle("off", S.ui === "heads");
-      this.root.style.setProperty("--cc-panel", S.ui === "heads" ? "12px" : "92px");
+      this.el.panel.classList.toggle("off", !this.panelOn());
+      this.el.panel.classList.toggle("tap", S.charge !== "auto");
+      this.root.style.setProperty("--cc-panel", this.panelOn() ? "92px" : "12px");
+    }
+
+    // The party panel shows unless UI is "Heads" -- except in the tap-charge modes,
+    // where the cards are the thing you tap.
+    panelOn() {
+      return this.g.S.ui !== "heads" || this.g.S.charge !== "auto";
     }
 
     panelPx() {
-      return this.g.S.ui === "heads" ? 0 : this.el.panel.offsetHeight + 12;
+      return this.panelOn() ? this.el.panel.offsetHeight + 12 : 0;
+    }
+
+    tapPulse(i) {
+      const c = this.cards[i];
+      if (!c) return;
+      c.el.classList.remove("tap");
+      void c.el.offsetWidth; // restart the animation on every tap
+      c.el.classList.add("tap");
     }
 
     attach(u) {
@@ -2542,10 +2581,13 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       }
 
       // party panel
-      if (S.ui !== "heads") {
+      if (this.panelOn()) {
+        const fighting = g.mode === "run" && (g.phase === "battle" || g.phase === "intro");
         g.heroes.forEach((u, i) => {
           const c = this.cards[i];
           if (!c) return;
+          c.el.classList.toggle("tapme", S.charge !== "auto" && fighting && u.alive && u.meter < SPECIAL_MAX);
+          c.el.classList.toggle("ready", S.charge !== "auto" && u.alive && u.meter >= SPECIAL_MAX);
           const ratio = clamp(u.hp / u.maxHp, 0, 1);
           c.fill.style.width = ratio * 100 + "%";
           c.lag.style.width = ratio * 100 + "%";
@@ -2953,10 +2995,17 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.listen(el.menu, "click", () => window.returnToMenu && window.returnToMenu());
       this.listen(el.gear, "click", () => el.sheet.classList.toggle("open"));
       this.listen(el.speed, "click", () => this.setSetting("speed", (this.S.speed % 3) + 1));
+      // pointerdown, not click: rapid taps (and several fingers on different cards) must all count
+      this.listen(el.panel, "pointerdown", (e) => {
+        const c = e.target.closest && e.target.closest(".cc-card");
+        if (!c) return;
+        e.preventDefault();
+        this.tapCharge(parseInt(c.getAttribute("data-card"), 10));
+      });
       this.listen(window, "keydown", (e) => {
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         const k = e.key.toLowerCase();
-        const cyc = { c: "view", b: "battleCam", f: "formation", e: "foeFormation", g: "foes", u: "ui" }[k];
+        const cyc = { c: "view", b: "battleCam", f: "formation", e: "foeFormation", g: "foes", u: "ui", t: "charge" }[k];
         if (cyc) this.cycle(cyc);
         else if (k === "1" || k === "2" || k === "3") this.setSetting("speed", parseInt(k, 10));
         else if (k === "p") this.paused = !this.paused;
@@ -3321,8 +3370,8 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const kb = ((o.kb || 3.2) * (crit ? 1.4 : 1)) / (tgt.scale > 1 ? 2 : 1);
       tgt.kb.x += (dx / l) * kb;
       tgt.kb.z += (dz / l) * kb;
-      if (!o.aoe) att.meter = Math.min(SPECIAL_MAX, att.meter + 9);
-      tgt.meter = Math.min(SPECIAL_MAX, tgt.meter + 7);
+      if (!o.aoe) att.meter = Math.min(SPECIAL_MAX, att.meter + 9 * this.passiveCharge(att));
+      tgt.meter = Math.min(SPECIAL_MAX, tgt.meter + 7 * this.passiveCharge(tgt));
       const c = tgt.chest(this.tmpA);
       this.hitSpark(c.x, c.y, c.z, crit);
       this.hud.damage(String(dmg) + (crit ? "!" : ""), tgt, crit ? "crit" : tgt.side === "hero" ? "hurt" : "");
@@ -3359,11 +3408,36 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       }
     }
 
+    // How much of the damage-based special charge a unit gets. "Tap only" turns it
+    // off for heroes; foes (the king's slam) always charge the normal way.
+    passiveCharge(u) {
+      return u.side === "hero" && this.S.charge === "tap" ? 0 : 1;
+    }
+
+    // A tap on hero `i`'s status card: charge their special (tap modes, in a fight).
+    tapCharge(i) {
+      const u = this.heroes[i];
+      if (this.S.charge === "auto" || this.mode !== "run" || this.paused || !u || !u.alive) return;
+      if (this.phase !== "battle" && this.phase !== "intro") return;
+      if (u.meter >= SPECIAL_MAX) {
+        this.hud.tapPulse(i);
+        return;
+      }
+      u.meter = Math.min(SPECIAL_MAX, u.meter + TAP_CHARGE);
+      this.sparkleAt(u.pos.x, 1.2, u.pos.z, 0xfff0a0, 2);
+      if (u.meter >= SPECIAL_MAX) {
+        u.cdT = Math.min(u.cdT, 0.05); // fire as soon as they are free, not after the attack cooldown
+        this.sparkleAt(u.pos.x, 1.0, u.pos.z, 0xffe27a, 9);
+        this.hud.float("READY!", u.pos.x, 2.4, u.pos.z, "crit", 0.9, 0.9);
+      }
+      this.hud.tapPulse(i);
+    }
+
     healOne(c, tgt) {
       if (!tgt.alive) return;
       const amt = Math.round(c.atk * 2.7);
       tgt.hp = Math.min(tgt.maxHp, tgt.hp + amt);
-      c.meter = Math.min(SPECIAL_MAX, c.meter + 14);
+      c.meter = Math.min(SPECIAL_MAX, c.meter + 14 * this.passiveCharge(c));
       this.hud.float("+" + amt, tgt.pos.x, tgt.def.headY * tgt.scale * 0.8, tgt.pos.z, "heal", 0.95, 1.6);
       this.hearts(tgt.pos.x, tgt.pos.z, 5);
       this.ring(tgt.pos.x, tgt.pos.z, 0.3, 1.5, 0.6, 0x8dffb0, 0.8);
