@@ -749,6 +749,22 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     0.5 (override with `?grass=N`, e.g. `?grass=1` / `?grass=0`). If perf bites,
     lower those constants first. See
     `experiments/chibi-level-art/README.md`.
+  - **Ground / road / arena textures** are stylised **ambientCG (CC0) 1K maps**
+    (the 6th exception to no-external-assets), shipped as small JPGs in
+    `src/chibi-crawl/tex/` and loaded with the props (`loadPhoto`; any failure,
+    or `?tex=0`, falls back to the old procedural canvas textures, which are still
+    there). `experiments/chibi-level-art/tex.py` makes them from the originals
+    (kept untracked in `tex-src/`): the three grasses become low-contrast
+    *greyscale* centred at ~0.9 so the biome tint (the ground material colour)
+    still multiplies cleanly, and the road and sand are re-coloured into the
+    game's cream/tan palette. The ground (`Scenery.blendGround`, an
+    `onBeforeCompile` hook) mixes the three grasses at unrelated world scales
+    (8 / 11 / 6.5 units per tile) by low-frequency world-space noise — a single
+    photographic repeat is visible, the old procedural one only hid it by being
+    nearly flat — and lifts the result ×1.14 so highlights survive 8-bit. The road
+    ribbon keeps its soft edges as a canvas `alphaMap` on the photo, and the
+    arena decal is `drawArena(c, w, sand)` (tiled sand under the same ring and
+    stones, 1024²). All filtering in `tex.py` wraps, so seamless in = seamless out.
   - **Not done yet** (obvious next steps): audio, player agency (formation
     drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
     colour-blind-safe damage palette.

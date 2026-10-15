@@ -40,6 +40,12 @@
   // Optional: if it fails to load the primitive props below are used instead.
   var PROPS_URL = resolve("./chibi-crawl/props.json");
   var PROP_DATA = null;
+  // Stylised ambientCG (CC0) ground/road/sand textures (baked by
+  // experiments/chibi-level-art/tex.py). Optional like the props: if any fails
+  // to load, or the URL says ?tex=0, the procedural canvas textures are used.
+  var TEX_BASE = resolve("./chibi-crawl/tex/");
+  var PHOTO = null; // { ground: [img x3], road: img, sand: img }
+  var PHOTO_OFF = /[?&]tex=0(?:&|$)/.test(window.location.search);
   var THREE = null;
   var mergeGeometries = null;
 
@@ -315,6 +321,85 @@
     return t;
   }
 
+  // The arena decal: a soft-edged disc (flat cream, or tiled sand when `sand` is
+  // an image), a dashed ring and a ring of stones. Drawn at any resolution.
+  function drawArena(c, w, sand) {
+    if (sand) {
+      // ~8 world units per sand tile; the decal spans 19 units
+      const pat = c.createPattern(sand, "repeat");
+      const k = (w * 8) / 19 / sand.width;
+      pat.setTransform(new DOMMatrix().scale(k, k));
+      c.fillStyle = pat;
+      c.fillRect(0, 0, w, w);
+      const m = c.createRadialGradient(w / 2, w / 2, w * 0.1, w / 2, w / 2, w / 2);
+      m.addColorStop(0, "rgba(0,0,0,0.97)");
+      m.addColorStop(0.86, "rgba(0,0,0,0.94)");
+      m.addColorStop(1, "rgba(0,0,0,0)");
+      c.globalCompositeOperation = "destination-in";
+      c.fillStyle = m;
+      c.fillRect(0, 0, w, w);
+      c.globalCompositeOperation = "source-over";
+    } else {
+      const g = c.createRadialGradient(w / 2, w / 2, w * 0.1, w / 2, w / 2, w / 2);
+      g.addColorStop(0, "rgba(250,236,196,0.95)");
+      g.addColorStop(0.86, "rgba(244,222,170,0.92)");
+      g.addColorStop(1, "rgba(244,222,170,0)");
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, w);
+    }
+    const u = w / 512; // the ring/stone sizes below were drawn at 512
+    c.strokeStyle = "rgba(190,150,100,0.45)";
+    c.lineWidth = 5 * u;
+    c.setLineDash([22 * u, 16 * u]);
+    c.beginPath();
+    c.arc(w / 2, w / 2, w * 0.36, 0, TAU);
+    c.stroke();
+    c.setLineDash([]);
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * TAU;
+      const r = w * 0.44;
+      c.save();
+      c.translate(w / 2 + Math.cos(a) * r, w / 2 + Math.sin(a) * r);
+      c.rotate(a);
+      c.fillStyle = i % 2 ? "#fff7de" : "#ffeab0";
+      c.strokeStyle = "rgba(160,120,80,0.7)";
+      c.lineWidth = 3 * u;
+      c.beginPath();
+      c.roundRect(-9 * u, -6 * u, 18 * u, 12 * u, 4 * u);
+      c.fill();
+      c.stroke();
+      c.restore();
+    }
+  }
+
+  // Textures made from the loaded ambientCG images (see loadPhoto).
+  function buildPhotoTex() {
+    const rep = (im, repeatT) => {
+      const t = new THREE.Texture(im);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = THREE.RepeatWrapping;
+      t.wrapT = repeatT ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+      t.anisotropy = 4;
+      t.needsUpdate = true;
+      return t;
+    };
+    TEX.groundPhoto = PHOTO.ground.map((im) => rep(im, true));
+    TEX.roadPhoto = rep(PHOTO.road, false);
+    // the road keeps the procedural soft edges, as an alpha map (green channel)
+    TEX.roadAlpha = canvasTex(8, 128, (c, w, h) => {
+      const g = c.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "#000");
+      g.addColorStop(0.14, "#fff");
+      g.addColorStop(0.86, "#fff");
+      g.addColorStop(1, "#000");
+      c.fillStyle = g;
+      c.fillRect(0, 0, w, h);
+    });
+    TEX.roadAlpha.colorSpace = THREE.NoColorSpace;
+    TEX.roadAlpha.wrapS = THREE.RepeatWrapping;
+    TEX.arenaPhoto = canvasTex(1024, 1024, (c, w) => drawArena(c, w, PHOTO.sand));
+  }
+
   function initShared() {
     G.sphere = new THREE.SphereGeometry(1, 22, 16);
     G.sphereLo = new THREE.SphereGeometry(1, 10, 8);
@@ -487,36 +572,7 @@
     dirt.wrapS = THREE.RepeatWrapping;
     TEX.dirt = dirt;
 
-    TEX.arena = canvasTex(512, 512, (c, w) => {
-      const g = c.createRadialGradient(w / 2, w / 2, w * 0.1, w / 2, w / 2, w / 2);
-      g.addColorStop(0, "rgba(250,236,196,0.95)");
-      g.addColorStop(0.86, "rgba(244,222,170,0.92)");
-      g.addColorStop(1, "rgba(244,222,170,0)");
-      c.fillStyle = g;
-      c.fillRect(0, 0, w, w);
-      c.strokeStyle = "rgba(190,150,100,0.45)";
-      c.lineWidth = 5;
-      c.setLineDash([22, 16]);
-      c.beginPath();
-      c.arc(w / 2, w / 2, w * 0.36, 0, TAU);
-      c.stroke();
-      c.setLineDash([]);
-      for (let i = 0; i < 28; i++) {
-        const a = (i / 28) * TAU;
-        const r = w * 0.44;
-        c.save();
-        c.translate(w / 2 + Math.cos(a) * r, w / 2 + Math.sin(a) * r);
-        c.rotate(a);
-        c.fillStyle = i % 2 ? "#fff7de" : "#ffeab0";
-        c.strokeStyle = "rgba(160,120,80,0.7)";
-        c.lineWidth = 3;
-        c.beginPath();
-        c.roundRect(-9, -6, 18, 12, 4);
-        c.fill();
-        c.stroke();
-        c.restore();
-      }
-    });
+    TEX.arena = canvasTex(512, 512, (c, w) => drawArena(c, w, null));
   }
 
   /* ---------- prop builders (merged, vertex-coloured, cached) ---------- */
@@ -1750,14 +1806,56 @@
       this.decals = new Map();
       this.propMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: GRAD });
       this.shadowMat = new THREE.MeshBasicMaterial({ color: 0x1f3a2a, transparent: true, opacity: 0.2, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-      this.roadMat = new THREE.MeshToonMaterial({ map: TEX.dirt, transparent: true, depthWrite: false, gradientMap: GRAD, polygonOffset: true, polygonOffsetFactor: -1 });
-      this.arenaMat = new THREE.MeshToonMaterial({ map: TEX.arena, transparent: true, depthWrite: false, gradientMap: GRAD, polygonOffset: true, polygonOffsetFactor: -1.5 });
-      this.groundMat = new THREE.MeshToonMaterial({ map: TEX.ground, color: 0xa5e27d, gradientMap: GRAD });
+      const photo = !!(PHOTO && TEX.groundPhoto);
+      this.roadMat = new THREE.MeshToonMaterial(
+        photo
+          ? { map: TEX.roadPhoto, alphaMap: TEX.roadAlpha, transparent: true, depthWrite: false, gradientMap: GRAD, polygonOffset: true, polygonOffsetFactor: -1 }
+          : { map: TEX.dirt, transparent: true, depthWrite: false, gradientMap: GRAD, polygonOffset: true, polygonOffsetFactor: -1 }
+      );
+      this.arenaMat = new THREE.MeshToonMaterial({ map: photo ? TEX.arenaPhoto : TEX.arena, transparent: true, depthWrite: false, gradientMap: GRAD, polygonOffset: true, polygonOffsetFactor: -1.5 });
+      this.groundMat = new THREE.MeshToonMaterial({ map: photo ? TEX.groundPhoto[0] : TEX.ground, color: 0xa5e27d, gradientMap: GRAD });
+      if (photo) this.blendGround(this.groundMat);
       this.waterMat = makeWaterMat();
-      TEX.ground.repeat.set(240 / 8, 176 / 8);
+      if (!photo) TEX.ground.repeat.set(240 / 8, 176 / 8);
       this.ground = new THREE.Mesh(new THREE.PlaneGeometry(240, 176).rotateX(-Math.PI / 2), this.groundMat);
       this.group.add(this.ground);
       this.decalGeo = new THREE.CircleGeometry(9.5, 48).rotateX(-Math.PI / 2);
+    }
+
+    // Three greyscale grasses at unrelated scales (8 / 11 / 6.5 world units per
+    // tile) mixed by low-frequency world-space noise, so no single photographic
+    // repeat reads as a pattern. The biome tint is still the material colour.
+    blendGround(mat) {
+      mat.onBeforeCompile = (sh) => {
+        sh.uniforms.uTexB = { value: TEX.groundPhoto[1] };
+        sh.uniforms.uTexC = { value: TEX.groundPhoto[2] };
+        sh.vertexShader = sh.vertexShader
+          .replace("#include <common>", "#include <common>\nvarying vec3 vWPos;")
+          .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+        sh.fragmentShader = sh.fragmentShader
+          .replace(
+            "#include <common>",
+            `#include <common>
+varying vec3 vWPos;
+uniform sampler2D uTexB;
+uniform sampler2D uTexC;
+float ccH(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float ccN(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(ccH(i), ccH(i + vec2(1.0, 0.0)), f.x), mix(ccH(i + vec2(0.0, 1.0)), ccH(i + vec2(1.0, 1.0)), f.x), f.y);
+}`
+          )
+          .replace(
+            "#include <map_fragment>",
+            `vec2 wp = vWPos.xz;
+vec3 ga = texture2D(map, wp / 8.0).rgb;
+vec3 gb = texture2D(uTexB, wp / 11.0 + 0.37).rgb;
+vec3 gc = texture2D(uTexC, wp / 6.5 + 0.71).rgb;
+vec3 gm = mix(ga, gb, smoothstep(0.4, 0.6, ccN(wp * 0.05)));
+gm = mix(gm, gc, 0.85 * smoothstep(0.5, 0.75, ccN(wp * 0.035 + 31.7)));
+diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlights survive 8-bit; lift back to ~1`
+          );
+      };
     }
 
     buildChunk(ci) {
@@ -3319,14 +3417,37 @@
       .then((mod) => {
         mergeGeometries = mod.mergeGeometries;
         if (!G.sphere) initShared();
-        if (PROP_DATA) return null;
-        return fetch(PROPS_URL)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => {
-            PROP_DATA = d;
-          })
-          .catch(() => {});
+        const props = PROP_DATA
+          ? null
+          : fetch(PROPS_URL)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((d) => {
+                PROP_DATA = d;
+              })
+              .catch(() => {});
+        const photo = PHOTO || PHOTO_OFF ? null : loadPhoto();
+        return Promise.all([props, photo]);
       });
+  }
+
+  function loadPhoto() {
+    const names = ["ground-a", "ground-b", "ground-c", "road", "sand"];
+    return Promise.all(
+      names.map(
+        (n) =>
+          new Promise((res, rej) => {
+            const im = new Image();
+            im.onload = () => res(im);
+            im.onerror = rej;
+            im.src = TEX_BASE + n + ".jpg";
+          })
+      )
+    )
+      .then((im) => {
+        PHOTO = { ground: im.slice(0, 3), road: im[3], sand: im[4] };
+        buildPhotoTex();
+      })
+      .catch(() => {});
   }
 
   function launchChibiCrawl() {

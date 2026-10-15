@@ -28,6 +28,11 @@ Re-bake just those with `python3 -I bake.py <dir> src/chibi-crawl/props.json gra
 (named props merge into the existing JSON; the other props' GLBs aren't kept).
 The game merges each chunk's clumps into one mesh (`Scenery.buildGrass`).
 
+**Ground/road/sand textures** are not Meshy: ambientCG (CC0) 1K colour maps
+run through `tex.py` (`python3 -I tex.py tex-src ../../src/chibi-crawl/tex`; originals
+belong in `tex-src/`, which is git-ignored — re-download the same assets to rebuild).
+See the matching note in `CLAUDE.md`. `?tex=0` shows the old procedural textures.
+
 Not Meshy: the ground texture (needs to tile seamlessly), road, arena decals
 (kept as primitives). The pond is a procedural bowl with a water shader (see `makeWaterMat` in `src/chibi-crawl.js`).
 
