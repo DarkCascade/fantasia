@@ -843,6 +843,24 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       confuses image-to-3D; the current fish is a primitive blob), mercenary and
       biome-themed foe art. The concept photo is in
       `experiments/chibi-level-art/ref/`.
+  - **Biome foes.** Each biome sends its own three foes (`BIOME_FOES`, index =
+    `BIOMES` index; `FOE_DEFS` built by `foeVariant`): the three body rigs
+    (slime / shroom / bat) re-skinned with colours and accessories drawn in
+    `buildSlime` / `buildShroom` / `buildBat` (`def.skin` picks the look;
+    `def.kind` stays the base body so rigs, poses and AI are untouched). **Meadow**
+    is the baseline (Slime, Shroom, Bat). **Blossom** is quick and fragile: Petal
+    Slime (flower on top; `healer: true`, so it heals the most-hurt foe like the
+    Cleric does), Bloom Shroom, Bumblebee. **Autumn** hits hard: Pumpkin Slime
+    (`pop: true`: `pumpkinPop` bursts on death and hurts guards within 2.6),
+    Acorn Shroom, Crow. **Frost** is bulky and slow: Ice Slime, Frost Cap,
+    Snow Bat. Each foe in an encounter picks its biome with `pickBiome(arena.x)`,
+    the same blend that mixes the scenery, so the middle fight of a trip is a
+    mix of both biomes' foes. `beginTownRun` re-spawns encounter 1 once the
+    biome plan exists (`startRun` spawns it first). The `king` boss still keys
+    off `arena.idx % 5` and so never appears in a 3-encounter trip. These are
+    primitive re-skins on purpose: the enemy art pass will replace them.
+    `g.foeDefs` is exposed for headless tests (`g.addUnit(g.foeDefs.crow,
+    "foe", 0)` etc.).
   - **Grass clumps** (`grass_a/b/c` in `props.json`) come from Meshy *smart
     topology* (`meshy-t2.5`, via the image route — t2/t2.5 can't go through
     text-to-3d refine) at ~2.9k tris, baked down to 243 / 150 / 110 (`grass_a`

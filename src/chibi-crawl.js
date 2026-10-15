@@ -900,6 +900,35 @@
     king: { kind: "king", name: "King Slime", hp: 270, atk: 14, cd: 2.0, melee: true, reach: 1.9, taunt: 1, headY: 2.7, chestY: 1.0, scale: 1.85, xp: 20, special: "Body Slam", sRadius: 3.6 },
   };
 
+  // Biome foes: the three body rigs (slime / shroom / bat) re-skinned per biome, with a
+  // stat profile and, for two of them, a trait. `def.kind` stays the base body so the
+  // rigs, poses and AI keep working; `def.skin` picks the colours/accessories.
+  function foeVariant(base, name, skin, m, extra) {
+    const b = FOE_DEFS[base];
+    return Object.assign({}, b, { name: name, skin: skin, hp: Math.round(b.hp * m.hp), atk: b.atk * m.atk, cd: b.cd * m.cd }, extra || {});
+  }
+  Object.assign(FOE_DEFS, {
+    // Blossom (spring): quick and fragile; the Petal Slime heals its pack
+    petalSlime: foeVariant("slime", "Petal Slime", "petal", { hp: 0.9, atk: 0.8, cd: 1.1 }, { healer: true }),
+    bloomShroom: foeVariant("shroom", "Bloom Shroom", "bloom", { hp: 0.9, atk: 0.9, cd: 0.8 }),
+    bumblebee: foeVariant("bat", "Bumblebee", "bee", { hp: 0.8, atk: 1.0, cd: 0.85 }),
+    // Autumn: hard hitters; the Pumpkin Slime pops when it dies
+    pumpkinSlime: foeVariant("slime", "Pumpkin Slime", "pumpkin", { hp: 1.25, atk: 0.9, cd: 1.0 }, { pop: true, xp: 4 }),
+    acornShroom: foeVariant("shroom", "Acorn Shroom", "acorn", { hp: 1.1, atk: 1.35, cd: 1.15 }),
+    crow: foeVariant("bat", "Crow", "crow", { hp: 1.0, atk: 1.35, cd: 1.0 }),
+    // Frost: bulky and slow
+    iceSlime: foeVariant("slime", "Ice Slime", "ice", { hp: 1.5, atk: 0.9, cd: 1.25 }),
+    frostCap: foeVariant("shroom", "Frost Cap", "frost", { hp: 1.8, atk: 1.0, cd: 1.1 }, { xp: 5 }),
+    snowBat: foeVariant("bat", "Snow Bat", "snow", { hp: 1.15, atk: 1.1, cd: 1.0 }),
+  });
+  // What each biome sends (index = BIOMES index). A fight in the Wilds mixes two of these.
+  const BIOME_FOES = [
+    [["slime", 4], ["shroom", 3], ["bat", 3]],
+    [["petalSlime", 4], ["bloomShroom", 3], ["bumblebee", 3]],
+    [["pumpkinSlime", 4], ["acornShroom", 3], ["crow", 3]],
+    [["iceSlime", 4], ["frostCap", 3], ["snowBat", 3]],
+  ];
+
   let nextUnitId = 1;
   let SHADOW_MAT = null;
 
@@ -1080,16 +1109,40 @@
     });
   }
 
+  // A five-petal flower sitting at (x, y, z) on a body part's group.
+  function addFlower(b, parent, x, y, z, petal, center, k) {
+    b.part(parent, G.sphere, center, [x, y + 0.02 * k, z], [0.09 * k, 0.07 * k, 0.09 * k], { ol: 0.015 });
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU;
+      b.part(parent, G.sphere, petal, [x + Math.cos(a) * 0.14 * k, y, z + Math.sin(a) * 0.14 * k], [0.09 * k, 0.05 * k, 0.09 * k], { ol: 0.012 });
+    }
+  }
+
   function buildSlime(u, o) {
+    const sk = o.skin;
     const b = new Builder(u);
     const root = new THREE.Group();
     const body = b.group(root, [0, 0, 0]);
     const R = { root: root, body: body, kind: "blob" };
-    b.part(body, G.sphere, o.color, [0, 0.5, 0], [0.64, 0.5, 0.62], { mat: { transparent: false } });
-    b.part(body, G.sphere, o.color, [0, 0.98, 0], [0.12, 0.14, 0.12], { ol: 0.025 });
+    const col = { petal: 0xffb6d4, pumpkin: 0xff9a3c, ice: 0xbfeaff }[sk] || o.color;
+    const bodyScale = sk === "pumpkin" ? [0.72, 0.47, 0.68] : [0.64, 0.5, 0.62];
+    b.part(body, G.sphere, col, [0, 0.5, 0], bodyScale, { mat: sk === "ice" ? { transparent: true, opacity: 0.88 } : { transparent: false } });
+    if (!sk) b.part(body, G.sphere, o.color, [0, 0.98, 0], [0.12, 0.14, 0.12], { ol: 0.025 });
     b.part(body, G.sphere, 0xffffff, [-0.26, 0.76, 0.3], [0.12, 0.08, 0.06], { basic: true });
     const face = b.group(body, [0, 0.52, 0]);
     R.eyes = addFace(b, face, { ex: 0.21, ey: 0.05, ez: 0.54, es: 0.1, cheek: true, cheekDrop: 0.05, mouthZ: 0.035 });
+    if (sk === "petal") addFlower(b, body, 0, 0.98, 0, 0xffffff, 0xffd84a, 1);
+    if (sk === "pumpkin") {
+      b.part(body, G.cyl, 0x5f9a3a, [0, 0.95, 0], [0.07, 0.16, 0.07], { ol: 0.015 });
+      b.part(body, G.sphere, 0x5f9a3a, [0.09, 1.04, 0], [0.07, 0.04, 0.05], { ol: 0.012 });
+      b.part(body, G.sphere, 0xd9731f, [-0.34, 0.5, 0.1], [0.05, 0.4, 0.5], { outline: false });
+      b.part(body, G.sphere, 0xd9731f, [0.34, 0.5, 0.1], [0.05, 0.4, 0.5], { outline: false });
+    }
+    if (sk === "ice") {
+      b.part(body, G.cone, 0xeafaff, [0, 1.0, 0], [0.1, 0.32, 0.1], { ol: 0.015 });
+      b.part(body, G.cone, 0xeafaff, [-0.2, 0.92, 0.04], [0.08, 0.24, 0.08], { rot: [0, 0, 0.4], ol: 0.015 });
+      b.part(body, G.cone, 0xeafaff, [0.2, 0.92, 0.04], [0.08, 0.24, 0.08], { rot: [0, 0, -0.4], ol: 0.015 });
+    }
     if (o.crown) {
       b.part(body, G.cyl, 0xffd84a, [0, 0.96, 0], [0.34, 0.1, 0.34], { ol: 0.02 });
       for (let i = 0; i < 5; i++) {
@@ -1101,41 +1154,73 @@
     return R;
   }
 
-  function buildShroom(u) {
+  function buildShroom(u, o) {
+    const sk = o && o.skin;
     const b = new Builder(u);
     const root = new THREE.Group();
     const body = b.group(root, [0, 0, 0]);
     const R = { root: root, body: body, kind: "blob" };
+    const cap = { bloom: 0xffa8c8, acorn: 0xb2763a, frost: 0xa9d8f5 }[sk] || 0xff6f7a;
+    const stem = sk === "frost" ? 0xeaf6ff : 0xfff0d6;
     R.legL = b.group(body, [-0.14, 0.14, 0]);
     R.legR = b.group(body, [0.14, 0.14, 0]);
     b.part(R.legL, G.sphere, 0xf3dcc0, [0, -0.07, 0.03], [0.12, 0.08, 0.15]);
     b.part(R.legR, G.sphere, 0xf3dcc0, [0, -0.07, 0.03], [0.12, 0.08, 0.15]);
-    b.part(body, G.cyl, 0xfff0d6, [0, 0.48, 0], [0.27, 0.62, 0.27]);
-    b.part(body, G.sphere, 0xff6f7a, [0, 0.98, 0], [0.74, 0.46, 0.74]);
-    const dots = [[0.34, 1.27, 0.2, 0.1], [-0.3, 1.24, 0.28, 0.12], [0.0, 1.4, -0.1, 0.1], [-0.4, 1.12, -0.25, 0.09], [0.45, 1.1, -0.2, 0.09]];
-    dots.forEach((d) => b.part(body, G.sphere, 0xffffff, [d[0] * 0.9, d[1] - 0.2, d[2] * 0.9], [d[3], d[3] * 0.5, d[3]], { ol: 0.015 }));
+    b.part(body, G.cyl, stem, [0, 0.48, 0], [0.27, 0.62, 0.27]);
+    b.part(body, G.sphere, cap, [0, 0.98, 0], [0.74, 0.46, 0.74]);
+    if (sk !== "acorn") {
+      const dots = [[0.34, 1.27, 0.2, 0.1], [-0.3, 1.24, 0.28, 0.12], [0.0, 1.4, -0.1, 0.1], [-0.4, 1.12, -0.25, 0.09], [0.45, 1.1, -0.2, 0.09]];
+      dots.forEach((d) => b.part(body, G.sphere, 0xffffff, [d[0] * 0.9, d[1] - 0.2, d[2] * 0.9], [d[3], d[3] * 0.5, d[3]], { ol: 0.015 }));
+    }
     const face = b.group(body, [0, 0.5, 0]);
     R.eyes = addFace(b, face, { ex: 0.12, ey: 0.06, ez: 0.24, es: 0.075, cheek: true, cheekDrop: 0.02, mouthZ: 0.02 });
+    if (sk === "bloom") addFlower(b, body, 0, 1.4, 0.02, 0xffffff, 0xffd84a, 1.1);
+    if (sk === "acorn") {
+      b.part(body, G.sphere, 0x7a4a22, [0, 1.38, 0], [0.2, 0.12, 0.2], { ol: 0.015 });
+      b.part(body, G.cyl, 0x7a4a22, [0, 1.5, 0], [0.05, 0.1, 0.05], { ol: 0.012 });
+      b.part(body, G.cyl, 0x8d5a2a, [0, 0.9, 0], [0.76, 0.06, 0.76], { outline: false }); // the acorn's cross-hatched rim
+    }
+    if (sk === "frost") {
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * TAU;
+        b.part(body, G.cone, 0xeafaff, [Math.cos(a) * 0.62, 0.84, Math.sin(a) * 0.62], [0.07, 0.2, 0.07], { rot: [Math.PI, 0, 0], ol: 0.012 });
+      }
+    }
     return R;
   }
 
-  function buildBat(u) {
+  function buildBat(u, o) {
+    const sk = o && o.skin;
     const b = new Builder(u);
     const root = new THREE.Group();
     const body = b.group(root, [0, 0, 0]);
     const R = { root: root, body: body, kind: "bat" };
     const core = b.group(body, [0, 0, 0]);
     R.core = core;
-    b.part(core, G.sphere, 0x9a7ad8, [0, 0, 0], [0.44, 0.42, 0.4]);
-    b.part(core, G.cone, 0x9a7ad8, [-0.24, 0.42, 0], [0.1, 0.3, 0.1], { rot: [0, 0, 0.3], ol: 0.02 });
-    b.part(core, G.cone, 0x9a7ad8, [0.24, 0.42, 0], [0.1, 0.3, 0.1], { rot: [0, 0, -0.3], ol: 0.02 });
-    b.part(core, G.cone, 0xffffff, [-0.07, -0.2, 0.34], [0.035, 0.1, 0.035], { rot: [Math.PI, 0, 0], ol: 0.01 });
-    b.part(core, G.cone, 0xffffff, [0.07, -0.2, 0.34], [0.035, 0.1, 0.035], { rot: [Math.PI, 0, 0], ol: 0.01 });
+    const skin = {
+      bee: { body: 0xffd84a, ear: 0x3a2f2f, wing: 0xfff3c4, wing2: 0xffe9a0 },
+      crow: { body: 0x3d3550, ear: 0x3d3550, wing: 0x2b2540, wing2: 0x2b2540 },
+      snow: { body: 0xf4fcff, ear: 0xcfeeff, wing: 0xb9e2ff, wing2: 0xa4d4f5 },
+    }[sk] || { body: 0x9a7ad8, ear: 0x9a7ad8, wing: 0x7d5cc0, wing2: 0x7d5cc0 };
+    b.part(core, G.sphere, skin.body, [0, 0, 0], [0.44, 0.42, 0.4]);
+    b.part(core, G.cone, skin.ear, [-0.24, 0.42, 0], [0.1, 0.3, 0.1], { rot: [0, 0, 0.3], ol: 0.02 });
+    b.part(core, G.cone, skin.ear, [0.24, 0.42, 0], [0.1, 0.3, 0.1], { rot: [0, 0, -0.3], ol: 0.02 });
+    if (sk === "crow") {
+      b.part(core, G.cone, 0xffa23a, [0, -0.04, 0.44], [0.08, 0.22, 0.08], { rot: [Math.PI / 2, 0, 0], ol: 0.015 });
+    } else if (sk === "bee") {
+      b.part(core, G.sphere, 0x3a2f2f, [0, 0.0, -0.02], [0.452, 0.07, 0.412], { outline: false });
+      b.part(core, G.sphere, 0x3a2f2f, [0, -0.15, -0.02], [0.4, 0.06, 0.37], { outline: false });
+      b.part(core, G.cone, 0x3a2f2f, [0, -0.04, -0.42], [0.06, 0.18, 0.06], { rot: [-Math.PI / 2, 0, 0], ol: 0.012 });
+    } else {
+      b.part(core, G.cone, 0xffffff, [-0.07, -0.2, 0.34], [0.035, 0.1, 0.035], { rot: [Math.PI, 0, 0], ol: 0.01 });
+      b.part(core, G.cone, 0xffffff, [0.07, -0.2, 0.34], [0.035, 0.1, 0.035], { rot: [Math.PI, 0, 0], ol: 0.01 });
+    }
     R.eyes = addFace(b, core, { ex: 0.16, ey: 0.06, ez: 0.3, es: 0.085, cheek: true, cheekDrop: 0.02, mouth: false, eyeColor: 0x2b1d36 });
-    const mkWing = (s) => {
-      const piv = b.group(core, [s * 0.38, 0.05, 0]);
-      b.part(piv, G.sphere, 0x7d5cc0, [s * 0.34, 0, 0], [0.4, 0.045, 0.24], { ol: 0.025 });
-      b.part(piv, G.sphere, 0x7d5cc0, [s * 0.62, -0.04, -0.05], [0.18, 0.04, 0.16], { ol: 0.02 });
+    const mkWing = (sg) => {
+      const piv = b.group(core, [sg * 0.38, 0.05, 0]);
+      const wm = sk === "bee" ? { transparent: true, opacity: 0.8 } : undefined;
+      b.part(piv, G.sphere, skin.wing, [sg * 0.34, 0, 0], [0.4, 0.045, 0.24], { ol: 0.025, mat: wm });
+      b.part(piv, G.sphere, skin.wing2, [sg * 0.62, -0.04, -0.05], [0.18, 0.04, 0.16], { ol: 0.02, mat: wm });
       return piv;
     };
     R.wingL = mkWing(-1);
@@ -1341,10 +1426,10 @@
       this.scale = def.scale || 1;
 
       if (side === "hero") this.rig = buildHero(this, def.kind);
-      else if (def.kind === "slime") this.rig = buildSlime(this, { color: color });
+      else if (def.kind === "slime") this.rig = buildSlime(this, { color: color, skin: def.skin });
       else if (def.kind === "king") this.rig = buildSlime(this, { color: 0x7fa8ff, crown: true });
-      else if (def.kind === "shroom") this.rig = buildShroom(this);
-      else this.rig = buildBat(this);
+      else if (def.kind === "shroom") this.rig = buildShroom(this, { skin: def.skin });
+      else this.rig = buildBat(this, { skin: def.skin });
       this.root = this.rig.root;
       this.root.scale.setScalar(this.scale);
       g.world.add(this.root);
@@ -3366,6 +3451,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.coins = this.save.coins; // money: kills drop a little, trade earns the rest
       this.cargo = this.save.cargo; // signature items on the wagon, by home town id
       this.guards = this.save.guards; // hired mercenary kinds; KO'd ones are lost for good
+      this.foeDefs = FOE_DEFS; // exposed for headless tests (spawn any foe by key)
       this.stolen = 0; // items taken in the current plunder
       this.fightNo = 1;
       this.doneIdx = 0;
@@ -3555,6 +3641,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const mid = this.course.arenas.find((a) => a.idx === Math.ceil(RUN_FIGHTS / 2));
       runBiomes = { a: this.town.biome, b: this.target.biome, x0: mid.x - WILDS_HALF, x1: mid.x + WILDS_HALF };
       this.enteredWilds = false;
+      this.respawnEncounter(); // startRun spawned encounter 1 before the biome plan existed: redo it in the source biome
       this.scenery.syncGround();
       this.scenery.reset();
       this.biomeName = "";
@@ -3616,9 +3703,10 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       if (!n) n = boss ? 3 : pickWeighted(this.rng, [[2, 3], [3, 4], [4, 3], [5, 1.2]]) + (arena.idx > 12 ? 1 : 0);
       const kinds = [];
       if (boss) kinds.push("king");
-      while (kinds.length < n) kinds.push(pickWeighted(this.rng, [["slime", 4], ["shroom", 3], ["bat", 3]]));
+      // each foe is drawn from the biome at the arena (inside the Wilds' blend that is a mix of both)
+      while (kinds.length < n) kinds.push(pickWeighted(this.rng, BIOME_FOES[BIOMES.indexOf(pickBiome(arena.x, this.rng))]));
       const order = { king: 0, shroom: 1, slime: 2, bat: 3 };
-      kinds.sort((a, b) => order[a] - order[b]);
+      kinds.sort((a, b) => order[FOE_DEFS[a].kind] - order[FOE_DEFS[b].kind]);
       this.enc = { arena: arena, count: kinds.length, alerted: false, boss: boss };
       const mult = 1 + FOE_SCALE_PER_FIGHT * (arena.idx - 1);
       kinds.forEach((k, i) => {
@@ -3959,6 +4047,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
           this.fx.emit({ tex: "coin", x: c.x, y: c.y, z: c.z, to: { x: to.x, y: 1.2, z: to.z }, arc: 2.2 + this.rng(), life: 0.7 + this.rng() * 0.3, delay: 0.25 + i * 0.07, s0: 0.38, s1: 0.28, a1: 1, onEnd: () => ((this.coins += Math.ceil(gain / 3)), this.hud.updateChip()) });
         }
         const final = !this.foes.some((f) => f.targetable);
+        if (u.def.pop) this.pumpkinPop(u);
         this.director.event("kill", by, u, { final: final });
       } else {
         u.koT = 0;
@@ -3990,6 +4079,16 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         this.hud.float("READY!", u.pos.x, 2.4, u.pos.z, "crit", 0.9, 0.9);
       }
       this.hud.tapPulse(i);
+    }
+
+    // A Pumpkin Slime bursts when it dies, hurting any guard standing close to it.
+    pumpkinPop(u) {
+      this.ring(u.pos.x, u.pos.z, 0.3, 2.6, 0.5, 0xff9a3c, 0.85);
+      this.starBurst(u.pos.x, 0.8, u.pos.z, 0xffb04a, 8);
+      this.heroes.forEach((h) => {
+        if (!h.targetable) return;
+        if ((h.pos.x - u.pos.x) ** 2 + (h.pos.z - u.pos.z) ** 2 < 2.6 * 2.6) this.hit(u, h, u.atk * 1.1, { aoe: true, noCrit: true });
+      });
     }
 
     healOne(c, tgt) {
