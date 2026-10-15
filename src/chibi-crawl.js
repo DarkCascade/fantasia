@@ -1287,19 +1287,19 @@
   // The texture is a pale cream jelly, so `color` (the slime's random pastel) multiplies in as a tint.
   const SLIME_FIT = { h: 0.95, depth: 1 }; // world height; z stretch (1 = as modelled)
 
-  function buildMeshySlime(u, o) {
-    const b = new Builder(u);
-    const root = new THREE.Group();
-    const body = b.group(root, [0, 0, 0]);
-    const R = { root: root, body: body, kind: "blob", meshy: true };
+  // The Meshy body for every slime kind. `sq` stretches it ([x, y, z] multipliers, pumpkins are squat);
+  // `glassy` makes it translucent (ice). Accessories (flower, stem, crystals, crown) are still primitives.
+  function addMeshySlimeBody(u, body, color, sq, glassy) {
     const src = FOE_ART.slime.getObjectByProperty("isMesh", true);
     if (!src.geometry.boundingBox) src.geometry.computeBoundingBox();
     const bb = src.geometry.boundingBox;
     const k = SLIME_FIT.h / (bb.max.y - bb.min.y);
-    const toon = new THREE.MeshToonMaterial({ map: src.material.map, gradientMap: GRAD, color: new THREE.Color(o.color).lerp(new THREE.Color(0xffffff), 0.12) });
+    // the baked texture is neutral (--neutral), so the colour multiplies in as the slime's real hue; ice is
+    // lightened rather than made transparent (real transparency let the ground muddy it)
+    const toon = new THREE.MeshToonMaterial({ map: src.material.map, gradientMap: GRAD, color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), glassy ? 0.12 : 0.05) });
     u.toons.push(toon);
     const mesh = new THREE.Mesh(src.geometry, toon);
-    mesh.scale.set(k, k, k * SLIME_FIT.depth);
+    mesh.scale.set(k * sq[0], k * sq[1], k * sq[2] * SLIME_FIT.depth);
     body.add(mesh);
     const th = 0.03 / k;
     const olm = new THREE.MeshBasicMaterial({ color: 0x4a3347, side: THREE.BackSide });
@@ -1311,41 +1311,51 @@
     const ol = new THREE.Mesh(src.geometry, olm);
     ol.scale.copy(mesh.scale);
     body.add(ol);
-    return R;
   }
 
   function buildSlime(u, o) {
     const sk = o.skin;
-    if (!sk && !o.crown && FOE_ART && FOE_ART.slime) return buildMeshySlime(u, o);
     const b = new Builder(u);
     const root = new THREE.Group();
     const body = b.group(root, [0, 0, 0]);
     const R = { root: root, body: body, kind: "blob" };
     const col = { petal: 0xffb6d4, pumpkin: 0xff9a3c, ice: 0xbfeaff }[sk] || o.color;
-    const bodyScale = sk === "pumpkin" ? [0.72, 0.47, 0.68] : [0.64, 0.5, 0.62];
-    b.part(body, G.sphere, col, [0, 0.5, 0], bodyScale, { mat: sk === "ice" ? { transparent: true, opacity: 0.88 } : { transparent: false } });
-    if (!sk) b.part(body, G.sphere, o.color, [0, 0.98, 0], [0.12, 0.14, 0.12], { ol: 0.025 });
-    b.part(body, G.sphere, 0xffffff, [-0.26, 0.76, 0.3], [0.12, 0.08, 0.06], { basic: true });
-    const face = b.group(body, [0, 0.52, 0]);
-    R.eyes = addFace(b, face, { ex: 0.21, ey: 0.05, ez: 0.54, es: 0.1, cheek: true, cheekDrop: 0.05, mouthZ: 0.035 });
+    if (FOE_ART && FOE_ART.slime) {
+      // Meshy body (painted face, nothing to blink), then the same accessories as the primitive slime
+      R.meshy = true;
+      addMeshySlimeBody(u, body, sk === "ice" ? 0x8fd2ff : col, sk === "pumpkin" ? [1.12, 0.84, 1.08] : [1, 1, 1], sk === "ice");
+    } else {
+      const bodyScale = sk === "pumpkin" ? [0.72, 0.47, 0.68] : [0.64, 0.5, 0.62];
+      b.part(body, G.sphere, col, [0, 0.5, 0], bodyScale, { mat: sk === "ice" ? { transparent: true, opacity: 0.88 } : { transparent: false } });
+      if (!sk) b.part(body, G.sphere, o.color, [0, 0.98, 0], [0.12, 0.14, 0.12], { ol: 0.025 });
+      b.part(body, G.sphere, 0xffffff, [-0.26, 0.76, 0.3], [0.12, 0.08, 0.06], { basic: true });
+      const face = b.group(body, [0, 0.52, 0]);
+      R.eyes = addFace(b, face, { ex: 0.21, ey: 0.05, ez: 0.54, es: 0.1, cheek: true, cheekDrop: 0.05, mouthZ: 0.035 });
+    }
     if (sk === "petal") addFlower(b, body, 0, 0.98, 0, 0xffffff, 0xffd84a, 1);
     if (sk === "pumpkin") {
-      b.part(body, G.cyl, 0x5f9a3a, [0, 0.95, 0], [0.07, 0.16, 0.07], { ol: 0.015 });
-      b.part(body, G.sphere, 0x5f9a3a, [0.09, 1.04, 0], [0.07, 0.04, 0.05], { ol: 0.012 });
-      b.part(body, G.sphere, 0xd9731f, [-0.34, 0.5, 0.1], [0.05, 0.4, 0.5], { outline: false });
-      b.part(body, G.sphere, 0xd9731f, [0.34, 0.5, 0.1], [0.05, 0.4, 0.5], { outline: false });
+      // the Meshy body is wider and its top sits lower, so the stem drops a little and the side ribs are dropped
+      const sy = R.meshy ? -0.16 : 0;
+      b.part(body, G.cyl, 0x5f9a3a, [0, 0.95 + sy, 0], [0.07, 0.16, 0.07], { ol: 0.015 });
+      b.part(body, G.sphere, 0x5f9a3a, [0.09, 1.04 + sy, 0], [0.07, 0.04, 0.05], { ol: 0.012 });
+      if (!R.meshy) {
+        b.part(body, G.sphere, 0xd9731f, [-0.34, 0.5, 0.1], [0.05, 0.4, 0.5], { outline: false });
+        b.part(body, G.sphere, 0xd9731f, [0.34, 0.5, 0.1], [0.05, 0.4, 0.5], { outline: false });
+      }
     }
     if (sk === "ice") {
-      b.part(body, G.cone, 0xeafaff, [0, 1.0, 0], [0.1, 0.32, 0.1], { ol: 0.015 });
-      b.part(body, G.cone, 0xeafaff, [-0.2, 0.92, 0.04], [0.08, 0.24, 0.08], { rot: [0, 0, 0.4], ol: 0.015 });
-      b.part(body, G.cone, 0xeafaff, [0.2, 0.92, 0.04], [0.08, 0.24, 0.08], { rot: [0, 0, -0.4], ol: 0.015 });
+      const sy = R.meshy ? -0.1 : 0;
+      b.part(body, G.cone, 0xeafaff, [0, 1.0 + sy, 0], [0.1, 0.32, 0.1], { ol: 0.015 });
+      b.part(body, G.cone, 0xeafaff, [-0.2, 0.92 + sy, 0.04], [0.08, 0.24, 0.08], { rot: [0, 0, 0.4], ol: 0.015 });
+      b.part(body, G.cone, 0xeafaff, [0.2, 0.92 + sy, 0.04], [0.08, 0.24, 0.08], { rot: [0, 0, -0.4], ol: 0.015 });
     }
     if (o.crown) {
-      b.part(body, G.cyl, 0xffd84a, [0, 0.96, 0], [0.34, 0.1, 0.34], { ol: 0.02 });
+      const sy = R.meshy ? -0.2 : 0; // the Meshy dome is lower than the primitive's, so the crown sits down on it
+      b.part(body, G.cyl, 0xffd84a, [0, 0.96 + sy, 0], [0.34, 0.1, 0.34], { ol: 0.02 });
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * TAU;
-        b.part(body, G.cone, 0xffd84a, [Math.cos(a) * 0.3, 1.1, Math.sin(a) * 0.3], [0.08, 0.2, 0.08], { ol: 0.015 });
-        b.part(body, G.sphere, [0xff5a6e, 0x6ad8ff, 0xb48cff][i % 3], [Math.cos(a) * 0.3, 1.22, Math.sin(a) * 0.3], [0.045, 0.045, 0.045], { basic: true });
+        b.part(body, G.cone, 0xffd84a, [Math.cos(a) * 0.3, 1.1 + sy, Math.sin(a) * 0.3], [0.08, 0.2, 0.08], { ol: 0.015 });
+        b.part(body, G.sphere, [0xff5a6e, 0x6ad8ff, 0xb48cff][i % 3], [Math.cos(a) * 0.3, 1.22 + sy, Math.sin(a) * 0.3], [0.045, 0.045, 0.045], { basic: true });
       }
     }
     return R;

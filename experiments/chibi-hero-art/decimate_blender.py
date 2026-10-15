@@ -6,7 +6,7 @@ Usage (Blender 4/5):
 Meshy's *standard* (multi-image) models come out at 25-70k tris, far too heavy to draw a few at a time on a
 phone, and their texture atlas is a mosaic of projected patches. Collapsing straight across that mosaic
 smears the face (what a first attempt did), and trimesh/fast-simplification throws UVs away entirely.
-So: decimate a copy, give it a clean smart-UV layout, and bake the colour of the original onto it
+So: decimate a copy, give it a clean UV layout, and bake the colour of the original onto it
 (selected-to-active, diffuse colour only). The result keeps the face crisp at a few thousand triangles.
 """
 import sys
@@ -31,6 +31,12 @@ for o in bpy.context.scene.objects:
     o.select_set(False)
 bpy.context.view_layer.objects.active = low
 low.select_set(True)
+# Meshy exports unwelded triangle soup: weld it first, or the decimator and every UV tool treat each
+# triangle as its own island (this is what shattered the earlier unwraps).
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+bpy.ops.mesh.remove_doubles(threshold=0.0002)
+bpy.ops.object.mode_set(mode="OBJECT")
 tris = sum(len(p.vertices) - 2 for p in low.data.polygons)
 mod = low.modifiers.new("dec", "DECIMATE")
 mod.decimate_type = "COLLAPSE"
@@ -45,7 +51,7 @@ while low.data.uv_layers:
 low.data.uv_layers.new(name="bake")
 bpy.ops.object.mode_set(mode="EDIT")
 bpy.ops.mesh.select_all(action="SELECT")
-bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.012)
+bpy.ops.uv.smart_project(angle_limit=1.2, island_margin=0.02)
 bpy.ops.object.mode_set(mode="OBJECT")
 
 # target material with an image texture node (the bake writes into the active image node)

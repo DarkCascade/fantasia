@@ -943,20 +943,25 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       trips holds textures flat); robes get 0.7x leg swing (`legK`) so the skirt
       doesn't stretch; frustum culling is off on the skinned meshes (their bounds
       are the bind pose). There are no eyes to blink (the face is painted).
-      **Enemy art pass, step one: the plain Meadow slime** (`src/chibi-crawl/foes/
-      slime.glb`, 5k tris, `loadFoeArt()`, `buildMeshySlime`, `?foeart=0` falls
-      back). It is a *static* mesh: squash/hop/lean/KO are already transforms on
-      `body`, and `color` (the random pastel from `SLIME_COLORS`) tints a pale cream
-      texture. The other slimes (Petal/Pumpkin/Ice/King), shrooms and bats are
-      still primitives, so mixed fights mix styles for now. The test found the
-      recipe for non-humanoids, which is NOT the hero one: single-image smart
-      topology makes a flat sticker; use a multi-view concept
-      (`--generate-multi-view`) + `multi-image-to-3d`, put NO outline in the prompt
-      (it projects as dark smears), then decimate-and-rebake in Blender
-      (`decimate_blender.py`) and pack with `bake_static.py`. Full notes and task
-      ids in `experiments/chibi-hero-art/README.md`.
-      **Next art passes:** the other foes (rig contract per kind: slimes static;
-      shrooms need legs; bats need wing parts), Sir Fish + wagon in 3D, and
+      **Enemy art pass, step one: the slimes** (`src/chibi-crawl/foes/slime.glb`,
+      one 5k-tri, 187 KB model behind all five: plain, Petal, Pumpkin, Ice and the
+      King; `loadFoeArt()`, `addMeshySlimeBody`, `?foeart=0` falls back). It is a
+      *static* mesh: squash/hop/lean/KO are already transforms on `body`. Its baked
+      texture is neutral near-white shading plus a painted face, so the slime's
+      colour multiplies in as its real hue; the biome accessories (daisy, stem, ice
+      crystals, crown) are the old primitives nudged down onto the lower Meshy
+      dome (pumpkin = the same mesh squashed, ice = lightened, not transparent).
+      Shrooms and bats are still primitives, so mixed fights mix styles for now.
+      The recipe for non-humanoids is NOT the hero one: single-image smart topology
+      makes a flat sticker; use a multi-view concept (`--generate-multi-view`) +
+      `multi-image-to-3d`, put NO outline in the prompt (it projects as dark
+      smears), then weld + decimate + re-bake the texture in Blender
+      (`decimate_blender.py`: Meshy's export is unwelded triangle soup, and any
+      topology-based UV tool shatters it until it is welded) and pack with
+      `bake_static.py --neutral`. Full notes and task ids in
+      `experiments/chibi-hero-art/README.md`.
+      **Next art passes:** shrooms and bats (rig contract per kind: slimes are done as
+      static meshes; shrooms need legs; bats need wing parts), Sir Fish + wagon in 3D, and
       possibly Meshy-made weapons.
     - **M3 (partly built).** Sir Fish + wagon in 3D (generate him without the bowl
       and build the bowl as a glass sphere around him — transparent glass

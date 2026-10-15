@@ -39,13 +39,17 @@ outline an inverted-hull second `SkinnedMesh` on the same skeleton (a one-line `
 vertices along their skinned normals). The geometry is shared by every clone (`SkeletonUtils.clone`), so
 `Unit.dispose` only frees the per-unit materials and the skeleton's bone texture.
 
-## Foes: the slime (static, unrigged) and what the one-slime test taught us
+## Foes: the slimes (static, unrigged) and what they taught us
 
-`src/chibi-crawl/foes/slime.glb` (336 KB, 5k tris, 512px) is the plain Meadow slime; Petal / Pumpkin / Ice
-slimes, the King, shrooms and bats are still primitives. Loaded by `loadFoeArt()` (`?foeart=0` falls back).
-The slime has no skeleton: the pose vector's squash, hop, lean and KO tip-over are transforms on `body`
-already, so a static mesh animates for free. Its texture is a pale cream jelly and `color` (the slime's
-random pastel from `SLIME_COLORS`) multiplies in as a tint (`buildMeshySlime`).
+`src/chibi-crawl/foes/slime.glb` (187 KB, 5k tris, 512px) is the ONE model behind all five slimes:
+Slime, Petal, Pumpkin, Ice and the King. Loaded by `loadFoeArt()` (`?foeart=0` falls back to the primitives).
+It has no skeleton: the pose vector's squash, hop, lean and KO tip-over are transforms on `body` already,
+so a static mesh animates for free. The texture is *neutral* (near-white shading, painted face), so
+`addMeshySlimeBody` multiplies the slime's colour in as its real hue (`SLIME_COLORS` for plain slimes, fixed
+pastels for the biome kinds); the biome accessories (daisy, pumpkin stem, ice crystals, crown) are the old
+primitives, nudged down because the Meshy dome sits lower than the primitive sphere. Pumpkin is the same
+mesh squashed, and its flat side-rib plates were dropped. Ice is lightened, not transparent (real
+transparency let the ground muddy it).
 
 **Do not use the humanoid recipe for a blob.** Findings, in the order we hit them:
 1. *Single-image smart topology gives a flat sticker.* The 2.5k-tri mesh was 0.83 wide and 0.37 deep: fine
@@ -57,19 +61,23 @@ random pastel from `SLIME_COLORS`) multiplies in as a tint (`buildMeshySlime`).
 3. *Ask for NO outline in the concept.* With "soft dark outline" in the prompt, every view's silhouette
    outline is projected onto the model and shows up as dark smears down its sides. The game draws its own
    outline hull, so the concept should be shaded colour only.
-4. *The texture atlas is a mosaic of projected patches*, so a plain decimate smears the face and trimesh /
-   fast-simplification drop UVs. `decimate_blender.py` decimates a copy in Blender (headless, ~1 min),
-   smart-UVs it, and Cycles-bakes the original's diffuse colour onto it, then `bake_static.py` (pygltflib)
-   repacks it (standing on y=0, 512px JPEG). Bake settings that matter: selected-to-active, diffuse colour
-   only, cage extrusion 0.08.
-5. A painted face survives all this only roughly (eyes come out a little sketchy); the game's primitive
-   slimes have blinking eyes, a Meshy one cannot (no `R.eyes`).
+4. *Meshy's standard export is unwelded triangle soup with a mosaic texture atlas.* That breaks every
+   shortcut: a plain Blender decimate smears the face, trimesh/fast-simplification drop UVs, and any UV tool
+   that works on topology (smart project, pack islands) shatters it into thousands of one-triangle islands.
+   `decimate_blender.py` therefore **welds first** (`remove_doubles`), decimates a copy, smart-UV-unwraps it
+   (a handful of big islands once welded), and Cycles-bakes the original's diffuse colour onto it
+   (selected-to-active, colour only, cage 0.08, 1024px). Sphere projection looked ideal but puts the face on
+   its seam and ignores attempts to spin the seam away.
+5. `bake_static.py ... 512 --neutral` repacks it (pygltflib; stands the model on y=0) and divides the texture by
+   its median colour *over the used atlas area* (the unused space is black, which first made the median 0 and
+   blew the face out), so tints land on their true hue instead of going grey (cream x blue = grey).
+6. A painted face survives all this only roughly, and a Meshy slime cannot blink (no `R.eyes`).
 
-Task ids (final slime): concept `01a14150-b468-723f-bc61-f0886ee2bdcc` (multi-view), 3D
+Task ids (final): concept `01a14150-b468-723f-bc61-f0886ee2bdcc` (multi-view), 3D
 `01a14151-26de-75c7-b581-32622426224d`. Prompt: *A cute chibi jelly slime monster with a milky pale
 cream-white soft jelly body shaped like a rounded water droplet with a tiny curl on top, two big glossy dark
 eyes, a tiny smile, soft pink blush cheeks, one small glossy highlight, no arms, no legs. cute chibi
 hand-painted storybook game character, soft rounded shapes, soft painted shading, NO outline, no black edge
 lines, no dark borders, warm pastel colors, full body, plain white background, no ground, no shadow, no text.*
 Pipeline: `blender --background --python decimate_blender.py -- model.glb out.glb 5000 1024`, then
-`python3 -I bake_static.py out.glb ../../src/chibi-crawl/foes/slime.glb 512`.
+`python3 -I bake_static.py out.glb ../../src/chibi-crawl/foes/slime.glb 512 --neutral`.

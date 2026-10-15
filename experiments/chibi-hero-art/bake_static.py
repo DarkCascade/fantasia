@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Shrink a Meshy (smart-topology, textured) static GLB into the small foe GLB Chibi Crawl ships.
 
-Usage: python3 -I bake_static.py <model.glb> <out.glb> [texture size, default 256]
+Usage: python3 -I bake_static.py <model.glb> <out.glb> [texture size, default 256] [--neutral]
+  --neutral divides the texture by its median colour, so the body becomes near-white shading and the game
+  can tint it to any hue (a cream body multiplied by blue turns grey).
   pip install pygltflib pillow numpy
 
 Foes that are not humanoid (slimes, mushrooms...) are not rigged: the game squashes and hops the whole
@@ -64,7 +66,9 @@ def world_matrix(g, target):
 
 def main():
     src, dst = sys.argv[1], sys.argv[2]
-    size = int(sys.argv[3]) if len(sys.argv) > 3 else 256
+    args = [a for a in sys.argv[3:] if not a.startswith("--")]
+    neutral = "--neutral" in sys.argv
+    size = int(args[0]) if args else 256
     g = GLTF2().load(src)
     blob = g.binary_blob()
     prim = g.meshes[0].primitives[0]
@@ -86,6 +90,12 @@ def main():
     bv = g.bufferViews[im.bufferView]
     raw = blob[(bv.byteOffset or 0):(bv.byteOffset or 0) + bv.byteLength]
     pic = Image.open(io.BytesIO(raw)).convert("RGB").resize((size, size), Image.LANCZOS)
+    if neutral:
+        px = np.asarray(pic, dtype=np.float64) / 255.0
+        flat = px.reshape(-1, 3)
+        med = np.median(flat[flat.max(axis=1) > 0.35], axis=0)  # skip the atlas' unused (black) space
+        px = np.clip(px / np.maximum(med, 1e-3), 0, 1) * 0.97
+        pic = Image.fromarray(np.round(px * 255).astype(np.uint8))
     jb = io.BytesIO()
     pic.save(jb, "JPEG", quality=86, optimize=True)
     jpeg = jb.getvalue()
