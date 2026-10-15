@@ -798,17 +798,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     — placeholder names) to the other towns; hired guards protect the cargo;
     Sir Fish can neither fight nor be hurt.
     - **Economy (M1).** `TownScreen` (the sell/buy/hire overlay: `ITEM_COST` 20
-      at home, wagon `CARGO_CAP` 6, `START_COINS` 100) opens by tapping the
+      at home, wagon `CARGO_CAP` 6, `START_COINS` 200) opens by tapping the
       town Sir Fish is in and **auto-opens on arrival** after the pin hops over;
       resale is `ITEM_COST * SELL_MULT[ringDist]` (1 town away x1.9 = 38, 2
-      away x2.6 = 52, a town never buys its own item): "towns away" is the ring
+      away x3.2 = 64, a town never buys its own item): "towns away" is the ring
       distance on the 4-town wheel (`TOWNS` order). The map shows "cargo worth
       N" under every other town (`WorldMap.updateChip`). Money, cargo and the
       hired guards live on `g.coins` / `g.cargo` / `g.guards` and persist in
       `localStorage` `chibi-crawl-save` (`persist()`, on every trade, loss and
       at the end of a run); kills still drop a few coins.
-    - **Guards (M2).** Hired in any town for `HIRE_COST` (Knight 60, Mage 70,
-      Cleric 70), one of each kind; **you start with none** and 100 coins.
+    - **Guards (M2).** Hired in any town for `HIRE_COST` (Knight 50, Cleric 60,
+      Mage 100), one of each kind; **you start with none** and 200 coins.
       `startRun` spawns only `guardDefs()`; the status panel is rebuilt
       (`Hud.buildPanel`) for whoever is hired, with a hint card when nobody is.
       Foes only ever target guards (`opponents()`), so "guards first" is free.
@@ -834,10 +834,35 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       and tags them "(2 hops)". **Idea for later (the user wants to try it):** a
       harder, riskier diagonal route straight across the Wilds, with more
       encounters and/or tougher foes to justify the bigger payout.
-    - **Balance wrinkles.** A single dead guard in a pack of N foes can cost N items,
-      and a no-guard trip loses up to the whole wagon in the first encounter:
-      that is the intended tension, but expect to retune `HIRE_COST`, foe pack
-      size and `SELL_MULT` together.
+    - **Balance (tuned with data).** `experiments/chibi-balance/harness.js` plays
+      bot trips through the real game (real combat, thieves and `TownScreen`
+      actions) and reports loss rates and profit; usage is in its header. All
+      combat knobs live in the mutable `TUNE` object (`g.tune`), the economy in
+      `g.econ`; the harness sweeps them without recompiling. Method notes: measure
+      *fixed-party, full-wagon* risk (`risk()`, state restored after every trip,
+      rotating round the ring so every biome pair counts), NOT bot bankroll runs,
+      which fall into poverty traps that hide the real odds; and capture the
+      baseline once per page (`window.__balBase`) so an experiment can't be
+      mistaken for it. Findings that drove the numbers: (1) the shipped combat
+      was risk-free: Knight + Cleric lost nothing in 60 trips and the party level
+      grew without bound while foes barely scaled, so foes now scale with it
+      (`perLevel` = `LEVEL_BONUS`; risk stays flat from level 1 to 30, but would be
+      zero at level 30 without it); (2) survival is a cliff, because the Mage is
+      worth more than the other two together (Knight + Cleric at x2 foe strength
+      loses both guards almost every trip, the full party loses ~0.16), so the
+      Mage costs 100 and a WIDE pack spread (2-7) softens the cliff; (3) the old
+      x2.6 two-towns-away price was a trap (carrying through a town netted 32/trip
+      vs 86 for selling at every hop), x3.2 makes it a ~+20% gamble; (4) the first
+      trip was a dead end (one Knight dies every time), hence 200 starting coins
+      and cheaper Knight/Cleric so a new player can afford both; (5) bandits are
+      drawn to a loaded wagon (`loadPack`/`loadStat`: an empty wagon halves
+      packs and cuts stats ~40%), which makes cargo size the player's risk dial.
+      Shipped results (24 trips, rotating routes): Knight + Cleric + 4 items
+      loses nothing, net +103/trip; Knight + Cleric + 6 items loses a guard 71%
+      of the time, net -109; full party + 6 items loses a guard 21% (plunder 17%),
+      net +67; a lone Knight dies every trip. Still open: the cliff between
+      4 and 6 items for a two-guard party is steep, and coins have no sink once
+      all three guards are hired (wagon upgrades / guard gear would fix it).
     - **M3 (not built).** Sir Fish + wagon in 3D (generate him without the bowl
       and build the bowl as a glass sphere around him — transparent glass
       confuses image-to-3D; the current fish is a primitive blob), mercenary and

@@ -73,7 +73,21 @@
   const CRIT_MULT = 1.7;
   const LEVEL_EVERY = 3; // party levels up every N victories
   const LEVEL_BONUS = 0.1; // hero hp/atk per level
-  const FOE_SCALE_PER_FIGHT = 0.06;
+  // Balance knobs, kept in one mutable object so the headless balance sim can sweep
+  // them (g.tune / g.econ). Defaults = the shipped values.
+  // Tuned with experiments/chibi-balance/harness.js (see CLAUDE.md for the measurements).
+  const TUNE = {
+    pack: [[2, 3], [3, 3], [4, 3], [5, 2.5], [6, 1.5], [7, 1]], // enemy pack sizes (value, weight): a WIDE spread softens the cliff between parties
+    wildsPack: 1, // extra foes when the fight is inside the Wilds blend ("treacherous")
+    wildsStat: 1.1, // ...and a stat multiplier for that fight
+    perFight: 0.1, // foe stat growth per encounter within a trip
+    perLevel: 0.1, // foe stat growth per party level: parity with LEVEL_BONUS, so risk doesn't fade as the party levels
+    foeHp: 1.6, // flat multipliers on every foe's HP / attack
+    foeAtk: 1.5,
+    popMult: 2.2, // Pumpkin Slime pop damage = atk * popMult
+    loadPack: 0.45, // bandits are drawn to a loaded wagon: an EMPTY wagon shrinks packs by this fraction...
+    loadStat: 0.4, // ...and weakens foes by this fraction (both scale linearly up to a full wagon)
+  };
   const RUN_REGEN = 0.045; // fraction of max hp regained per second while jogging
   const CHUNK = 10; // scenery chunk length along the path
   const CHUNK_BEHIND = 3;
@@ -342,14 +356,14 @@
 
   const ITEM_COST = 20; // what a signature item costs in its home town
   const CARGO_CAP = 6; // the wagon holds this many items
-  const START_COINS = 100;
+  const START_COINS = 200; // enough for Knight + Cleric and a small wagon: the first trip has to be survivable
   // Resale multiplier by how many towns away an item came from, around the wheel of
   // four (1 = next door, 2 = across the Wilds). 0 = its own town, which won't buy it.
-  const SELL_MULT = [0, 1.9, 2.6];
+  const SELL_MULT = [0, 1.9, 3.2];
   const SAVE_KEY = "chibi-crawl-save";
   // Mercenaries for hire in every town. One of each kind: the panel and formations
   // are built for a party of three, and a kind lost in a fight can be hired again.
-  const HIRE_COST = { knight: 60, mage: 70, cleric: 70 };
+  const HIRE_COST = { knight: 50, cleric: 60, mage: 100 }; // priced by what they add: the Mage is by far the most valuable
   const WAGON_GAP = 6.4; // how far behind the party anchor the wagon trails
   const THIEF_SPEED = 9; // thieves sprint to the wagon, then run off with their loot
 
@@ -914,8 +928,8 @@
     bumblebee: foeVariant("bat", "Bumblebee", "bee", { hp: 0.8, atk: 1.0, cd: 0.85 }),
     // Autumn: hard hitters; the Pumpkin Slime pops when it dies
     pumpkinSlime: foeVariant("slime", "Pumpkin Slime", "pumpkin", { hp: 1.25, atk: 0.9, cd: 1.0 }, { pop: true, xp: 4 }),
-    acornShroom: foeVariant("shroom", "Acorn Shroom", "acorn", { hp: 1.1, atk: 1.35, cd: 1.15 }),
-    crow: foeVariant("bat", "Crow", "crow", { hp: 1.0, atk: 1.35, cd: 1.0 }),
+    acornShroom: foeVariant("shroom", "Acorn Shroom", "acorn", { hp: 1.1, atk: 1.15, cd: 1.15 }),
+    crow: foeVariant("bat", "Crow", "crow", { hp: 1.0, atk: 1.15, cd: 1.0 }),
     // Frost: bulky and slow
     iceSlime: foeVariant("slime", "Ice Slime", "ice", { hp: 1.5, atk: 0.9, cd: 1.25 }),
     frostCap: foeVariant("shroom", "Frost Cap", "frost", { hp: 1.8, atk: 1.0, cd: 1.1 }, { xp: 5 }),
@@ -3452,6 +3466,10 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.cargo = this.save.cargo; // signature items on the wagon, by home town id
       this.guards = this.save.guards; // hired mercenary kinds; KO'd ones are lost for good
       this.foeDefs = FOE_DEFS; // exposed for headless tests (spawn any foe by key)
+      this.tune = TUNE; // ...and the balance knobs
+      this.econ = { HIRE_COST: HIRE_COST, SELL_MULT: SELL_MULT };
+      this.towns = TOWNS; // (balance sim)
+      this.heroDefs = HERO_DEFS;
       this.stolen = 0; // items taken in the current plunder
       this.fightNo = 1;
       this.doneIdx = 0;
@@ -3699,8 +3717,11 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const arena = course.arenas.find((a) => !a.start && a.idx > this.doneIdx);
       course.plan(arena.x + 260);
       const boss = arena.idx % 5 === 0;
+      const wf = biomeAt(arena.x).f;
+      const wilds = runBiomes.a !== runBiomes.b && wf > 0.2 && wf < 0.8; // the Turning Wilds fight
       let n = this.S.foes;
-      if (!n) n = boss ? 3 : pickWeighted(this.rng, [[2, 3], [3, 4], [4, 3], [5, 1.2]]) + (arena.idx > 12 ? 1 : 0);
+      const load = cargoCount(this.cargo) / CARGO_CAP; // 0 = empty wagon, 1 = full
+      if (!n) n = boss ? 3 : Math.max(1, Math.round((pickWeighted(this.rng, TUNE.pack) + (arena.idx > 12 ? 1 : 0) + (wilds ? TUNE.wildsPack : 0)) * (1 - TUNE.loadPack * (1 - load))));
       const kinds = [];
       if (boss) kinds.push("king");
       // each foe is drawn from the biome at the arena (inside the Wilds' blend that is a mix of both)
@@ -3708,11 +3729,11 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const order = { king: 0, shroom: 1, slime: 2, bat: 3 };
       kinds.sort((a, b) => order[FOE_DEFS[a].kind] - order[FOE_DEFS[b].kind]);
       this.enc = { arena: arena, count: kinds.length, alerted: false, boss: boss };
-      const mult = 1 + FOE_SCALE_PER_FIGHT * (arena.idx - 1);
+      const mult = (1 + TUNE.perFight * (arena.idx - 1) + TUNE.perLevel * (this.level - 1)) * (wilds ? TUNE.wildsStat : 1) * (1 - TUNE.loadStat * (1 - load));
       kinds.forEach((k, i) => {
         const u = this.addUnit(FOE_DEFS[k], "foe", SLIME_COLORS[Math.floor(this.rng() * SLIME_COLORS.length)]);
         u.slot = i;
-        u.setStats(mult);
+        u.setStats(mult * TUNE.foeAtk, mult * TUNE.foeHp);
         const p = this.slotPos(u);
         u.pos.set(p.x, 0, p.z);
         u.lastX = p.x;
@@ -4087,7 +4108,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.starBurst(u.pos.x, 0.8, u.pos.z, 0xffb04a, 8);
       this.heroes.forEach((h) => {
         if (!h.targetable) return;
-        if ((h.pos.x - u.pos.x) ** 2 + (h.pos.z - u.pos.z) ** 2 < 2.6 * 2.6) this.hit(u, h, u.atk * 1.1, { aoe: true, noCrit: true });
+        if ((h.pos.x - u.pos.x) ** 2 + (h.pos.z - u.pos.z) ** 2 < 2.6 * 2.6) this.hit(u, h, u.atk * TUNE.popMult, { aoe: true, noCrit: true });
       });
     }
 
