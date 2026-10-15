@@ -52,6 +52,14 @@
   var MAP_ART = null; // { fish, towns: {id: art}, trees: [art x4, by BIOMES index] }, each art = { url, aspect }
   var MAP_ART_OFF = /[?&]art=0(?:&|$)/.test(window.location.search);
   var PHOTO_OFF = /[?&]tex=0(?:&|$)/.test(window.location.search);
+  // Meshy-generated, rigged hero models (experiments/chibi-hero-art/bake_hero.py): Knight, Mage and Cleric.
+  // All-or-nothing like the map art: any failure, or ?heroes=0, keeps the primitive heroes.
+  var GLTF_URL = resolve("../vendor/jsm/loaders/GLTFLoader.js");
+  var SKU_URL = resolve("../vendor/jsm/utils/SkeletonUtils.js");
+  var HERO_BASE = resolve("./chibi-crawl/heroes/");
+  var HERO_ART = null; // { knight: gltf.scene, mage, cleric }
+  var HERO_OFF = /[?&]heroes=0(?:&|$)/.test(window.location.search);
+  var cloneSkinned = null;
   var THREE = null;
   var mergeGeometries = null;
 
@@ -1073,7 +1081,130 @@
     return R;
   }
 
+  // The Meshy-rigged heroes (HERO_ART). The mesh keeps the game's pose model: the same pose vector that
+  // swings the primitive rig's limb groups swings the matching bones, so every attack / cheer / KO
+  // animation works unchanged. Limb pivots are *virtual* groups (applyPose rotates them as usual) that
+  // `R.sync` maps onto bone rotations; weapons stay primitives, parented to a pivot that follows the hand.
+  const HERO_HEIGHT = { knight: 1.55, mage: 1.65, cleric: 1.5 }; // top of plume / hat / halo
+  const HERO_ARM_HANG = 0.3; // radians the arms hang out from the body (the rig's rest pose is a T)
+
+  function buildMeshyHero(u, kind) {
+    const b = new Builder(u);
+    const root = new THREE.Group();
+    const body = b.group(root, [0, 0, 0]);
+    const R = { root: root, body: body, kind: "human", meshy: true };
+    const scene = cloneSkinned(HERO_ART[kind]);
+    const fit = new THREE.Group();
+    fit.add(scene);
+    body.add(fit);
+    let mesh = null;
+    scene.traverse((o) => {
+      if (o.isSkinnedMesh) mesh = o;
+    });
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    fit.scale.setScalar(HERO_HEIGHT[kind] / mesh.geometry.boundingBox.max.y);
+
+    const toon = new THREE.MeshToonMaterial({ map: mesh.material.map, gradientMap: GRAD });
+    u.toons.push(toon);
+    mesh.material = toon;
+    mesh.frustumCulled = false;
+    root.updateMatrixWorld(true);
+    // inverted hull: a second skinned mesh on the same skeleton, pushed out along its normals
+    const th = 0.03 / mesh.getWorldScale(new THREE.Vector3()).x;
+    const olm = new THREE.MeshBasicMaterial({ color: 0x4a3347, side: THREE.BackSide });
+    olm.onBeforeCompile = (sh) => {
+      sh.uniforms.uOl = { value: th };
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform float uOl;")
+        .replace("#include <skinning_vertex>", "#include <skinning_vertex>\ntransformed += normalize(objectNormal) * uOl;");
+    };
+    u.others.push(olm);
+    u.ownGeo.push({ dispose: () => mesh.skeleton.dispose() }); // the bone texture is per clone; the geometry is shared and stays
+    const ol = new THREE.SkinnedMesh(mesh.geometry, olm);
+    ol.bind(mesh.skeleton, mesh.bindMatrix);
+    ol.frustumCulled = false;
+    mesh.parent.add(ol);
+
+    // bone drivers: every delta is expressed in the character's frame and conjugated by the parent's rest orientation
+    const drive = (name) => {
+      const bn = scene.getObjectByName(name);
+      const pw = bn.parent.getWorldQuaternion(new THREE.Quaternion());
+      return { bn: bn, q0: bn.quaternion.clone(), pw: pw, pwi: pw.clone().invert() };
+    };
+    // the game's "R" limbs are at +x, which is the model's Left
+    const D = { armR: drive("LeftArm"), armL: drive("RightArm"), legR: drive("LeftUpLeg"), legL: drive("RightUpLeg"), head: drive("Head") };
+    const handR = scene.getObjectByName("LeftHand");
+    const handL = scene.getObjectByName("RightHand");
+    R.armR = b.group(body, [0, 0, 0]);
+    R.armL = b.group(body, [0, 0, 0]);
+    R.legL = new THREE.Group();
+    R.legR = new THREE.Group();
+    R.head = new THREE.Group();
+    const legK = kind === "knight" ? 1 : 0.7; // robes stretch if the legs swing as far
+    const AX = new THREE.Vector3(1, 0, 0);
+    const AZ = new THREE.Vector3(0, 0, 1);
+    const qa = new THREE.Quaternion();
+    const qb = new THREE.Quaternion();
+    const qd = new THREE.Quaternion();
+    const v3 = new THREE.Vector3();
+    const set = (d, q) => d.bn.quaternion.copy(d.pwi).multiply(q).multiply(d.pw).multiply(d.q0);
+    const arm = (d, g, side) => {
+      const spread = -side * g.rotation.z;
+      qa.setFromAxisAngle(AZ, side > 0 ? -Math.PI / 2 + HERO_ARM_HANG + spread : Math.PI / 2 - HERO_ARM_HANG - spread);
+      qb.setFromAxisAngle(AX, g.rotation.x);
+      set(d, qd.copy(qb).multiply(qa));
+    };
+    R.sync = () => {
+      arm(D.armR, R.armR, 1);
+      arm(D.armL, R.armL, -1);
+      set(D.legR, qd.setFromAxisAngle(AX, R.legR.rotation.x * legK));
+      set(D.legL, qd.setFromAxisAngle(AX, R.legL.rotation.x * legK));
+      qa.setFromAxisAngle(AX, R.head.rotation.x);
+      qb.setFromAxisAngle(AZ, R.head.rotation.z);
+      set(D.head, qd.copy(qa).multiply(qb));
+      root.updateMatrixWorld(true);
+      body.worldToLocal(v3.setFromMatrixPosition(handR.matrixWorld));
+      R.armR.position.copy(v3);
+      body.worldToLocal(v3.setFromMatrixPosition(handL.matrixWorld));
+      R.armL.position.copy(v3);
+    };
+
+    // weapons, on pivots that sit at the hands
+    if (kind === "knight") {
+      const sw = b.group(R.armR, [0, 0, 0]);
+      sw.scale.setScalar(0.72);
+      b.part(sw, G.cyl, 0x7a5a3a, [0, 0, 0.0], [0.035, 0.2, 0.035], { rot: [Math.PI / 2, 0, 0], ol: 0.02 });
+      b.part(sw, G.box, 0xf0c04a, [0, 0, 0.13], [0.05, 0.3, 0.07], { ol: 0.02 });
+      b.part(sw, G.box, 0xeef4ff, [0, 0, 0.58], [0.05, 0.13, 0.85], { ol: 0.025 });
+      R.weapon = sw;
+      const sh = b.group(R.armL, [0, 0.02, 0.1]);
+      sh.scale.setScalar(0.66);
+      b.part(sh, G.cyl, 0x4a7fd6, [0, 0, 0], [0.3, 0.05, 0.3], { rot: [Math.PI / 2, 0, 0] });
+      b.part(sh, G.cyl, 0xf0c04a, [0, 0, 0.04], [0.14, 0.04, 0.14], { rot: [Math.PI / 2, 0, 0], ol: 0.015 });
+    } else if (kind === "mage") {
+      const st = b.group(R.armR, [0, 0, 0]);
+      b.part(st, G.cyl, 0x9a6b4b, [0, 0.35, 0], [0.028, 1.35, 0.028], { ol: 0.02 });
+      const orb = b.part(st, G.sphere, 0x8ff4ff, [0, 1.08, 0], [0.14, 0.14, 0.14], { basic: true });
+      const halo = b.sprite(st, TEX.soft, 0x7fe8ff, [0, 1.08, 0], 0.7, true);
+      R.staff = st;
+      R.orb = orb;
+      R.halo = halo;
+      R.haloBase = 0.55;
+    } else {
+      const st = b.group(R.armR, [0, 0, 0]);
+      b.part(st, G.cyl, 0xf0c04a, [0, 0.3, 0], [0.028, 1.2, 0.028], { ol: 0.02 });
+      const heart = b.sprite(st, TEX.heart, 0xff7aa8, [0, 1.0, 0], 0.5, false);
+      const glow = b.sprite(st, TEX.soft, 0xffb0cc, [0, 1.0, 0], 0.8, true);
+      R.staff = st;
+      R.orb = heart;
+      R.halo = glow;
+      R.haloBase = 0.55;
+    }
+    return R;
+  }
+
   function buildHero(u, kind) {
+    if (HERO_ART && HERO_ART[kind]) return buildMeshyHero(u, kind);
     if (kind === "knight") {
       return buildHuman(u, {
         skin: 0xffdcc0, hair: 0x7a4a2b, outfit: 0x4a7fd6, outfit2: 0x3d6bc0, belt: 0xf0c04a, legs: 0x3a4f8a, shoes: 0x6b4a32,
@@ -1280,6 +1411,7 @@
         R.halo.scale.setScalar(R.haloBase * (1 + p.glow * 0.7 + Math.sin(t * 5) * 0.06));
         if (R.orb.isMesh) R.orb.scale.setScalar(0.14 * (1 + p.glow * 0.4));
       }
+      if (R.sync) R.sync();
     } else if (R.kind === "blob") {
       if (R.legL) {
         R.legL.rotation.x = p.legs;
@@ -4900,8 +5032,24 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
               .catch(() => {});
         const photo = PHOTO || PHOTO_OFF ? null : loadPhoto();
         const mapArt = MAP_ART || MAP_ART_OFF ? null : loadMapArt();
-        return Promise.all([props, photo, mapArt]);
+        const heroes = HERO_ART || HERO_OFF ? null : loadHeroArt();
+        return Promise.all([props, photo, mapArt, heroes]);
       });
+  }
+
+  function loadHeroArt() {
+    return Promise.all([import(GLTF_URL), import(SKU_URL)])
+      .then((mods) => {
+        const loader = new mods[0].GLTFLoader();
+        const kinds = ["knight", "mage", "cleric"];
+        return Promise.all(kinds.map((k) => loader.loadAsync(HERO_BASE + k + ".glb"))).then((gl) => {
+          const art = {};
+          kinds.forEach((k, i) => (art[k] = gl[i].scene));
+          cloneSkinned = mods[1].clone;
+          HERO_ART = art;
+        });
+      })
+      .catch(() => {});
   }
 
   function loadMapArt() {

@@ -914,10 +914,42 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       uses the same painted Sir Fish. Labels, trails, the Wilds ribbon and every
       hit area are unchanged. The painted Sir Fish is also the reference for the
       later 3D art pass.
-    - **M3 (not built).** Sir Fish + wagon in 3D (generate him without the bowl
+    - **Hero art pass (done; the second art pass).** The Knight, Mage and
+      Cleric are Meshy-generated, auto-rigged characters (`src/chibi-crawl/heroes/
+      {knight,mage,cleric}.glb`, ~500 KB each: 10.3k tris, 24 bones, one 512px
+      base-colour JPEG; provenance, prompts and task ids in
+      `experiments/chibi-hero-art/README.md`, bake script `bake_hero.py`). They are
+      loaded with the props by `loadHeroArt()` (GLTFLoader + the vendored
+      `vendor/jsm/utils/SkeletonUtils.js`, r160); all-or-nothing, so any failure,
+      or `?heroes=0`, keeps the primitive heroes (`buildHuman`, don't delete it).
+      **No clips are used: the game's pose vector drives the bones.**
+      `buildMeshyHero` gives the unit the same limb interface as the primitive rig
+      (virtual `armL/armR/legL/legR/head` groups that `applyPose` rotates as
+      always) and `R.sync()` turns those rotations into bone rotations, so every
+      attack, cast, cheer and KO animation works unchanged. Meshy's bone axes are
+      arbitrary and the rest pose is a T, so each delta is a rotation in the
+      character's frame conjugated by the parent's rest orientation
+      (`q = Pw^-1 * D * Pw * q0`) and the arms get a fixed hang
+      (`HERO_ARM_HANG`) on top; the game's `armR/legR` (+x) are the model's *Left*
+      bones. Weapons (sword, shield, both staffs and their glows) are still
+      primitives, parented to pivots that follow the hand bones each frame. Look:
+      a `MeshToonMaterial` on the baked texture (in `u.toons`, so hit-flash
+      works) plus an inverted-hull outline, which for a skinned mesh is a second
+      `SkinnedMesh` on the same skeleton whose `onBeforeCompile` pushes vertices
+      out along their skinned normals. Gotchas: the concept art must be T-pose
+      with empty hands and no cape/weapon (weapons and cloth rig badly); geometry
+      is shared by every `SkeletonUtils.clone`, so `Unit.dispose` frees only the
+      per-unit materials and the skeleton's bone texture (a leak check over six
+      trips holds textures flat); robes get 0.7x leg swing (`legK`) so the skirt
+      doesn't stretch; frustum culling is off on the skinned meshes (their bounds
+      are the bind pose). There are no eyes to blink (the face is painted).
+      **Next art passes:** enemies (the foes are still primitives, so they now
+      look plainer than the heroes), Sir Fish + wagon in 3D, and possibly
+      Meshy-made weapons.
+    - **M3 (partly built).** Sir Fish + wagon in 3D (generate him without the bowl
       and build the bowl as a glass sphere around him — transparent glass
-      confuses image-to-3D; the current fish is a primitive blob), mercenary and
-      biome-themed foe art. The concept photo is in
+      confuses image-to-3D; the current fish is a primitive blob) and
+      biome-themed foe art; the heroes are done (above). The concept photo is in
       `experiments/chibi-level-art/ref/`.
   - **Biome foes.** Each biome sends its own three foes (`BIOME_FOES`, index =
     `BIOMES` index; `FOE_DEFS` built by `foeVariant`): the three body rigs
@@ -1000,12 +1032,13 @@ src/chibi-crawl.js     Chibi Crawl isometric chibi party auto-battler (three.js,
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
-vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitControls, BufferGeometryUtils,
+vendor/jsm/            three.js r160 examples/jsm addons (GLTFLoader, OrbitControls, BufferGeometryUtils, SkeletonUtils,
                        postprocessing: EffectComposer/RenderPass/ShaderPass/UnrealBloomPass/OutputPass/GTAOPass + their shaders)
 experiments/           Scratch prototypes kept out of the deploy's copy step; never shipped
 experiments/neon-ledger/  NEON//LEDGER: local-only Python/Streamlit personal-finance analyser (not a game; ./run.sh; see its README)
 experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules sim + balance sweeps, printable PDFs in dist/, Meshy mini prompts); not deployed
 experiments/chibi-level-art/  Meshy generate + bake pipeline and prop viewer for Chibi Crawl's level art
+experiments/chibi-hero-art/  Chibi Crawl's rigged Meshy heroes: prompts, task ids, bake_hero.py (GLBs ship in src/chibi-crawl/heroes/)
 experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real model (node experiments/greenlit-balance/sweep.js)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
