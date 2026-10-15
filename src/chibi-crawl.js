@@ -64,6 +64,7 @@
   const INTRO_S = 1.1;
   const VICTORY_S = 2.5;
   const WIPE_S = 2.4;
+  const WILDS_HALF = 24; // the biome blend spans 2x this around the middle arena (arena gaps are >= 34, so the first/last arenas stay pure)
   const ARRIVE_S = 2.8; // "Welcome to <town>!" beat before the map returns
   const DASH_SPEED = 13;
   const RETURN_SPEED = 10;
@@ -293,18 +294,23 @@
     { name: "Autumn", ground: 0xd9cc7a, sky: 0xffe9c7, leaf: [0xff9d4a, 0xf5c542, 0xe2693a], flower: [0xffd24a, 0xff8a4a, 0xffffff, 0xd96a4a], pine: 1.0, water: 0x58b4c4 },
     { name: "Frost", ground: 0xe3f4ff, sky: 0xdff3ff, leaf: [0x9fd8d0, 0x7cc4cc, 0xcdeef0], flower: [0xffffff, 0x9fd8ff, 0xc9b6ff, 0xffffff], pine: 3.0, water: 0xbfe6f7, ice: true },
   ];
-  // Which biome a run starts in: the destination town's biome index. A 3-encounter
-  // run ends well before the first blend (x = 0.7 * BIOME_LEN), so one run = one biome.
-  let biomeShift = 0;
+  // A trip goes from biome `a` (the source town) to biome `b` (the target),
+  // blending across [x0, x1] -- centred on the middle encounter's arena, so that
+  // fight is held in a mix of both. Before x0 it is pure `a`, after x1 pure `b`.
+  let runBiomes = { a: 0, b: 0, x0: 0, x1: 1 };
   function biomeAt(x) {
-    const seg = Math.max(0, x) / BIOME_LEN + biomeShift;
-    const i = Math.floor(seg);
-    const f = smooth((seg - i - 0.7) / 0.3);
-    return { a: BIOMES[i % BIOMES.length], b: BIOMES[(i + 1) % BIOMES.length], f: f };
+    const r = runBiomes;
+    const f = r.a === r.b ? 0 : smooth((x - r.x0) / (r.x1 - r.x0));
+    return { a: BIOMES[r.a], b: BIOMES[r.b], f: f };
   }
-  function biomeDiscrete(x) {
+  // One prop's biome: inside the blend each prop is drawn from either biome with
+  // probability f, so the Wilds are a real mix (pink trees among green ones),
+  // not a hard cut. Outside the blend it takes no rng, so layouts there are unchanged.
+  function pickBiome(x, rng) {
     const b = biomeAt(x);
-    return b.f > 0.5 ? b.b : b.a;
+    if (b.f <= 0) return b.a;
+    if (b.f >= 1) return b.b;
+    return rng() < b.f ? b.b : b.a;
   }
 
   /* ---------- the world: four towns, one per biome ---------- */
@@ -1864,6 +1870,13 @@
       mat.onBeforeCompile = (sh) => {
         sh.uniforms.uTexB = { value: TEX.groundPhoto[1] };
         sh.uniforms.uTexC = { value: TEX.groundPhoto[2] };
+        // the trip's biome gradient, by world x (kept current by syncGround)
+        sh.uniforms.uColA = { value: new THREE.Color() };
+        sh.uniforms.uColB = { value: new THREE.Color() };
+        sh.uniforms.uX0 = { value: 0 };
+        sh.uniforms.uX1 = { value: 1 };
+        this.groundU = sh.uniforms;
+        this.syncGround();
         sh.vertexShader = sh.vertexShader
           .replace("#include <common>", "#include <common>\nvarying vec3 vWPos;")
           .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;");
@@ -1874,6 +1887,10 @@
 varying vec3 vWPos;
 uniform sampler2D uTexB;
 uniform sampler2D uTexC;
+uniform vec3 uColA;
+uniform vec3 uColB;
+uniform float uX0;
+uniform float uX1;
 float ccH(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float ccN(vec2 p) {
   vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -1888,9 +1905,22 @@ vec3 gb = texture2D(uTexB, wp / 11.0 + 0.37).rgb;
 vec3 gc = texture2D(uTexC, wp / 6.5 + 0.71).rgb;
 vec3 gm = mix(ga, gb, smoothstep(0.4, 0.6, ccN(wp * 0.05)));
 gm = mix(gm, gc, 0.85 * smoothstep(0.5, 0.75, ccN(wp * 0.035 + 31.7)));
-diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlights survive 8-bit; lift back to ~1`
+// biome tint by world x, not by where the party stands: the next biome is visible ahead.
+// The maps are centred under white so highlights survive 8-bit; lift back to ~1.
+diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
           );
       };
+    }
+
+    // Push the current trip's ground colours / blend span into the ground shader.
+    syncGround() {
+      const u = this.groundU;
+      if (!u) return;
+      const r = runBiomes;
+      u.uColA.value.setHex(BIOMES[r.a].ground);
+      u.uColB.value.setHex(BIOMES[r.b].ground);
+      u.uX0.value = r.x0;
+      u.uX1.value = Math.max(r.x1, r.x0 + 0.001);
     }
 
     buildChunk(ci) {
@@ -1926,10 +1956,9 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       group.add(road);
 
       // props
-      const biome = biomeDiscrete(x0 + CHUNK / 2);
       const table = [
         ["tree", 3],
-        ["pine", biome.pine],
+        ["pine", 0],
         ["bush", 2.5],
         ["flowers", 4],
         ["grass", PROP_DATA && PROP_DATA.grass ? 5 : 0],
@@ -1947,6 +1976,8 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
         let blocked = false;
         for (const a of course.arenas) if (Math.abs(x - a.x) < 12.5 && Math.abs(z - a.z) < 11) blocked = true;
         if (blocked) continue;
+        const biome = pickBiome(x, rng);
+        table[1][1] = biome.pine; // pines are common in Frost, rare in Blossom
         const type = pickWeighted(rng, table);
         let color = 0xffffff;
         let variant = 0;
@@ -1994,7 +2025,7 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
 
       // grass clumps: dozens per chunk, so they are baked into ONE merged mesh
       // (one draw call) and kept to a couple of hundred tris each
-      const cg = this.buildGrass(ci, biome);
+      const cg = this.buildGrass(ci);
       if (cg) {
         group.add(new THREE.Mesh(cg, this.propMat));
         geos.push(cg);
@@ -2007,7 +2038,7 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
     // (heavily biased toward the road, a few clumps nibbling onto it), plus
     // looser patches and loners further out. Arenas stay clear. Own rng stream
     // so adding/removing them never reshuffles the props.
-    buildGrass(ci, biome) {
+    buildGrass(ci) {
       if (!PROP_DATA || !GRASS_CLUMPS.every((t) => PROP_DATA[t])) return null;
       const course = this.g.course;
       const rng = mulberry32(hash2(ci + 9000, this.g.seed));
@@ -2018,6 +2049,7 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
         const z = cz + (rng() * 2 - 1) * r;
         if (Math.abs(z - course.z(x)) < clear) return;
         for (const a of course.arenas) if (Math.abs(x - a.x) < 12.5 && Math.abs(z - a.z) < 11) return;
+        const biome = pickBiome(x, rng);
         const geo = buildProp(GRASS_PICK[Math.floor(rng() * GRASS_PICK.length)], biome.leaf[Math.floor(rng() * 3)], 0).geo;
         const g = geo.clone();
         g.applyMatrix4(
@@ -2823,7 +2855,7 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       this.town = loadTown(); // the town the pin is over
       this.target = null; // the town the current run is heading to
       this.runDone = 0; // encounters finished this run
-      biomeShift = this.town.biome;
+      runBiomes = { a: this.town.biome, b: this.town.biome, x0: 0, x1: 1 };
       this.level = 1;
       this.wins = 0;
       this.streak = 0;
@@ -2978,7 +3010,6 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
     beginTownRun(id) {
       if (this.destroyed) return;
       this.target = townById(id);
-      biomeShift = this.target.biome;
       this.runDone = 0;
       this.doneIdx = 0;
       this.fightNo = 1;
@@ -2986,8 +3017,14 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       this.phaseT = 0;
       this.timers.length = 0;
       this.director.clear();
+      this.startRun(); // plans the arenas, so we know where the middle fight is
+      // Encounter 1 is in the source biome, the last in the target's, and the
+      // middle one in a blend of both (the Turning Wilds), centred on its arena.
+      const mid = this.course.arenas.find((a) => a.idx === Math.ceil(RUN_FIGHTS / 2));
+      runBiomes = { a: this.town.biome, b: this.target.biome, x0: mid.x - WILDS_HALF, x1: mid.x + WILDS_HALF };
+      this.enteredWilds = false;
+      this.scenery.syncGround();
       this.scenery.reset();
-      this.startRun();
       this.biomeName = "";
       this.updateCamera(0.016, true);
       this.mode = "run";
@@ -3163,6 +3200,10 @@ diffuseColor *= vec4(gm * 1.14, 1.0); // maps are centred under white so highlig
       A.h = this.course.heading(A.x);
       for (const h of this.heroes) if (h.alive) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * RUN_REGEN * dt);
       if (!this.enc.alerted && a.x + FOE_STAND - A.x <= 19) this.alertFoes();
+      if (!this.enteredWilds && runBiomes.a !== runBiomes.b && A.x >= runBiomes.x0 + 8) {
+        this.enteredWilds = true;
+        this.hud.banner(AREA_NAME, "");
+      }
       this.course.prune(A.x);
     }
 

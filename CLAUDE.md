@@ -746,10 +746,26 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     (`.cc-map`, drawn in code: seasonal lands, the Wilds as the cross between
     them, dotted roads, a red pin) on top of the same renderer; `Game.mode` is
     `"map"` (`tick()` skips the sim *and* the render, and `#cc-root.cc-mapmode`
-    hides the run HUD) or `"run"`. Tapping a town calls `beginTownRun(id)`: sets
-    the module-level `biomeShift` (so `biomeAt` starts in that town's biome; a
-    3-encounter run ends before the first biome blend at x = 224, so one trip =
-    one biome), `Scenery.reset()` drops every chunk, `startRun()` builds a fresh
+    hides the run HUD) or `"run"`. Tapping a town calls `beginTownRun(id)`.
+    **A trip crosses biomes**: encounter 1 is in the *source* town's biome, the
+    last in the *target's*, and the middle one in **a blend of both — The
+    Turning Wilds**. `runBiomes = {a, b, x0, x1}` (module level) drives
+    `biomeAt(x)`: pure `a` before `x0`, pure `b` after `x1`, smooth between;
+    `beginTownRun` plans the course first and centres the blend (`WILDS_HALF` =
+    24 each side) on the middle arena. That only keeps the first and last arenas
+    pure while `ARENA_GAP_MIN` >= 34 (the gap must be >= WILDS_HALF + ~10), so
+    shrink `WILDS_HALF` if that is ever lowered. Inside the blend each prop and
+    grass clump picks its biome with probability `f` (`pickBiome`, which takes
+    no rng outside the blend, so pure-zone layouts are unchanged), giving a real
+    mix (pink trees among green, pines among both) rather than a hard cut. The
+    **ground colour is a spatial gradient** too: the ground shader (`blendGround`)
+    tints each fragment by world x from `uColA/uColB/uX0/uX1` (kept current by
+    `Scenery.syncGround`), so the next biome is visible ahead; only the sky/fog
+    colour follows the party (`renderFrame`). Tapping the town you are already in
+    is a single-biome trip (`a === b`). The "Entering The Turning Wilds" banner
+    fires once `A.x >= x0 + 8`. With `?tex=0` (no ground hook) the ground colour
+    falls back to the old party-position lerp; props still mix. `Scenery.reset()`
+    drops every chunk so they rebuild with the new biomes, `startRun()` builds a fresh
     course. After `RUN_FIGHTS` (3) finished encounters `finishEncounter` goes to
     the `"arrive"` phase ("Welcome to <town>!"), then `endRun()` saves the town
     (`localStorage` `chibi-crawl-town`) and reopens the map with the pin hopping
