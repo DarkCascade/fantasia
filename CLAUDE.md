@@ -825,10 +825,16 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       fought or caught. An empty wagon just means "empty!". `endPlunder` ends
       the encounter with a "N items stolen!" banner. The fight camera now
       frames the wagon too (`partyPts(true)`), and handles an empty party.
-    - **Known balance wrinkles.** Every trip is 3 encounters whatever the
-      distance, so opposite-corner (2-away) trips pay ~37% more for the same
-      risk (fixes to weigh: scale encounters with distance, or restrict travel
-      to neighbours). A single dead guard in a pack of N foes can cost N items,
+    - **Travel is neighbours only** (`WorldMap.pick`; the dotted roads only link
+      neighbouring towns, and `ringDist(a, b) !== 1` is refused with a hint
+      naming the route, `WorldMap.refuse`). It used to allow any town, which made
+      opposite-corner trips (x2.6 resale) strictly better than next-door ones
+      (x1.9) for the same 3 encounters. Now the 2-towns-away bonus is earned by
+      carrying cargo *through* a town without selling it. The map dims far towns
+      and tags them "(2 hops)". **Idea for later (the user wants to try it):** a
+      harder, riskier diagonal route straight across the Wilds, with more
+      encounters and/or tougher foes to justify the bigger payout.
+    - **Balance wrinkles.** A single dead guard in a pack of N foes can cost N items,
       and a no-guard trip loses up to the whole wagon in the first encounter:
       that is the intended tension, but expect to retune `HIRE_COST`, foe pack
       size and `SELL_MULT` together.

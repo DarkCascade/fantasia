@@ -2577,6 +2577,9 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
 @keyframes cc-ping { from { transform: scale(.35); opacity: .95; } to { transform: scale(1.9); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cc-pin-in { animation: none; } }
 .cc-sell { pointer-events: none; }
+.cc-town.far .cc-town-body, .cc-town.far .cc-name { opacity: .72; }
+.cc-town.nope .cc-town-body { animation: cc-nope .4s ease; }
+@keyframes cc-nope { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-1.4px); } 40% { transform: translateX(1.4px); } 60% { transform: translateX(-1px); } 80% { transform: translateX(1px); } }
 .cc-trade { position: absolute; inset: 0; z-index: 8; display: none; align-items: center; justify-content: center; padding: 12px; background: rgba(40,28,66,.55); }
 #cc-root.cc-townmode .cc-trade { display: flex; animation: cc-mapin .22s ease both; }
 .cc-trade-card { width: min(440px, 100%); max-height: 100%; overflow-y: auto; border-radius: 20px; background: #fff8e6; color: #3a2a55; border: 3px solid #fff; box-shadow: 0 10px 30px rgba(40,28,66,.5); padding-bottom: 12px; }
@@ -3123,12 +3126,29 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const n = cargoCount(g.cargo);
       this.el.querySelectorAll("[data-sell]").forEach((el) => {
         const t = townById(el.getAttribute("data-sell"));
+        el.parentNode.classList.toggle("far", t !== g.town && ringDist(g.town, t) !== 1);
         if (!n || t === g.town) el.textContent = "";
         else {
           const v = cargoValueAt(g.cargo, t);
           el.textContent = v ? "cargo worth 🪙 " + v : "won't buy it";
+          if (v && ringDist(g.town, t) !== 1) el.textContent += " (2 hops)";
         }
       });
+    }
+
+    // Tapped a town that isn't on a road from here: say why, and shake it.
+    refuse(to) {
+      const g = this.g;
+      const via = TOWNS.filter((t) => ringDist(g.town, t) === 1 && ringDist(t, to) === 1).map((t) => t.name);
+      this.sub.textContent = "Roads only link neighbouring towns: go via " + via.join(" or ");
+      clearTimeout(this.hintT);
+      this.hintT = setTimeout(() => this.updateChip(), 2800);
+      const el = this.el.querySelector('[data-town="' + to.id + '"]');
+      if (el) {
+        el.classList.remove("nope");
+        void el.getBoundingClientRect(); // restart the shake on every tap
+        el.classList.add("nope");
+      }
     }
 
     pulse(t) {
@@ -3147,6 +3167,11 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         this.g.openTown(); // tapping the town Sir Fish is in = trade there
         return;
       }
+      const to = townById(id);
+      if (ringDist(this.g.town, to) !== 1) {
+        this.refuse(to); // the roads only link neighbouring towns
+        return;
+      }
       this.busy = true;
       cancelAnimationFrame(this.raf);
       this.el.classList.add("leaving");
@@ -3161,6 +3186,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     dispose() {
       cancelAnimationFrame(this.raf);
       clearTimeout(this.hideT);
+      clearTimeout(this.hintT);
     }
   }
 
@@ -3281,7 +3307,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const fillN = Math.min(room, afford);
       const near = sellPrice(t, TOWNS[(TOWNS.indexOf(t) + 1) % TOWNS.length]);
       const far = sellPrice(t, TOWNS[(TOWNS.indexOf(t) + 2) % TOWNS.length]);
-      h += tradeRow(t.item.icon, t.item.name, "🪙 " + ITEM_COST + " each &middot; sells for " + near + " next door, " + far + " across the Wilds",
+      h += tradeRow(t.item.icon, t.item.name, "🪙 " + ITEM_COST + " each &middot; sells for " + near + " next door, " + far + " two towns on",
         tradeBtn("Buy 1", "buy1", "", { off: fillN < 1 }) + tradeBtn(fillN > 0 ? "Fill (" + fillN + ")" : "Fill", "fill", "", { gold: true, off: fillN < 1 }));
       if (room < 1) h += '<div class="cc-trade-empty">The wagon is full.</div>';
       else if (afford < 1) h += '<div class="cc-trade-empty">Not enough coins.</div>';
