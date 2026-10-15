@@ -62,13 +62,27 @@ window.__bal = (function () {
         }
       }
     });
-    const k = Math.min(6 - cargoSum(), Math.floor(g.coins / ITEM));
+    // upgrades, in the policy's order, once the guards are hired and there is a reserve left over
+    (pol.order || []).forEach((u, i) => {
+      if (pol.__bought === undefined) pol.__bought = 0;
+      if (i !== pol.__bought) return;
+      const tier = u === "wagon" ? g.wagonTier : g.trainTier;
+      const cost = (u === "wagon" ? g.econ.WAGON_COST : g.econ.TRAIN_COST)[tier];
+      if (cost !== undefined && g.coins >= cost + (pol.reserve || 60)) {
+        ts.act(u, "");
+        pol.__bought++;
+      }
+    });
+    const k = Math.min(g.cargoCap() - cargoSum(), Math.floor(g.coins / ITEM));
     if (k > 0) ts.act("fill");
     ts.town = null;
     return st;
   };
 
-  const reset = (coins) => {
+  const reset = (coins, pol) => {
+    g.wagonTier = (pol && pol.wagon) || 0;
+    g.trainTier = (pol && pol.train) || 0;
+    if (pol) pol.__bought = 0;
     g.coins = coins;
     IDS.forEach((k) => (g.cargo[k] = 0));
     g.guards = [];
@@ -77,7 +91,7 @@ window.__bal = (function () {
   };
 
   const runPol = (pol, trips) => {
-    reset(pol.coins || 300);
+    reset(pol.coins || 300, pol);
     const A = { trips: 0, profit: 0, stolen: 0, guardsLost: 0, hireCost: 0, plunders: 0, loseGuard: 0, fullLoss: 0, kills: 0, bankrupt: 0 };
     const byDest = {};
     for (let t = 0; t < trips; t++) {
@@ -131,9 +145,12 @@ window.__bal = (function () {
   // Pure combat risk for a FIXED party and a full wagon: state is restored after every trip,
   // so a bad trip can't snowball (the bots in runPol fall into poverty traps, which hides the
   // real per-trip odds). Also derives the expected net profit per trip analytically.
-  const risk = (kinds, trips, cargoN, level) => {
+  const risk = (kinds, trips, cargoN, level, tiers) => {
     level = level || 1; // party level at the START of each trip (foes scale with it via tune.perLevel)
-    cargoN = cargoN === undefined ? 6 : cargoN;
+    tiers = tiers || {};
+    g.wagonTier = tiers.wagon || 0;
+    g.trainTier = tiers.train || 0;
+    cargoN = cargoN === undefined ? g.cargoCap() : cargoN; // default: a full wagon
     const sell = Math.round(ITEM * g.econ.SELL_MULT[1]);
     const R = { trips: trips, loseGuard: 0, plunder: 0, stolen: 0, kills: 0, guardsLost: 0, lostBy: { knight: 0, mage: 0, cleric: 0 }, fullWipe: 0, byDest: {} };
     for (let t = 0; t < trips; t++) {
@@ -171,7 +188,7 @@ window.__bal = (function () {
     const guardCost = (R.lostBy.knight * g.econ.HIRE_COST.knight + R.lostBy.mage * g.econ.HIRE_COST.mage + R.lostBy.cleric * g.econ.HIRE_COST.cleric) / trips;
     const stolen = R.stolen / trips;
     const net = (cargoN - stolen) * sell - cargoN * ITEM - guardCost + R.kills / trips;
-    return { party: kinds.join("+") || "none", pLoseGuard: f(R.loseGuard), pPlunder: f(R.plunder), pFullWipe: f(R.fullWipe), stolen: f(R.stolen), guardsLost: f(R.guardsLost), guardCost: +guardCost.toFixed(1), kills: f(R.kills), net: Math.round(net), byDest: Object.keys(R.byDest).map((k) => k.slice(0, 3) + " g" + (R.byDest[k].g / R.byDest[k].n).toFixed(1) + "/s" + (R.byDest[k].st / R.byDest[k].n).toFixed(1)).join(" ") };
+    return { party: (kinds.join("+") || "none") + (g.wagonTier || g.trainTier ? " [w" + g.wagonTier + " t" + g.trainTier + "]" : ""), pLoseGuard: f(R.loseGuard), pPlunder: f(R.plunder), pFullWipe: f(R.fullWipe), stolen: f(R.stolen), guardsLost: f(R.guardsLost), guardCost: +guardCost.toFixed(1), kills: f(R.kills), net: Math.round(net), byDest: Object.keys(R.byDest).map((k) => k.slice(0, 3) + " g" + (R.byDest[k].g / R.byDest[k].n).toFixed(1) + "/s" + (R.byDest[k].st / R.byDest[k].n).toFixed(1)).join(" ") };
   };
   // Difficulty of each biome ON ITS OWN: a same-town trip keeps all 3 encounters in one biome.
   // Reports guards lost and items stolen per trip for a fixed party, so the foe stat profiles

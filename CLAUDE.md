@@ -798,7 +798,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     — placeholder names) to the other towns; hired guards protect the cargo;
     Sir Fish can neither fight nor be hurt.
     - **Economy (M1).** `TownScreen` (the sell/buy/hire overlay: `ITEM_COST` 20
-      at home, wagon `CARGO_CAP` 6, `START_COINS` 200) opens by tapping the
+      at home, wagon capacity 6 to start (`g.cargoCap()`, upgradable below), `START_COINS` 200) opens by tapping the
       town Sir Fish is in and **auto-opens on arrival** after the pin hops over;
       resale is `ITEM_COST * SELL_MULT[ringDist]` (1 town away x1.9 = 38, 2
       away x3.2 = 64, a town never buys its own item): "towns away" is the ring
@@ -860,9 +860,28 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
       Shipped results (24 trips, rotating routes): Knight + Cleric + 4 items
       loses nothing, net +103/trip; Knight + Cleric + 6 items loses a guard 71%
       of the time, net -109; full party + 6 items loses a guard 21% (plunder 17%),
-      net +67; a lone Knight dies every trip. Still open: the cliff between
-      4 and 6 items for a two-guard party is steep, and coins have no sink once
-      all three guards are hired (wagon upgrades / guard gear would fix it).
+      net +67 (+70 over 90 trips); a lone Knight dies every trip. Still open: the
+      cliff between 4 and 6 items for a two-guard party is steep.
+    - **Coin sinks (upgrades).** Once the guards are hired, coins buy two things
+      in the town screen's Upgrades section that pull opposite ways: a **bigger
+      wagon** (`WAGON_SLOTS` 6/8/10/12, `WAGON_COST` 150/300/500: more profit per
+      trip, but a fuller wagon draws bigger packs) and **guard training**
+      (`TRAIN_COST` 100/200/350, `TUNE.trainBonus` +30% HP and attack per tier to
+      every guard, via `heroMult`, so the safety to carry more). Tiers live on
+      `g.wagonTier` / `g.trainTier`, persist in the save (`wagon`, `train`), and
+      `g.cargoCap()` replaces the old fixed capacity everywhere (the wagon's crate
+      pool is sized for 12 and stacks in two layers). Bandit danger is now measured
+      against the STARTING wagon (`BASE_CARGO` = 6) and saturates at
+      `TUNE.loadMax` (1.67 = a 10-item load): without that cap the 12-slot wagon
+      netted LESS than the 10-slot one even with full training. Measured
+      (rotating routes, full party, full wagon, ~30 trips per row): starting
+      wagon net ~70/trip with a 19% chance of losing a guard (90 trips); 8 slots
+      + tier 1 ~131; 10 + tier 2 ~161; **12 + tier 3 ~267 with almost no losses**.
+      Skipping the training is the trap: 8 items with no training netted -116,
+      12 items -438. Total sink cost is 1,600 coins (about 15-20 trips), so the
+      sinks run dry; more tiers (or gear per guard) would extend them. Training
+      alone (6 items, tier 3) makes trips risk-free again, which is why the
+      wagon is the real payoff.
     - **M3 (not built).** Sir Fish + wagon in 3D (generate him without the bowl
       and build the bowl as a glass sphere around him — transparent glass
       confuses image-to-3D; the current fish is a primitive blob), mercenary and

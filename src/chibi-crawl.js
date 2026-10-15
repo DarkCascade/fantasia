@@ -85,6 +85,8 @@
     foeHp: 1.6, // flat multipliers on every foe's HP / attack
     foeAtk: 1.5,
     popMult: 2.2, // Pumpkin Slime pop damage = atk * popMult
+    trainBonus: 0.3, // each guard-training tier: +this to every guard's HP and attack multiplier (tuned so each wagon tier pairs with a training tier)
+    loadMax: 1.67, // danger from a load saturates at ~10 items (1.67x the starting wagon): beyond that more items are pure profit
     loadPack: 0.45, // bandits are drawn to a loaded wagon: an EMPTY wagon shrinks packs by this fraction...
     loadStat: 0.4, // ...and weakens foes by this fraction (both scale linearly up to a full wagon)
   };
@@ -355,7 +357,13 @@
   /* ---------- trade: Sir Fish carries each town's signature item to the others ---------- */
 
   const ITEM_COST = 20; // what a signature item costs in its home town
-  const CARGO_CAP = 6; // the wagon holds this many items
+  const BASE_CARGO = 6; // the starting wagon's capacity; how loaded a wagon is (and so how many bandits it draws) is measured against this
+  // Coin sinks once the guards are hired: a bigger wagon (more profit a trip, but a fuller
+  // wagon draws bigger packs) and guard training (permanent HP/attack for every guard: the
+  // safety to carry more). Pulling in opposite directions is the point.
+  const WAGON_SLOTS = [6, 8, 10, 12]; // capacity by wagon tier
+  const WAGON_COST = [150, 300, 500]; // price of wagon tier 1, 2, 3
+  const TRAIN_COST = [100, 200, 350]; // price of training tier 1, 2, 3
   const START_COINS = 200; // enough for Knight + Cleric and a small wagon: the first trip has to be survivable
   // Resale multiplier by how many towns away an item came from, around the wheel of
   // four (1 = next door, 2 = across the Wilds). 0 = its own town, which won't buy it.
@@ -382,21 +390,23 @@
     return TOWNS.reduce((v, t) => v + (cargo[t.id] || 0) * sellPrice(t, at), 0);
   }
   function loadSave() {
-    const s = { coins: START_COINS, cargo: {}, guards: [] };
+    const s = { coins: START_COINS, cargo: {}, guards: [], wagon: 0, train: 0 };
     TOWNS.forEach((t) => (s.cargo[t.id] = 0));
     try {
       const o = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
       if (o && typeof o.coins === "number") s.coins = Math.max(0, Math.floor(o.coins));
       if (o && o.cargo) TOWNS.forEach((t) => (s.cargo[t.id] = Math.max(0, Math.floor(o.cargo[t.id] || 0))));
       if (o && Array.isArray(o.guards)) s.guards = o.guards.filter((k, i) => HIRE_COST[k] && o.guards.indexOf(k) === i);
+      if (o && typeof o.wagon === "number") s.wagon = Math.max(0, Math.min(WAGON_COST.length, Math.floor(o.wagon)));
+      if (o && typeof o.train === "number") s.train = Math.max(0, Math.min(TRAIN_COST.length, Math.floor(o.train)));
     } catch (e) {
       /* storage may be unavailable: a fresh purse each visit */
     }
     return s;
   }
-  function writeSave(coins, cargo, guards) {
+  function writeSave(o) {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ coins: coins, cargo: cargo, guards: guards }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify(o));
     } catch (e) {
       /* ignore */
     }
@@ -2022,12 +2032,13 @@
           this.wheels.push(w);
         }
       }
-      // crates: a pool of six, shown/coloured by cargo
+      // crates: a pool sized for the biggest wagon, shown/coloured by cargo
       this.crateMats = {};
       TOWNS.forEach((t) => (this.crateMats[t.id] = b.mat(CRATE_COLORS[t.id])));
       this.crates = [];
-      for (let i = 0; i < CARGO_CAP; i++) {
-        const c = b.part(body, G.box, 0xffffff, [-0.5 - (i % 2) * 0.46, 0.92, (Math.floor(i / 2) - 1) * 0.36], [0.4, 0.34, 0.32], { ol: 0.03 });
+      for (let i = 0; i < WAGON_SLOTS[WAGON_SLOTS.length - 1]; i++) {
+        const j = i % 6; // six to a layer, then stack
+        const c = b.part(body, G.box, 0xffffff, [-0.5 - (j % 2) * 0.46, 0.92 + Math.floor(i / 6) * 0.34, (Math.floor(j / 2) - 1) * 0.36], [0.4, 0.34, 0.32], { ol: 0.03 });
         c.visible = false;
         this.crates.push(c);
       }
@@ -2963,7 +2974,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const where = g.target ? "to " + g.target.name + " &middot; " : "";
       this.el.chip.innerHTML =
         "Encounter " + Math.min(g.runDone + 1, RUN_FIGHTS) + "/" + RUN_FIGHTS + " &middot; Lv " + g.level + " &middot; 🪙 " + g.coins +
-        "<small>" + where + "📦 " + cargoCount(g.cargo) + "/" + CARGO_CAP + " &middot; best " + g.best + "</small>";
+        "<small>" + where + "📦 " + cargoCount(g.cargo) + "/" + g.cargoCap() + " &middot; best " + g.best + "</small>";
     }
 
     dispose() {
@@ -3221,7 +3232,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
     updateChip() {
       const g = this.g;
       this.where.textContent = "🐟 " + g.town.name;
-      this.sub.innerHTML = "🪙 " + g.coins + " &middot; 📦 " + cargoCount(g.cargo) + "/" + CARGO_CAP + " &middot; 🛡️ " + g.guards.length + " &middot; tap a town";
+      this.sub.innerHTML = "🪙 " + g.coins + " &middot; 📦 " + cargoCount(g.cargo) + "/" + g.cargoCap() + " &middot; 🛡️ " + g.guards.length + " &middot; tap a town";
       const n = cargoCount(g.cargo);
       this.el.querySelectorAll("[data-sell]").forEach((el) => {
         const t = townById(el.getAttribute("data-sell"));
@@ -3358,13 +3369,27 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
         this.render();
         return;
       }
+      if (a === "wagon" || a === "train") {
+        // coin sinks: a bigger wagon, or permanent training for every guard
+        const tier = a === "wagon" ? g.wagonTier : g.trainTier;
+        const costs = a === "wagon" ? WAGON_COST : TRAIN_COST;
+        if (tier < costs.length && g.coins >= costs[tier]) {
+          g.coins -= costs[tier];
+          if (a === "wagon") g.wagonTier++;
+          else g.trainTier++;
+        }
+        g.persist();
+        g.hud.updateChip();
+        this.render();
+        return;
+      }
       if (a === "sell1" || a === "sellall") {
         const o = townById(id);
         const k = a === "sell1" ? Math.min(1, g.cargo[o.id]) : g.cargo[o.id];
         g.cargo[o.id] -= k;
         g.coins += k * sellPrice(o, t);
       } else if (a === "buy1" || a === "fill") {
-        const room = CARGO_CAP - cargoCount(g.cargo);
+        const room = g.cargoCap() - cargoCount(g.cargo);
         const k = a === "buy1" ? Math.min(1, room, Math.floor(g.coins / ITEM_COST)) : Math.min(room, Math.floor(g.coins / ITEM_COST));
         g.cargo[t.id] += k;
         g.coins -= k * ITEM_COST;
@@ -3379,11 +3404,12 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const t = this.town;
       if (!t) return;
       const n = cargoCount(g.cargo);
-      const room = CARGO_CAP - n;
+      const cap = g.cargoCap();
+      const room = cap - n;
       let h =
         '<div class="cc-trade-head" style="background:' + t.roof + '"><div><div class="cc-trade-title">' + t.name + '</div><div class="cc-trade-sub">' +
         BIOMES[t.biome].name + ' town &middot; Sir Fish&rsquo;s stop</div></div><button class="cc-trade-x" type="button" data-act="close" aria-label="Close">&times;</button></div>';
-      h += '<div class="cc-trade-wallet"><span>🪙 ' + g.coins + "</span><span>📦 " + n + " / " + CARGO_CAP + "</span></div>";
+      h += '<div class="cc-trade-wallet"><span>🪙 ' + g.coins + "</span><span>📦 " + n + " / " + cap + "</span></div>";
 
       h += "<h4>Sell</h4>";
       let rows = "";
@@ -3419,6 +3445,14 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
           hired ? '<span class="cc-trade-tag">Hired</span>' : tradeBtn("Hire 🪙 " + cost, "hire", d.kind, { gold: true, off: g.coins < cost }));
       });
       h += '<div class="cc-trade-empty">A guard who falls in a fight is gone for good. With no guards left, every surviving foe steals one item from the wagon.</div>';
+
+      h += "<h4>Upgrades</h4>";
+      const wt = g.wagonTier;
+      h += tradeRow("🛒", "Bigger wagon", wt < WAGON_COST.length ? "Holds " + cap + " &rarr; " + WAGON_SLOTS[wt + 1] + " items. A fuller wagon draws bigger packs." : "Holds " + cap + " items: the biggest there is.",
+        wt < WAGON_COST.length ? tradeBtn("Upgrade 🪙 " + WAGON_COST[wt], "wagon", "", { gold: true, off: g.coins < WAGON_COST[wt] }) : '<span class="cc-trade-tag">Maxed</span>');
+      const tt = g.trainTier;
+      h += tradeRow("💪", "Guard training", "Every guard +" + Math.round(TUNE.trainBonus * 100) + "% HP &amp; attack per tier (tier " + tt + "/" + TRAIN_COST.length + "), kept for good.",
+        tt < TRAIN_COST.length ? tradeBtn("Train 🪙 " + TRAIN_COST[tt], "train", "", { gold: true, off: g.coins < TRAIN_COST[tt] }) : '<span class="cc-trade-tag">Maxed</span>');
 
       h += '<button class="cc-btn cc-trade-go" type="button" data-act="close">Back to the map &#10140;</button>';
       this.card.innerHTML = h;
@@ -3465,9 +3499,11 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.coins = this.save.coins; // money: kills drop a little, trade earns the rest
       this.cargo = this.save.cargo; // signature items on the wagon, by home town id
       this.guards = this.save.guards; // hired mercenary kinds; KO'd ones are lost for good
+      this.wagonTier = this.save.wagon; // 0..3: index into WAGON_SLOTS
+      this.trainTier = this.save.train; // 0..3: guard training
       this.foeDefs = FOE_DEFS; // exposed for headless tests (spawn any foe by key)
       this.tune = TUNE; // ...and the balance knobs
-      this.econ = { HIRE_COST: HIRE_COST, SELL_MULT: SELL_MULT };
+      this.econ = { HIRE_COST: HIRE_COST, SELL_MULT: SELL_MULT, WAGON_SLOTS: WAGON_SLOTS, WAGON_COST: WAGON_COST, TRAIN_COST: TRAIN_COST };
       this.towns = TOWNS; // (balance sim)
       this.heroDefs = HERO_DEFS;
       this.stolen = 0; // items taken in the current plunder
@@ -3616,12 +3652,15 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       this.hud.detach(u);
       u.dispose();
     }
+    cargoCap() {
+      return WAGON_SLOTS[this.wagonTier];
+    }
     heroMult() {
-      return 1 + LEVEL_BONUS * (this.level - 1);
+      return 1 + LEVEL_BONUS * (this.level - 1) + TUNE.trainBonus * this.trainTier;
     }
 
     persist() {
-      writeSave(this.coins, this.cargo, this.guards);
+      writeSave({ coins: this.coins, cargo: this.cargo, guards: this.guards, wagon: this.wagonTier, train: this.trainTier });
     }
 
     // The hired guards, in formation order (front-liner first).
@@ -3720,7 +3759,7 @@ diffuseColor.rgb = mix(uColA, uColB, smoothstep(uX0, uX1, wp.x)) * gm * 1.14;`
       const wf = biomeAt(arena.x).f;
       const wilds = runBiomes.a !== runBiomes.b && wf > 0.2 && wf < 0.8; // the Turning Wilds fight
       let n = this.S.foes;
-      const load = cargoCount(this.cargo) / CARGO_CAP; // 0 = empty wagon, 1 = full
+      const load = Math.min(TUNE.loadMax, cargoCount(this.cargo) / BASE_CARGO); // 0 = empty wagon, 1 = a full starting wagon, above that = a bigger load
       if (!n) n = boss ? 3 : Math.max(1, Math.round((pickWeighted(this.rng, TUNE.pack) + (arena.idx > 12 ? 1 : 0) + (wilds ? TUNE.wildsPack : 0)) * (1 - TUNE.loadPack * (1 - load))));
       const kinds = [];
       if (boss) kinds.push("king");
