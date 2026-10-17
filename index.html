@@ -126,54 +126,38 @@
       opacity: 0.85;
     }
 
-    /* Multi-page carousel of game buttons. Pages slide horizontally; the
-       off-screen pages are clipped by #menu-screen's overflow:hidden. */
+    /* Multi-page carousel. Page 1 is the Featured marquee; pages 2+ are lists of
+       game buttons. Pages slide horizontally; the off-screen pages are clipped
+       by #menu-screen's overflow:hidden. Every page sits in the same grid cell,
+       so the carousel is as tall as its tallest page, and each page's offset is
+       just (its index - the current page) * 120% of its width. */
     .menu-pages {
       position: relative;
+      display: grid;
       width: min(360px, 84vw);
     }
 
     .menu-page {
+      grid-area: 1 / 1;
       display: flex;
       flex-direction: column;
       gap: clamp(14px, 2.6vh, 20px);
+      min-width: 0;
+      transform: translateX(calc((var(--i) - var(--cur)) * 120%));
       transition: transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* Page 1 stays in flow (gives the carousel its height); later pages overlay it. */
-    #page-1 {
-      position: relative;
-      transform: translateX(0);
-    }
+    #page-1 { --i: 1; }
+    #page-2 { --i: 2; }
+    #page-3 { --i: 3; }
+    #page-4 { --i: 4; }
+    #page-5 { --i: 5; }
 
-    #page-2,
-    #page-3,
-    #page-4 {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-    }
-
-    /* Default (page 1): pages 2 and 3 wait off to the right. */
-    #page-2 { transform: translateX(120%); }
-    #page-3 { transform: translateX(240%); }
-    #page-4 { transform: translateX(360%); }
-
-    #menu-screen[data-page="2"] #page-1 { transform: translateX(-120%); }
-    #menu-screen[data-page="2"] #page-2 { transform: translateX(0); }
-    #menu-screen[data-page="2"] #page-3 { transform: translateX(120%); }
-    #menu-screen[data-page="2"] #page-4 { transform: translateX(240%); }
-
-    #menu-screen[data-page="3"] #page-1 { transform: translateX(-240%); }
-    #menu-screen[data-page="3"] #page-2 { transform: translateX(-120%); }
-    #menu-screen[data-page="3"] #page-3 { transform: translateX(0); }
-    #menu-screen[data-page="3"] #page-4 { transform: translateX(120%); }
-
-    #menu-screen[data-page="4"] #page-1 { transform: translateX(-360%); }
-    #menu-screen[data-page="4"] #page-2 { transform: translateX(-240%); }
-    #menu-screen[data-page="4"] #page-3 { transform: translateX(-120%); }
-    #menu-screen[data-page="4"] #page-4 { transform: translateX(0); }
+    #menu-screen { --cur: 1; }
+    #menu-screen[data-page="2"] { --cur: 2; }
+    #menu-screen[data-page="3"] { --cur: 3; }
+    #menu-screen[data-page="4"] { --cur: 4; }
+    #menu-screen[data-page="5"] { --cur: 5; }
 
     .menu-btn {
       font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
@@ -246,6 +230,260 @@
       cursor: default;
     }
 
+    /* ----------------------------------------------------------------- */
+    /*  Featured page: a carnival / old-Vegas marquee for the headliner.  */
+    /*  Striped awning, a board ringed with chasing bulbs, neon title.     */
+    /*  Everything is CSS (plus the painted Sir Fish from Chibi Crawl's   */
+    /*  map art), so swapping the featured game is a text edit.           */
+    /* ----------------------------------------------------------------- */
+
+    .marquee {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: none;
+      font: inherit;
+      color: inherit;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.2s ease;
+    }
+
+    .marquee:hover { filter: brightness(1.08); }
+    .marquee:active { transform: scale(0.985); }
+    .marquee:focus-visible { outline: 3px solid #ffe7a3; outline-offset: 6px; border-radius: 12px; }
+
+    /* Awning: red/cream stripes with a scalloped lower edge. Stripes and
+       scallops share a 56px tile (`round` snaps it to a whole number across the
+       width, so nothing is cut off); the scallop tile holds one red and one
+       cream half-circle, so they alternate colour like the stripes above. */
+    .marquee-awning {
+      position: relative;
+      flex: none;
+      height: 22px;
+      margin: 0 -6px 14px;
+      border-radius: 6px 6px 0 0;
+      background: linear-gradient(90deg, #c8102e 50%, #fff3d6 50%) 0 0 / 56px 100% round;
+      box-shadow: 0 -2px 0 #8a0a1f inset;
+    }
+
+    .marquee-awning::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      height: 14px;
+      background:
+        radial-gradient(circle at 25% 0, #c8102e 0 13.5px, transparent 14px),
+        radial-gradient(circle at 75% 0, #fff3d6 0 13.5px, transparent 14px);
+      background-size: 56px 14px;
+      background-repeat: round no-repeat;
+      filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.45));
+    }
+
+    .marquee-board {
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(6px, 1.4vh, 12px);
+      padding: 30px 26px 28px;
+      border-radius: 14px;
+      background:
+        radial-gradient(ellipse at 50% 35%, rgba(255, 120, 80, 0.28), transparent 65%),
+        linear-gradient(180deg, #7d0f1f 0%, #4a0712 100%);
+      box-shadow:
+        0 0 0 3px #f0b94a,
+        0 0 0 6px #5a2a05,
+        0 14px 30px rgba(0, 0, 0, 0.6),
+        0 0 40px rgba(255, 140, 60, 0.25);
+    }
+
+    /* The bulb ring. Three stacked layers share one geometry: a dim unlit set
+       and two lit sets (A, B) that blink in antiphase so the light seems to
+       chase. A and B are two bulbs in the same 24px tile (at 1/4 and 3/4), and
+       `round` snaps the tile to a whole number across each side, so the two
+       sets always interleave and no bulb is cut off at an end. ::before is the
+       top and bottom rows, ::after the side columns (inset to clear corners). */
+    .marquee-bulbs {
+      --glow: #fffbe0 0 1.6px, #ffd75e 2.6px, rgba(255, 150, 0, 0.55) 4.4px, transparent 6px;
+      --dim: #8a5418 0 2.4px, transparent 3px;
+      position: absolute;
+      inset: 4px;
+      pointer-events: none;
+    }
+
+    .marquee-bulbs::before,
+    .marquee-bulbs::after {
+      content: "";
+      position: absolute;
+    }
+
+    .marquee-bulbs::before { inset: 0; }
+    .marquee-bulbs::after { inset: 14px 0; }
+
+    .marquee-bulbs--off::before {
+      background:
+        radial-gradient(circle at 25% 50%, var(--dim)) 0 0 / 24px 14px,
+        radial-gradient(circle at 75% 50%, var(--dim)) 0 0 / 24px 14px,
+        radial-gradient(circle at 25% 50%, var(--dim)) 0 100% / 24px 14px,
+        radial-gradient(circle at 75% 50%, var(--dim)) 0 100% / 24px 14px;
+      background-repeat: round no-repeat;
+    }
+
+    .marquee-bulbs--off::after {
+      background:
+        radial-gradient(circle at 50% 25%, var(--dim)) 0 0 / 14px 24px,
+        radial-gradient(circle at 50% 75%, var(--dim)) 0 0 / 14px 24px,
+        radial-gradient(circle at 50% 25%, var(--dim)) 100% 0 / 14px 24px,
+        radial-gradient(circle at 50% 75%, var(--dim)) 100% 0 / 14px 24px;
+      background-repeat: no-repeat round;
+    }
+
+    .marquee-bulbs--a::before {
+      background:
+        radial-gradient(circle at 25% 50%, var(--glow)) 0 0 / 24px 14px,
+        radial-gradient(circle at 25% 50%, var(--glow)) 0 100% / 24px 14px;
+      background-repeat: round no-repeat;
+    }
+
+    .marquee-bulbs--a::after {
+      background:
+        radial-gradient(circle at 50% 25%, var(--glow)) 0 0 / 14px 24px,
+        radial-gradient(circle at 50% 25%, var(--glow)) 100% 0 / 14px 24px;
+      background-repeat: no-repeat round;
+    }
+
+    .marquee-bulbs--b::before {
+      background:
+        radial-gradient(circle at 75% 50%, var(--glow)) 0 0 / 24px 14px,
+        radial-gradient(circle at 75% 50%, var(--glow)) 0 100% / 24px 14px;
+      background-repeat: round no-repeat;
+    }
+
+    .marquee-bulbs--b::after {
+      background:
+        radial-gradient(circle at 50% 75%, var(--glow)) 0 0 / 14px 24px,
+        radial-gradient(circle at 50% 75%, var(--glow)) 100% 0 / 14px 24px;
+      background-repeat: no-repeat round;
+    }
+
+    .marquee-bulbs--a { animation: marquee-chase 1s steps(1) infinite; }
+    .marquee-bulbs--b { animation: marquee-chase 1s steps(1) -0.5s infinite; }
+
+    @keyframes marquee-chase {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .marquee-kicker {
+      position: relative;
+      font-family: "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: clamp(12px, 3.4vw, 15px);
+      font-weight: 700;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      color: #ffd75e;
+      text-shadow: 0 0 8px rgba(255, 190, 60, 0.8);
+      animation: marquee-twinkle 2.4s ease-in-out infinite;
+    }
+
+    .marquee-fish {
+      position: relative;
+      width: clamp(64px, 20vw, 88px);
+      height: auto;
+      filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.5));
+      animation: marquee-bob 2.8s ease-in-out infinite;
+    }
+
+    /* Neon title: cream tubing, hot red glow, a hard drop for the sign's depth. */
+    .marquee-title {
+      position: relative;
+      font-family: "Cooper Black", "Bookman Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(42px, 13.5vw, 62px);
+      line-height: 0.92;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #fff4d8;
+      text-shadow:
+        0 0 5px #ffb98a,
+        0 0 14px #ff4a3a,
+        0 0 30px #e0001a,
+        0 3px 0 #8a0f1c,
+        0 7px 12px rgba(0, 0, 0, 0.5);
+      animation: marquee-flicker 6s linear infinite;
+    }
+
+    .marquee-sub {
+      position: relative;
+      max-width: 17em;
+      font-family: "Palatino Linotype", Palatino, Georgia, serif;
+      font-style: italic;
+      font-size: clamp(14px, 3.9vw, 17px);
+      line-height: 1.25;
+      color: #ffe7c2;
+      opacity: 0.92;
+    }
+
+    .marquee-cta {
+      position: relative;
+      margin-top: clamp(4px, 1vh, 10px);
+      padding: 11px 26px;
+      border: 2px solid #ffe9ad;
+      border-radius: 999px;
+      font-family: "Cooper Black", "Bookman Old Style", Georgia, serif;
+      font-size: clamp(18px, 5vw, 23px);
+      letter-spacing: 0.04em;
+      color: #3a2500;
+      background: linear-gradient(180deg, #ffe7a3 0%, #f0b94a 100%);
+      box-shadow: 0 5px 0 #8a5a12, 0 10px 18px rgba(0, 0, 0, 0.45);
+    }
+
+    .marquee:active .marquee-cta {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #8a5a12, 0 5px 10px rgba(0, 0, 0, 0.4);
+    }
+
+    @keyframes marquee-twinkle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
+    @keyframes marquee-bob {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-5px) rotate(2deg); }
+    }
+
+    /* Mostly steady, with the odd buzz of a tube about to give out. */
+    @keyframes marquee-flicker {
+      0%, 17%, 19%, 22%, 62%, 64%, 100% { opacity: 1; }
+      18%, 21%, 63% { opacity: 0.72; }
+    }
+
+    @media (max-height: 720px) {
+      .marquee-board { padding-top: 22px; padding-bottom: 20px; gap: 4px; }
+      .marquee-fish { width: 56px; }
+      .marquee-title { font-size: clamp(38px, 12vw, 52px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .marquee-bulbs--a,
+      .marquee-bulbs--b,
+      .marquee-kicker,
+      .marquee-fish,
+      .marquee-title {
+        animation: none;
+      }
+      .marquee-bulbs--b { opacity: 0; }
+    }
+
     /* Bottom-corner page-navigation arrows. */
     .menu-arrow {
       position: absolute;
@@ -271,8 +509,8 @@
     .menu-arrow:active { transform: scale(0.9); }
 
     /* Hide the right arrow on the last page, the left arrow on the first page. */
-    #menu-screen[data-page="4"] .menu-arrow--right,
-    #menu-screen:not([data-page="2"]):not([data-page="3"]):not([data-page="4"]) .menu-arrow--left {
+    #menu-screen[data-page="5"] .menu-arrow--right,
+    #menu-screen[data-page="1"] .menu-arrow--left {
       opacity: 0;
       pointer-events: none;
     }
@@ -285,7 +523,7 @@
   <div id="game-container"></div>
 
   <!-- Default screen: the Fantasia game selector. -->
-  <div id="menu-screen">
+  <div id="menu-screen" data-page="1">
     <div class="menu-inner">
       <div>
         <h1 class="menu-title">Fantasia</h1>
@@ -293,6 +531,24 @@
       </div>
       <div class="menu-pages">
         <div class="menu-page" id="page-1">
+          <!-- Featured: the headliner gets the whole front page. To feature a
+               different game, change this button's label/copy and its click
+               handler below. -->
+          <button id="btn-featured" class="marquee" type="button" aria-label="Featured: Chibi Crawl. Play now">
+            <span class="marquee-awning" aria-hidden="true"></span>
+            <span class="marquee-board">
+              <span class="marquee-bulbs marquee-bulbs--off" aria-hidden="true"></span>
+              <span class="marquee-bulbs marquee-bulbs--a" aria-hidden="true"></span>
+              <span class="marquee-bulbs marquee-bulbs--b" aria-hidden="true"></span>
+              <span class="marquee-kicker">&#9733; Now Showing &#9733;</span>
+              <img class="marquee-fish" src="src/chibi-crawl/map/sir-fish.webp" alt="" draggable="false" />
+              <span class="marquee-title">Chibi<br />Crawl</span>
+              <span class="marquee-sub">Guard Sir Fish&rsquo;s wagon across the Turning Wilds</span>
+              <span class="marquee-cta">&#9654; Play Now</span>
+            </span>
+          </button>
+        </div>
+        <div class="menu-page" id="page-2" aria-hidden="true">
           <button id="btn-flappy" class="menu-btn menu-btn--primary" type="button">
             Flappy Bird
           </button>
@@ -309,7 +565,7 @@
             Cosmic Dash
           </button>
         </div>
-        <div class="menu-page" id="page-2" aria-hidden="true">
+        <div class="menu-page" id="page-3" aria-hidden="true">
           <button id="btn-thebutton" class="menu-btn menu-btn--secondary" type="button">
             The Button
           </button>
@@ -326,7 +582,7 @@
             Star Catcher
           </button>
         </div>
-        <div class="menu-page" id="page-3" aria-hidden="true">
+        <div class="menu-page" id="page-4" aria-hidden="true">
           <button id="btn-sirfish" class="menu-btn menu-btn--secondary" type="button">
             Sir Fish
           </button>
@@ -343,7 +599,7 @@
             Greenlit
           </button>
         </div>
-        <div class="menu-page" id="page-4" aria-hidden="true">
+        <div class="menu-page" id="page-5" aria-hidden="true">
           <button id="btn-chibicrawl" class="menu-btn menu-btn--secondary" type="button">
             Chibi Crawl
           </button>
@@ -413,7 +669,7 @@
       });
 
       // Page carousel: step between the pages of game buttons.
-      var PAGE_COUNT = 4;
+      var PAGE_COUNT = 5;
       function currentPage() {
         return parseInt(menu.dataset.page, 10) || 1;
       }
@@ -474,10 +730,14 @@
         if (typeof window.launchTheButton === "function") window.launchTheButton();
       });
 
-      document.getElementById("btn-chibicrawl").addEventListener("click", function () {
+      // Chibi Crawl is launched from both its own button (last page) and the
+      // Featured marquee on page 1.
+      function playChibiCrawl() {
         hideMenu();
         if (typeof window.launchChibiCrawl === "function") window.launchChibiCrawl();
-      });
+      }
+      document.getElementById("btn-chibicrawl").addEventListener("click", playChibiCrawl);
+      document.getElementById("btn-featured").addEventListener("click", playChibiCrawl);
 
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying

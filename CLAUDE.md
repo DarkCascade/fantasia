@@ -651,8 +651,8 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     `.game.push()` is handy for headless tests.
 - **Chibi Crawl** (`src/chibi-crawl.js`) — an isometric, cutesy-chibi **party
   auto-battler** on three.js (DOM HUD, three imported on demand like Slopeman),
-  alone on **menu page 4** (`PAGE_COUNT` is 4; page 4 has its own `translateX`
-  rules). A first-draft *lab*: it opens on a **world map** (below); tapping a town
+  the **Featured marquee on menu page 1** (and, as a plain button, alone on the
+  last page, 5). A first-draft *lab*: it opens on a **world map** (below); tapping a town
   starts a 3-encounter trip, a loop of **run → sight → intro → battle →
   victory/wipe → run** that ends in an arrival beat and back to the map, with
   most design questions
@@ -1162,6 +1162,21 @@ experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real mo
 
 ## Game architecture notes
 
+- **Menu pages.** The carousel has 5 pages (`PAGE_COUNT` in `index.html`'s
+  script). **Page 1 is the Featured marquee** (`#btn-featured`): a carnival /
+  old-Vegas sign — striped scalloped awning, a board ringed with chasing bulbs
+  (dim set + two lit sets blinking in antiphase, all CSS gradients with
+  `background-repeat: round` so bulbs never clip), neon title, Sir Fish from
+  Chibi Crawl's map art, and a Play Now pill; `prefers-reduced-motion` freezes
+  it. It currently features **Chibi Crawl**; to feature another game, change the
+  button's copy and its click handler (the game's regular button stays on its
+  list page too). Pages 2–5 are the game lists. Every page sits in one grid
+  cell (so the carousel is as tall as its tallest page) and slides by
+  `translateX((--i - --cur) * 120%)`; `--cur` comes from
+  `#menu-screen[data-page]`, so **adding a page = one `#page-N { --i: N }`
+  rule, one `[data-page="N"] { --cur: N }` rule, the last-page arrow selector
+  and `PAGE_COUNT`**. Page numbers quoted in the game entries above ("menu page
+  2" etc.) predate the Featured page — add 1.
 - **The Fantasia menu is plain HTML/CSS** in `index.html` (not a Phaser scene), so
   the decorative title font renders well; it is the first screen. No game
   auto-boots — each game file defines a `window.launch<Game>()`
