@@ -1057,6 +1057,7 @@ experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules 
 experiments/chibi-level-art/  Meshy generate + bake pipeline and prop viewer for Chibi Crawl's level art
 experiments/chibi-hero-art/  Chibi Crawl's rigged Meshy heroes: prompts, task ids, bake_hero.py (GLBs ship in src/chibi-crawl/heroes/)
 experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real model (node experiments/greenlit-balance/sweep.js)
+experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowing glass-orb spray with flame tails (see its README); not deployed
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
 

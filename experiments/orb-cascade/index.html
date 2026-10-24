@@ -1,0 +1,398 @@
+<title>Orb Cascade</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: full-bleed WebGL stage, one small control panel bottom-left. Single dark look by choice. */
+  :root {
+    --void: #05041a;
+    --ink: #e8efff;
+    --ink-dim: #8c9bd6;
+    --glass: rgba(10, 12, 44, 0.62);
+    --line: rgba(150, 175, 255, 0.22);
+    --glow: #6f8dff;
+    --font-display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+    --font-data: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font-family: var(--font-data);
+    overflow: hidden;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+  }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--void); }
+  .panel {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left, 0px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: min(260px, calc(100vw - 32px));
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    font-size: 11px;
+    z-index: 5;
+  }
+  .panel header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 12px 8px; }
+  .panel .name { font-family: var(--font-display); font-weight: 600; font-size: 17px; letter-spacing: 0.14em; text-transform: uppercase; }
+  .panel .sub { color: var(--ink-dim); font-size: 10px; letter-spacing: 0.04em; padding: 0 12px 8px; line-height: 1.45; }
+  .panel button {
+    font: inherit; color: var(--ink); background: transparent; border: 1px solid var(--line);
+    border-radius: 4px; padding: 3px 9px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px;
+  }
+  .panel button:hover { border-color: var(--glow); }
+  .panel button:focus-visible, .panel input:focus-visible { outline: 2px solid var(--glow); outline-offset: 2px; }
+  .controls { display: grid; gap: 9px; padding: 4px 12px 12px; }
+  .controls[hidden] { display: none; }
+  .row { display: grid; grid-template-columns: 62px 1fr 34px; align-items: center; gap: 8px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+  .row output { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .row input[type=range] { width: 100%; min-width: 0; accent-color: var(--glow); }
+  .btns { display: flex; gap: 8px; }
+  #fallback { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; font-size: 14px; color: var(--ink-dim); }
+</style>
+
+<canvas id="stage" aria-label="Animated cascade of glowing glass orbs falling from a single point"></canvas>
+<div id="fallback">WebGL is not available in this browser, so the orb cascade cannot run here.</div>
+
+<aside class="panel" id="panel">
+  <header>
+    <span class="name">Orb Cascade</span>
+    <button id="toggle" type="button" aria-expanded="true" aria-controls="controls">Hide</button>
+  </header>
+  <div class="controls" id="controls">
+    <div class="row"><label for="spread">Spread</label><input id="spread" type="range" min="0.2" max="1" step="0.01" value="0.62"><output for="spread"></output></div>
+    <div class="row"><label for="speed">Speed</label><input id="speed" type="range" min="0.2" max="2" step="0.01" value="1"><output for="speed"></output></div>
+    <div class="row"><label for="count">Orbs</label><input id="count" type="range" min="200" max="1600" step="10" value="1200"><output for="count"></output></div>
+    <div class="row"><label for="size">Size</label><input id="size" type="range" min="0.5" max="1.8" step="0.01" value="1"><output for="size"></output></div>
+    <div class="row"><label for="tail">Tail</label><input id="tail" type="range" min="0" max="2" step="0.01" value="1"><output for="tail"></output></div>
+    <div class="row"><label for="glow">Glow</label><input id="glow" type="range" min="0" max="2" step="0.01" value="0.55"><output for="glow"></output></div>
+    <div class="btns"><button id="pause" type="button">Pause</button></div>
+  </div>
+  <div class="sub">Move the pointer to steer the stream.</div>
+</aside>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const canvas = document.getElementById('stage');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
+} catch (e) {
+  document.getElementById('fallback').style.display = 'flex';
+  throw e;
+}
+renderer.setClearColor(0x05041a, 1);
+renderer.toneMapping = THREE.NoToneMapping;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 0, 10);
+camera.lookAt(0, 0, 0);
+
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- parameters (wired to the panel) ---------- */
+const params = { spread: 0.62, speed: reduceMotion ? 0.4 : 1, count: 1200, size: 1, tail: 1, glow: 0.55, paused: false };
+
+/* ---------- background: ribbed violet hall converging on the emitter ---------- */
+const bgMat = new THREE.ShaderMaterial({
+  depthTest: false, depthWrite: false,
+  uniforms: { uRes: { value: new THREE.Vector2(1, 1) }, uE: { value: new THREE.Vector2(0.5, 0.9) }, uTime: { value: 0 } },
+  vertexShader: `void main(){ gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+  fragmentShader: `
+    precision highp float;
+    uniform vec2 uRes; uniform vec2 uE; uniform float uTime;
+    void main(){
+      vec2 uv = gl_FragCoord.xy / uRes;
+      float asp = uRes.x / uRes.y;
+      vec2 q = (uv - uE) * vec2(asp, 1.0);
+      float r = length(q);
+      float ang = atan(q.x, -q.y);                         // 0 = straight down from the emitter
+      // ribs fan out from the emitter like the walls of a vaulted hall
+      float f = abs(fract(ang * 4.5) - 0.5) * 2.0;
+      float rib = smoothstep(0.3, 1.0, f);
+      float lit = 0.25 + 0.75 * smoothstep(-0.6, 0.9, q.x);   // light falls from the right
+      vec3 base = vec3(0.002, 0.002, 0.018);
+      vec3 ribCol = vec3(0.025, 0.03, 0.30) * lit;
+      vec3 col = base + ribCol * rib * smoothstep(0.05, 0.6, r) * 0.85;
+      // concentric arches
+      float arch = 0.5 + 0.5 * sin(r * 20.0);
+      col += vec3(0.012, 0.008, 0.05) * pow(arch, 6.0) * smoothstep(0.1, 0.8, r) * lit;
+      // warm ceiling disk behind the emitter
+      float disk = exp(-r * r * 40.0);
+      col += vec3(0.07, 0.035, 0.04) * disk;
+      // blue haze following the fan
+      float below = max(-q.y, 0.0);
+      float w = 0.10 + below * 0.55;
+      float haze = exp(-pow(q.x / w, 2.0)) * smoothstep(0.0, 0.25, below) * 0.5;
+      col += vec3(0.0, 0.02, 0.24) * haze;
+      // vignette
+      vec2 vp = uv - 0.5;
+      col *= 1.0 - dot(vp, vp) * 0.9;
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+const bg = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMat);
+bg.frustumCulled = false;
+bg.renderOrder = -10;
+scene.add(bg);
+
+/* ---------- orbs: stateless instanced billboards ---------- */
+const MAX = 1600;
+const geo = new THREE.InstancedBufferGeometry();
+geo.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, 1,0,0, 0,1,0, 1,1,0], 3));
+geo.setIndex([0, 1, 2, 2, 1, 3]);
+const aDirSpeed = new Float32Array(MAX * 4);
+const aMisc = new Float32Array(MAX * 4);
+const BURSTS = 6;
+for (let i = 0; i < MAX; i++) {
+  // lateral direction: a unit disk, denser toward the middle
+  const a = Math.random() * Math.PI * 2;
+  const r = Math.pow(Math.random(), 0.7);
+  aDirSpeed[i*4+0] = Math.cos(a) * r;
+  aDirSpeed[i*4+1] = Math.sin(a) * r;
+  aDirSpeed[i*4+2] = Math.random();
+  aDirSpeed[i*4+3] = 0.8 + Math.random() * 1.2;                     // initial speed
+  // size: many small orbs, a few big ones
+  aMisc[i*4+0] = 0.028 + 0.085 * Math.pow(Math.random(), 2.2);
+  // emission phase: grouped into loose bursts so knots of orbs travel down the stream
+  const burst = Math.floor(Math.random() * BURSTS) / BURSTS;
+  aMisc[i*4+1] = (burst + (Math.random() - 0.5) * 0.16 + 1) % 1;
+  aMisc[i*4+2] = 0.45 + Math.random() * 0.8;                          // acceleration
+  aMisc[i*4+3] = Math.random();                                       // seed
+}
+geo.setAttribute('aDirSpeed', new THREE.InstancedBufferAttribute(aDirSpeed, 4));
+geo.setAttribute('aMisc', new THREE.InstancedBufferAttribute(aMisc, 4));
+geo.instanceCount = params.count;
+
+const orbMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  uniforms: {
+    uTime: { value: 0 }, uLife: { value: 4.2 }, uAspect: { value: 1 }, uScale: { value: 1 },
+    uTail: { value: 1 }, uSizeMul: { value: 1 }, uSpread: { value: 0.62 }, uKx: { value: 1 },
+    uEmitter: { value: new THREE.Vector3(0, 4, 0) }, uAim: { value: new THREE.Vector2() }
+  },
+  vertexShader: `
+    attribute vec4 aDirSpeed;
+    attribute vec4 aMisc;
+    uniform float uTime, uLife, uAspect, uScale, uTail, uSizeMul, uSpread, uKx;
+    uniform vec3 uEmitter;
+    uniform vec2 uAim;
+    varying vec2 vL; varying float vT; varying vec2 vTD; varying vec2 vPerp; varying float vFade; varying float vSeed;
+
+    float h(float n, float c){ return fract(sin(n * 127.1 + c * 311.7) * 43758.5453123); }
+
+    void main(){
+      float life = uLife;
+      float tt = uTime + aMisc.y * life;
+      float cyc = floor(tt / life);
+      float age = tt - cyc * life;
+      float k = age / life;
+      float birth = uTime - age;
+      float sd = aMisc.w * 91.7 + 1.0;
+
+      // each re-emission gets a slightly different path so the stream never visibly loops
+      vec2 l = aDirSpeed.xy + (vec2(h(sd, cyc), h(sd + 3.1, cyc)) - 0.5) * 0.35;
+      float v0 = aDirSpeed.w * (0.8 + 0.4 * h(sd + 7.7, cyc));
+      float g = aMisc.z;
+      vec3 dir = normalize(vec3(l.x * uSpread * uKx, -1.0, 0.30 + l.y * uSpread * 0.8));
+
+      float s  = (v0 + 0.5 * g * age) * age;     // distance travelled along its ray
+      float sp = v0 + g * age;                   // speed along the ray
+
+      float sway = sin(birth * 0.8) * 0.10 + uAim.x;
+      vec3 disp = dir * s;
+      vec3 vel  = dir * sp;
+      disp.x += sway * s;           vel.x += sway * sp;
+      disp.y += uAim.y * s * 0.6;   vel.y += uAim.y * sp * 0.6;
+      disp.xz += vec2(sin(age * 2.3 + sd * 6.28), cos(age * 1.9 + sd * 5.0)) * 0.05 * s;
+
+      vec3 pos = uEmitter + disp * uScale;
+
+      float size = aMisc.x * (0.7 + 0.6 * h(sd + 11.3, cyc)) * uSizeMul * uScale;
+      size *= smoothstep(0.0, 0.06, k) * (1.0 - smoothstep(0.93, 1.0, k));
+
+      vec4 mv = viewMatrix * vec4(pos, 1.0);
+      if (mv.z > -0.6 || size < 1e-4) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vL = vec2(0.0); vT = 1.0; vTD = vec2(0.0,1.0); vPerp = vec2(1.0,0.0); vFade = 0.0; vSeed = 0.0; return; }
+      vec4 c0 = projectionMatrix * mv;
+      vec4 c1 = projectionMatrix * (viewMatrix * vec4(pos + vel * uScale * 0.05, 1.0));
+      vec2 n0 = c0.xy / c0.w;
+      vec2 n1 = c1.xy / c1.w;
+      vec2 sdv = (n1 - n0) * vec2(uAspect, 1.0);
+      float sl = length(sdv);
+      vec2 moveDir = sl > 1e-6 ? sdv / sl : vec2(0.0, -1.0);
+      vec2 tailDir = -moveDir;
+      vec2 perp = vec2(-tailDir.y, tailDir.x);
+
+      float R = size * projectionMatrix[1][1] / c0.w;      // radius in NDC-y units
+      float speedW = length(vel) * uScale;
+      float T = 1.4 + speedW * 1.15 * uTail;               // tail length, in radii
+      if (uTail < 0.02) T = 0.0;
+
+      float lx = mix(-1.5, 1.5, position.x);
+      float ly = mix(-1.5, max(T, 0.01), position.y);
+      vec2 off = R * (lx * perp + ly * tailDir);
+      vec2 ndc = n0 + vec2(off.x / uAspect, off.y);
+      gl_Position = vec4(ndc * c0.w, c0.z, c0.w);
+
+      vL = vec2(lx, ly); vT = max(T, 0.01); vTD = tailDir; vPerp = perp;
+      vSeed = aMisc.w;
+      vFade = smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.9, 1.0, k)) * mix(0.2, 1.0, smoothstep(0.0, 0.3, k));
+    }`,
+  fragmentShader: `
+    precision highp float;
+    uniform float uTime;
+    varying vec2 vL; varying float vT; varying vec2 vTD; varying vec2 vPerp; varying float vFade; varying float vSeed;
+
+    void main(){
+      vec2 p = vL;
+      float d = length(p);
+      vec2 s = p.x * vPerp + p.y * vTD;       // back to screen orientation so highlights stay put
+      vec3 col = vec3(0.0);
+
+      // soft halo
+      col += vec3(0.10, 0.20, 0.95) * exp(-d * d * 3.2) * 0.07;
+
+      // glass head
+      if (d < 1.0) {
+        float z = sqrt(1.0 - d * d);
+        float rim  = smoothstep(0.78, 0.97, d);
+        float edge = 1.0 - smoothstep(0.965, 1.0, d);
+        vec3 body = vec3(0.03, 0.08, 0.60) * (0.12 + 0.35 * z);
+        float ring = smoothstep(0.60, 0.80, d) * (1.0 - smoothstep(0.80, 0.90, d));
+        body *= 1.0 - 0.65 * ring;
+        vec3 rimCol = vec3(0.55, 0.75, 1.0) * rim * 1.25;
+        vec2 ds = s - vec2(-0.36, 0.42);
+        float spec = exp(-dot(ds, ds) * 36.0) * 1.7;
+        vec2 sn = s / max(d, 1e-4);
+        float cres = smoothstep(0.35, 0.86, d) * pow(max(dot(sn, normalize(vec2(0.55, -0.65))), 0.0), 3.0) * (1.0 - smoothstep(0.86, 0.98, d));
+        col += body + rimCol * edge + vec3(spec) + vec3(0.55, 0.78, 1.0) * cres * 1.15;
+      }
+
+      // flame tail, tapering from the head
+      float ty = p.y;
+      if (ty > -0.2) {
+        float u = clamp(ty / vT, 0.0, 1.0);
+        float w = 0.8 * pow(1.0 - u, 1.5) + 1e-3;
+        float wob = sin(ty * 3.0 - uTime * 8.0 + vSeed * 20.0) * 0.09 * u;
+        float px = abs(p.x - wob);
+        float flick = 0.75 + 0.25 * sin(ty * 5.0 - uTime * 12.0 + vSeed * 40.0);
+        float bodyM = 1.0 - smoothstep(w * 0.35, w, px);
+        float inten = pow(1.0 - u, 1.5) * flick * 0.8;
+        vec3 tcol = mix(vec3(0.06, 0.15, 1.0), vec3(0.55, 0.75, 1.0), pow(1.0 - u, 3.5));
+        float core = (1.0 - smoothstep(0.0, w * 0.45, px)) * (1.0 - u);
+        vec3 tail = tcol * bodyM * inten * 0.95 + vec3(0.75, 0.88, 1.0) * core * 0.5;
+        col += tail * smoothstep(-0.1, 0.3, ty) * (d < 1.0 ? 0.3 : 1.0);
+      }
+
+      col *= vFade;
+      if (max(col.r, max(col.g, col.b)) < 0.004) discard;
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+const orbs = new THREE.Mesh(geo, orbMat);
+orbs.frustumCulled = false;
+orbs.renderOrder = 1;
+scene.add(orbs);
+
+/* ---------- post: bloom ---------- */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), params.glow, 0.3, 0.6);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+/* ---------- sizing: keep the emitter near the top edge at any aspect ---------- */
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const aspect = w / h;
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(w, h, false);
+  composer.setPixelRatio(dpr);
+  composer.setSize(w, h);
+  // narrow screens widen the field of view so the fan is not cropped
+  const refAspect = 0.56;
+  const baseHalf = Math.tan(THREE.MathUtils.degToRad(25));
+  const half = aspect < refAspect ? baseHalf * refAspect / aspect : baseHalf;
+  camera.fov = THREE.MathUtils.radToDeg(Math.atan(half)) * 2;
+  camera.aspect = aspect;
+  camera.updateProjectionMatrix();
+  const emitterY = half * 10 * 0.86;
+  orbMat.uniforms.uEmitter.value.set(0, emitterY, 0);
+  orbMat.uniforms.uScale.value = emitterY / 4.0;
+  orbMat.uniforms.uAspect.value = aspect;
+  orbMat.uniforms.uKx.value = THREE.MathUtils.clamp(aspect / refAspect, 1, 2.4);
+  bgMat.uniforms.uRes.value.set(w * dpr, h * dpr);
+  bgMat.uniforms.uE.value.set(0.5, 0.5 + 0.5 * (emitterY / (half * 10)));
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- interaction ---------- */
+const aimTarget = new THREE.Vector2();
+window.addEventListener('pointermove', (e) => {
+  aimTarget.set((e.clientX / window.innerWidth - 0.5) * 0.5, (0.5 - e.clientY / window.innerHeight) * 0.3);
+});
+
+const $ = (id) => document.getElementById(id);
+const fmt = { spread: (v) => v.toFixed(2), speed: (v) => v.toFixed(2), count: (v) => String(Math.round(v)), size: (v) => v.toFixed(2), tail: (v) => v.toFixed(2), glow: (v) => v.toFixed(2) };
+function applyParams() {
+  orbMat.uniforms.uSpread.value = params.spread;
+  orbMat.uniforms.uTail.value = params.tail;
+  orbMat.uniforms.uSizeMul.value = params.size;
+  geo.instanceCount = Math.round(params.count);
+  bloom.strength = params.glow;
+}
+for (const key of Object.keys(fmt)) {
+  const input = $(key);
+  const out = input.parentElement.querySelector('output');
+  if (key === 'speed' && reduceMotion) input.value = params.speed;
+  const sync = () => { params[key] = parseFloat(input.value); out.textContent = fmt[key](params[key]); applyParams(); };
+  input.addEventListener('input', sync);
+  sync();
+}
+$('pause').addEventListener('click', () => {
+  params.paused = !params.paused;
+  $('pause').textContent = params.paused ? 'Play' : 'Pause';
+});
+$('toggle').addEventListener('click', () => {
+  const c = $('controls');
+  c.hidden = !c.hidden;
+  $('toggle').textContent = c.hidden ? 'Show' : 'Hide';
+  $('toggle').setAttribute('aria-expanded', String(!c.hidden));
+});
+
+/* ---------- loop ---------- */
+let sim = 12.0;   // start mid-stream so the first frame is already full
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  if (!params.paused) sim += dt * params.speed;
+  orbMat.uniforms.uTime.value = sim;
+  bgMat.uniforms.uTime.value = sim;
+  orbMat.uniforms.uAim.value.lerp(aimTarget, 1 - Math.pow(0.002, dt));
+  composer.render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
