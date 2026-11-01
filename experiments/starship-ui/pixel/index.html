@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starship UI · Pixel Bridge</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0b0a16;color:#c8c4d8;font-family:ui-monospace,Menlo,Consolas,monospace}
+  body{display:flex;flex-direction:column;align-items:center}
+  .bar{width:100%;display:flex;gap:14px;align-items:center;padding:8px 16px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    background:#14122c;border-bottom:2px solid #2c2a66;color:#8582a3}
+  .bar a{color:#8582a3;text-decoration:none}.bar b{color:#ffd166}
+  .bar nav{margin-left:auto;display:flex;gap:6px}
+  .bar button{all:unset;cursor:pointer;padding:4px 10px;border:2px solid #2c2a66;color:#8582a3}
+  .bar button.on{background:#2c2a66;color:#f4f0dc;border-color:#ffd166}
+  #stage{width:min(100vw,calc((100vh - 42px)*16/9));aspect-ratio:16/9;background:#0e0c1f}
+  canvas{width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:default}
+  canvas.hand{cursor:pointer}
+  .tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .1s;z-index:9;padding:5px 8px;background:#0e0c1f;border:2px solid #f4f0dc;
+    font-size:12px;line-height:1.3;color:#f4f0dc;max-width:230px}
+  .tip b{color:#ffd166}
+</style>
+</head>
+<body>
+<div class="bar">
+  <a href="../index.html">◂ Gallery</a><b>Pixel Bridge</b>
+  <nav><button data-tab="ship">1 · Ship</button><button data-tab="market">2 · Trade hub</button>
+  <button data-tab="explore">3 · Exploration</button><button data-lens>N · Numbers lens</button></nav>
+</div>
+<div id="stage"></div>
+
+<script src="../shared/state.js"></script>
+<script>
+const S = STATE, W = 320, H = 180;
+const P = { k: "#0e0c1f", d1: "#1b1840", d2: "#2c2a66", d3: "#4a49a8", w: "#f4f0dc", g1: "#c8c4d8", g2: "#8582a3", g3: "#4e4c70",
+  y: "#ffd166", o: "#ff9f43", r: "#ef476f", rd: "#a3274f", gr: "#5be39b", dg: "#1f8f68", b: "#59c8f5", db: "#2672b8", p: "#b98cf0", dp: "#6c47b0",
+  br: "#8d5a3b", tn: "#e3b27a", sk: "#f4c9a0", mt: "#3a2a48" };
+const MC = { radiant: P.y, content: P.gr, steady: P.b, restless: P.o, strained: P.r, fraying: P.p };
+const GC = { ice: P.b, grain: P.y, salt: P.p, cells: P.gr, alloy: P.g1, glass: P.b, med: P.r, data: P.o };
+const crewById = S.crewById;
+
+/* ---------------------------------------------------------------- engine */
+let cv, ctx, t = 0, cur = "ship", lens = false, sel = "tobe", poiSel = "hesk", hits = [], hover = null;
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+const px = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+function line(x0, y0, x1, y1, c, dot) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx + dy, i = 0;
+  for (;;) { if (!dot || i % dot < 1) px(x0, y0, c); i++; if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } }
+}
+function disc(cx, cy, r, c) { for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * 0.4) px(cx + x, cy + y, c); }
+function ringpx(cx, cy, r, c, dot) { let i = 0; for (let a = 0; a < 6.283; a += 1 / (r + 2)) { if (!dot || i++ % dot === 0) px(cx + Math.cos(a) * r, cy + Math.sin(a) * r, c); } }
+function dith(x, y, w, h, c, level, c2) {
+  for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const th = BAYER[((y + yy) & 3) * 4 + ((x + xx) & 3)] / 16; if (th < level) px(x + xx, y + yy, c); else if (c2) px(x + xx, y + yy, c2); }
+}
+function box(x, y, w, h, fill, border) { // pixel-rounded frame
+  R(x + 1, y, w - 2, h, border); R(x, y + 1, w, h - 2, border); R(x + 1, y + 1, w - 2, h - 2, fill);
+}
+function spr(rows, x, y, pal) { rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) px(x + i, y + j, pal[ch]); })); }
+
+/* 3x5 bitmap font, each glyph = five octal digits (one per row, MSB = left pixel) */
+const FONT = { A: "25755", B: "65656", C: "34443", D: "65556", E: "74647", F: "74644", G: "34553", H: "55755", I: "72227", J: "11152", K: "55655", L: "44447", M: "77555",
+  N: "75555", O: "25552", P: "65644", Q: "25573", R: "65655", S: "34216", T: "72222", U: "55557", V: "55552", W: "55577", X: "55255", Y: "55222", Z: "71247",
+  0: "75557", 1: "26227", 2: "71747", 3: "71717", 4: "55711", 5: "74717", 6: "74757", 7: "71122", 8: "75757", 9: "75717",
+  " ": "00000", ".": "00002", ",": "00024", "!": "22202", "?": "71202", ":": "02020", "-": "00700", "'": "22000", "/": "11244", "+": "02720", ">": "42124", "<": "12421", "(": "24442", ")": "21112", "=": "07070", "%": "51245", "x": "55255" };
+const clean = (s) => String(s).toUpperCase().replace(/[“”]/g, '"').replace(/[’]/g, "'").replace(/[—–·]/g, "-").replace(/[^A-Z0-9 .,!?:'\-\/+()=><%]/g, "");
+const tw = (s) => clean(s).length * 4 - 1;
+function T(s, x, y, c = P.w, al) {
+  s = clean(s); if (al === "c") x -= Math.floor(tw(s) / 2); if (al === "r") x -= tw(s);
+  for (const ch of s) { const g = FONT[ch] || FONT["?"]; for (let r = 0; r < 5; r++) { const b = +g[r]; for (let i = 0; i < 3; i++) if (b & (4 >> i)) px(x + i, y + r, c); } x += 4; }
+}
+function wrap(s, n) { const out = []; let ln = ""; clean(s).split(" ").forEach((w) => { if ((ln + " " + w).trim().length > n) { out.push(ln); ln = w; } else ln = (ln + " " + w).trim(); }); if (ln) out.push(ln); return out; }
+const hit = (x, y, w, h, o) => hits.push({ x, y, w, h, ...o });
+
+/* 5x5 emote glyphs + 7x7 goods icons */
+const E5 = { heart: [".#.#.", "#####", "#####", ".###.", "..#.."], note: ["..###", "..#.#", "..#..", ".##..", ".##.."], dots: [".....", ".....", "#.#.#", ".....", "....."],
+  rain: [".###.", "#####", ".....", "#.#.#", ".#.#."], bolt: ["..##.", ".##..", ".###.", "..##.", ".#..."], zz: ["####.", "...#.", "..#..", ".#...", "####."],
+  planet: [".###.", "#####", "#####", "#####", ".###."], q: ["####.", "...#.", ".##..", ".....", ".#..."], bang: ["..#..", "..#..", "..#..", ".....", "..#.."], grr: ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"] };
+const EMOTE = { radiant: ["heart", P.r], content: ["note", P.b], steady: null, restless: ["dots", P.k], strained: ["rain", P.db], fraying: ["bolt", P.rd] };
+function bubble(x, y, icon, col, bg = P.w) { R(x, y, 9, 8, bg); R(x + 1, y - 1, 7, 10, bg); spr(E5[icon].map((r) => r), x + 2, y + 1, { "#": col }); px(x + 2, y + 9, bg); px(x + 3, y + 9, bg); px(x + 2, y + 10, bg); }
+const G7 = {
+  ice: { p: { a: P.b, b: P.w, c: P.db }, r: ["...a...", "..aba..", ".abbba.", "aabbbac", ".aabacc", "..acac.", "...c..."] },
+  grain: { p: { a: P.y, b: P.tn, c: P.dg }, r: ["..a.a..", "..a.a..", ".aa.aa.", "..a.a..", ".aa.aa.", "...c...", "...c..."] },
+  salt: { p: { a: P.w, b: P.p, c: P.g1 }, r: [".......", "..aa...", ".aabb..", ".ab.aa.", ".bb.aab", "bbbaabb", "ccccccc"] },
+  cells: { p: { a: P.gr, b: P.dg, c: P.w }, r: ["..ccc..", ".aaaaa.", ".abcba.", ".abcba.", ".aacaa.", ".abbba.", ".aaaaa."] },
+  alloy: { p: { a: P.g1, b: P.g2, c: P.w }, r: [".......", "..cccc.", ".aaaaab", "aaaaaabb", ".......".slice(0, 7), "bbbbbbb", "......."].map((r) => r.slice(0, 7)) },
+  glass: { p: { a: P.b, b: P.w, c: P.g2 }, r: [".aaaaa.", ".abbaa.", ".aabaa.", "..aaa..", "...c...", "...c...", ".ccccc."] },
+  med: { p: { a: P.r, b: P.w }, r: ["..bbb..", "..baab.".slice(0, 7), "bbbaabb", "baaaaab", "bbbaabb", "..baab.", "..bbb.."].map((r) => r.slice(0, 7)) },
+  data: { p: { a: P.o, b: P.y, c: P.k }, r: [".aaaaa.", "abbbbba", "abccbba", "abcbbba", "abbbbba", "abbbbba", ".aaaaa."] },
+};
+function good7(id, x, y) { const g = G7[id]; spr(g.r, x, y, g.p); }
+
+/* --------------------------------------------------------------- people */
+const LOOK = { reyes: { hair: P.br, shirt: P.db, pants: P.g3 }, juno: { hair: P.o, shirt: P.dg, pants: P.g3 }, tobe: { hair: P.mt, shirt: P.o, pants: P.g3 },
+  ama: { hair: P.k, shirt: P.w, pants: P.g2 }, ferro: { hair: P.g2, shirt: P.y, pants: P.br }, pip: { hair: P.p, shirt: P.dp, pants: P.g3 } };
+function person(x, y, c, s = 1, bust = false, fr = 0) {
+  const L = LOOK[c.id], m = S.moodOf(c.mood).id;
+  let dx = 0, dy = 0, hx = 0, hy = 0;
+  if (m === "radiant") dy = fr % 2 ? -1 : 0; if (m === "restless") dx = fr % 2 ? 1 : 0;
+  if (m === "strained") { hx = 1; hy = 1; } if (m === "fraying") { hx = 1; hy = 2; dx = fr % 2 ? 1 : 0; }
+  const r = (ox, oy, w, h, col) => R(x + (ox + dx) * s, y + (oy + dy) * s, w * s, h * s, col);
+  const rh = (ox, oy, w, h, col) => R(x + (ox + dx + hx) * s, y + (oy + dy + hy) * s, w * s, h * s, col);
+  if (!bust) { r(0, 8, 2, 3, L.pants); r(3, 8, 2, 3, L.pants); }
+  r(0, 4 + hy * 0, 5, 4 + (bust ? 2 : 0), L.shirt); r(-1, 4, 1, 3, L.shirt); r(5, 4, 1, 3, L.shirt); r(-1, 7, 1, 1, P.sk); r(5, 7, 1, 1, P.sk);
+  rh(0, 0, 5, 4, P.sk); rh(0, 0, 5, 1, L.hair);
+  rh(1, 2, 1, 1, P.k); rh(3, 2, 1, 1, P.k);
+  if (c.id === "reyes") { rh(0, -1, 5, 2, P.db); rh(4, 0, 2, 1, P.db); rh(2, -1, 1, 1, P.y); }
+  if (c.id === "juno") { rh(0, 1, 5, 1, P.r); rh(-1, 0, 1, 3, L.hair); }
+  if (c.id === "tobe") { rh(0, 0, 2, 1, P.b); rh(3, 0, 2, 1, P.b); rh(2, 0, 1, 1, P.g2); }
+  if (c.id === "ama") { r(2, 4, 1, 3, P.r); r(1, 5, 3, 1, P.r); }
+  if (c.id === "ferro") { rh(0, -3, 5, 3, P.w); rh(1, -4, 3, 1, P.w); }
+  if (c.id === "pip") { rh(-1, 0, 7, 1, L.hair); rh(0, 2, 2, 1, P.w); rh(3, 2, 2, 1, P.w); rh(1, 2, 1, 1, P.k); rh(4, 2, 1, 1, P.k); rh(-1, 1, 1, 3, L.hair); rh(5, 1, 1, 3, L.hair); }
+  if (c.doing === "repairing" && !bust && fr % 2) { px(x + 8, y + 3, P.y); px(x + 9, y + 2, P.w); }
+  if (c.doing === "cooking" && !bust) { px(x + 7 + (fr % 2), y + 6, P.g1); }
+}
+function mood(c) { return S.moodOf(c.mood).id; }
+function emote(c, x, y, fr) { // bubble over a head: mood glyph, or the thing they want
+  if (c.wants) { bubble(x - 2, y - 11, c.wants === "rest" ? "zz" : "planet", P.rd, P.w); return; }
+  const e = EMOTE[mood(c)]; if (e) bubble(x - 2, y - 11, e[0], e[1]);
+}
+function bust(bx, by, c, on, fr) {
+  box(bx - 1, by - 1, 20, 20, on ? P.d3 : P.d2, on ? P.y : MC[mood(c)]);
+  ctx.save(); ctx.beginPath(); ctx.rect(bx, by, 18, 18); ctx.clip(); person(bx + 4, by + 3, c, 2, true, fr); ctx.restore();
+  if (c.wants) { R(bx + 14, by - 2, 4, 4, P.o); px(bx + 15, by - 1, P.k); }
+}
+
+/* ------------------------------------------------------------ shared UI */
+const SPARK = (() => { const g = rng(3), a = []; for (let i = 0; i < 70; i++) a.push([Math.floor(g() * W), Math.floor(g() * H), g() < 0.25 ? P.g1 : P.g3]); return a; })();
+function stars() { SPARK.forEach(([x, y, c], i) => { if ((i + t) % 9 !== 0) px(x, y, c); }); }
+const lvlc = (v) => (v >= 0.5 ? P.gr : v >= 0.25 ? P.y : P.r);
+function pips(x, y, v, n = 5) { const on = Math.round(v * n); for (let i = 0; i < n; i++) R(x + i * 3, y, 2, 3, i < on ? lvlc(v) : P.g3); }
+const I7 = { fuel: ["...#...", "..###..", ".#####.", "#######", "#######", ".#####.", "..###.."], food: [".......", "..#.#..", "...#...", "#######", "#######", ".#####.", "..###.."],
+  parts: ["..###..", ".#####.", "###.###", "##...##", "###.###", ".#####.", "..###.."], coin: [".#####.", "#######", "##...##", "##.#.##", "##...##", "#######", ".#####."] };
+function topbar(sub) {
+  R(0, 0, W, 14, P.d1); R(0, 14, W, 1, P.d3);
+  T(S.ship.name, 6, 4, P.w); T(sub, 6 + tw(S.ship.name) + 8, 4, P.g2);
+  const sp = S.ship.supplies;
+  [["fuel", sp.fuel, "Fuel"], ["food", sp.rations, "Rations"], ["parts", sp.parts, "Spares"]].forEach(([k, v, n], i) => {
+    const x = 196 + i * 28; spr(I7[k].map((r) => r), x, 3, { "#": lvlc(v) }); pips(x + 9, 6, v, 4);
+    hit(x, 2, 22, 9, { tip: `<b>${n}</b><br>${v < 0.5 ? "Running low." : "Comfortable."}` });
+    if (lens) T(Math.round(v * 100) + "%", x + 3, 16, P.y);
+  });
+  spr(I7.coin.map((r) => r), 282, 3, { "#": P.y }); T("12.4K", 292, 4, P.y);
+}
+function btn(x, y, w, h, label, col = P.o, hot) { box(x, y, w, h, P.d1, col); T(label, x + w / 2, y + Math.floor((h - 5) / 2), P.w, "c"); hit(x, y, w, h, { tip: `<b>${label}</b>`, btn: true }); }
+
+/* ======================================================================== SHIP */
+const xrOf = (y) => (y < 46 ? 190 + Math.round((y - 37) * 5.1) : y > 92 ? 190 + Math.round((101 - y) * 5.1) : 236);
+const RM = { engine: [22, 40, 40, 58, "ENGINE"], lab: [62, 40, 42, 28, "LAB"], medbay: [104, 40, 42, 28, "MED"], quarters: [146, 40, 42, 28, "BUNKS"],
+  cargo: [62, 70, 64, 28, "HOLD"], galley: [126, 70, 42, 28, "GALLEY"], bay: [168, 70, 20, 28, ""] };
+const SPOT = { reyes: [208, 96], juno: [196, 96], tobe: [38, 97], ama: [122, 67], ferro: [142, 97], pip: [80, 67] };
+function roomMood(id) { const cs = S.crew.filter((c) => c.room === id); return cs.length ? cs.reduce((a, c) => a + c.mood, 0) / cs.length : null; }
+function drawShip() {
+  const fr = Math.floor(t / 2);
+  // hull
+  R(20, 38, 170, 62, P.g3); R(20, 38, 170, 1, P.g2);
+  for (let y = 38; y <= 100; y++) { const xr = xrOf(y); R(190, y, xr - 190, 1, P.g3); px(xr - 1, y, P.g2); if (y === 38 || y === 100) R(190, y, xr - 190, 1, P.g2); }
+  R(20, 99, 170, 1, P.g2); R(12, 54, 8, 30, P.g2); R(10, 58, 2, 22, P.g3);
+  const flame = 4 + ((t * 7) % 5) + (S.ship.systems.engines < 0.6 && t % 5 === 0 ? -3 : 0);
+  R(10 - flame, 62, flame, 14, P.o); R(10 - flame + 2, 65, Math.max(1, flame - 3), 8, P.y);
+  // rooms
+  const fill = (x, y, w, h, id) => { R(x, y, w, h, P.d1); const m = roomMood(id); if (m != null) dith(x, y, w, h, MC[S.moodOf(m).id], 0.1); R(x, y + h - 1, w, 1, P.g2); };
+  Object.entries(RM).forEach(([id, [x, y, w, h, name]]) => { fill(x, y, w, h, id); if (name) T(name, x + 2, y + 2, P.g3); });
+  const bm = (crewById.reyes.mood + crewById.juno.mood) / 2;
+  for (let y = 41; y <= 97; y++) { const xr = xrOf(y) - 3; if (xr > 188) { R(188, y, xr - 188, 1, P.d1); dith(188, y, xr - 188, 1, MC[S.moodOf(bm).id], 0.1); } }
+  R(188, 97, 44, 1, P.g2);
+  // engine
+  disc(42, 70, 8, P.d3); ringpx(42, 70, 10, P.g2); disc(42, 70, 5, P.o); disc(42, 70, 2 + (t % 4 < 2 ? 1 : 0), P.y);
+  R(24, 62, 10, 2, P.g2); R(50, 62, 10, 2, P.g2); R(30, 86, 24, 2, P.g2); R(24, 46, 2, 14, P.g2);
+  if (t % 2) { px(24 + ((t * 13) % 36), 58 + ((t * 7) % 30), P.y); px(30 + ((t * 5) % 28), 52 + ((t * 11) % 34), P.o); }
+  // lab / med / bunks / galley / bay / bridge
+  R(70, 62, 22, 2, P.br); R(72, 64, 2, 4, P.br); R(88, 64, 2, 4, P.br); R(74, 58, 3, 4, P.b); R(80, 59, 2, 3, P.gr);
+  spr(["..#..", ".###.", "#####", ".###.", "..#.."], 94, 48 + (t % 4 < 2 ? 0 : 1), { "#": t % 4 < 2 ? P.y : P.p });
+  R(110, 62, 24, 3, P.w); R(110, 65, 24, 1, P.g2); R(110, 60, 6, 2, P.g1); R(138, 46, 1, 18, P.g2); R(136, 46, 5, 5, P.r);
+  R(152, 52, 28, 2, P.br); R(152, 62, 28, 2, P.br); R(153, 50, 26, 2, P.b); R(153, 60, 26, 2, P.p); R(152, 50, 1, 14, P.br); R(179, 50, 1, 14, P.br);
+  R(132, 92, 22, 6, P.br); R(132, 92, 22, 1, P.tn); R(156, 88, 10, 10, P.g2); R(158, 85, 6, 3, P.g1); px(160 + (t % 3), 83 - (t % 3), P.w); px(162, 81 - (t % 3), P.g1);
+  R(171, 88, 14, 6, P.g1); R(181, 89, 3, 3, P.b); R(171, 94, 14, 1, P.g2);
+  R(210, 56, 18, 14, P.k); spr(["#..#.", "..#..", "#....", "...#."], 211, 57, { "#": P.w }); R(210, 56, 18, 1, P.g2); R(210, 69, 18, 1, P.g2);
+  R(196, 88, 28, 4, P.g2); for (let i = 0; i < 6; i++) px(198 + i * 4, 89, (i + t) % 3 ? P.gr : P.o);
+  // cargo crates
+  const cells = []; S.market.goods.forEach((g) => { for (let i = 0; i < g.held; i++) cells.push(g.id); });
+  for (let i = 0; i < 20; i++) { const x = 64 + (i % 10) * 6, y = 83 + Math.floor(i / 10) * 7, id = cells[i];
+    if (id) { R(x, y, 5, 5, GC[id]); R(x, y, 5, 1, P.w); R(x + 4, y, 1, 5, P.k); R(x, y + 4, 5, 1, P.k); } else { R(x, y, 5, 1, P.g3); R(x, y + 4, 5, 1, P.g3); R(x, y, 1, 5, P.g3); R(x + 4, y, 1, 5, P.g3); } }
+  // hull damage & patches: pixels blink where it hurts
+  if (S.ship.systems.hull < 0.9) { [[58, 99], [150, 38]].forEach(([x, y], i) => { const c = (t + i) % 6 < 4 ? P.o : P.rd; px(x, y, c); px(x + 1, y + (i ? 1 : -1), c); px(x, y + (i ? 2 : -2), c); px(x + 1, y + (i ? 3 : -3), c); }); R(100, 99, 6, 3, P.tn); px(101, 100, P.br); px(104, 100, P.br); }
+  hit(20, 90, 80, 14, { tip: "<b>Hull</b><br>Two small cracks. Holding." });
+  // crew
+  S.crew.forEach((c) => { const [x, floor] = SPOT[c.id], y = floor - 11;
+    person(x, y, c, 1, false, fr + c.id.length); emote(c, x, y, fr);
+    if (c.id === sel) { const b = t % 4 < 2 ? 0 : 1; R(x + 1, y - 20 + b, 3, 1, P.y); R(x + 2, y - 19 + b, 1, 1, P.y); }
+    hit(x - 3, y - 12, 12, 24, { crew: c.id, tip: `<b>${c.name}</b> - ${c.role}<br>${S.moodOf(c.mood).word}${c.wants ? " - wants " + c.wants : ""}` }); });
+  // range chart
+  box(238, 18, 78, 78, P.d1, P.d3); T("RANGE", 244, 22, P.g2);
+  const f = S.ship.supplies.fuel, cx = 277, cy = 60, kx = 38, ky = 52, rr = f * 80;
+  ringpx(cx, cy, rr, P.gr, 2); if (lens) T(Math.round(f * 100) + "%", 312, 22, P.y, "r");
+  S.map.forEach((m) => { const x = cx + m.x * kx, y = cy + m.y * ky, inr = m.here || Math.hypot(m.x * kx, m.y * ky) <= rr;
+    if (m.here) { const c2 = t % 4 < 2 ? P.y : P.w; R(x - 1, y - 1, 3, 3, c2); px(x, y - 3, c2); px(x, y + 3, c2); px(x - 3, y, c2); px(x + 3, y, c2); }
+    else { R(x, y, 2, 2, inr ? P.w : P.g3); }
+    const nm = m.here ? "YOU" : m.name.split(" ")[0].toUpperCase().replace("HALLORAN'S", "HALLORAN"); const lx = x + 4 + tw(nm) > 313 ? x - tw(nm) - 3 : x + 4; T(nm, lx, y - 2, inr ? P.g1 : P.g3);
+    hit(x - 3, y - 3, 8, 8, { tip: `<b>${m.name}</b><br>${m.here ? "You are here" : inr ? "In range" : "Out of range - needs fuel"}` }); });
+  btn(238, 102, 78, 12, "JUMP >", P.o);
+  // crew row
+  S.crew.forEach((c, i) => { const bx = 8 + i * 23; bust(bx, 119, c, c.id === sel, fr); hit(bx - 1, 118, 20, 20, { crew: c.id, tip: `<b>${c.name}</b>` }); });
+  // bonds as little connectors under the row
+  const si = S.crew.findIndex((c) => c.id === sel), bx0 = 8 + si * 23 + 9;
+  S.bonds.filter((b) => b[0] === sel || b[1] === sel).forEach(([a, b, v]) => { const o = S.crew.findIndex((c) => c.id === (a === sel ? b : a)), ox = 8 + o * 23 + 9, col = v < 0 ? P.r : P.gr;
+    line(bx0, 140, bx0, 143, col); line(bx0, 143, ox, 143, col, v < 0 ? 2 : 1); line(ox, 143, ox, 140, col);
+    const mx = (bx0 + ox) / 2; if (v < 0) spr(E5.bolt, mx - 2, 145, { "#": P.r }); else spr(E5.heart, mx - 2, 145, { "#": P.r }); });
+  // system lamps: dark when fine, lit when not
+  T("SYSTEMS", 8, 154, P.g3);
+  const sy = S.ship.systems; [["HULL", sy.hull], ["ENG", sy.engines], ["PWR", sy.power], ["AIR", sy.life], ["SHD", sy.shields], ["SNS", sy.sensors]].forEach(([n, v], i) => {
+    const x = 8 + i * 23, bad = v < 0.9, c = v < 0.55 ? P.r : P.y, on = bad && (t % 6 < 4 || v >= 0.55);
+    box(x, 162, 20, 11, P.d1, bad ? c : P.d3); T(n, x + 10, 165, bad ? (on ? c : P.g3) : P.g3, "c");
+    hit(x, 162, 20, 11, { tip: `<b>${n}</b><br>${bad ? "Needs attention." : "All quiet."}` }); if (lens) T(Math.round(v * 100) + "", x + 10, 175, P.y, "c"); });
+  // dialogue
+  const c = crewById[sel], m = S.moodOf(c.mood);
+  box(148, 118, 168, 60, P.d1, P.w); R(150, 120, 164, 1, P.d3);
+  T(c.name, 156, 124, MC[m.id]); T(c.role, 312, 124, P.g2, "r");
+  const e = EMOTE[m.id]; if (e) spr(E5[e[0]], 156, 133, { "#": MC[m.id] === P.b ? P.b : MC[m.id] }); T(m.word, e ? 164 : 156, 133, P.g1);
+  if (lens) T("MOOD " + c.mood.toFixed(2), 312, 133, P.y, "r");
+  wrap('"' + c.quote + '"', 38).slice(0, 3).forEach((ln, i) => T(ln, 156, 143 + i * 7, P.w));
+  if (c.wants) { spr(E5[c.wants === "rest" ? "zz" : "planet"], 156, 168, { "#": P.o }); T("WANTS " + c.wants, 164, 168, P.o); }
+  // attention
+  const b = t % 4 < 2; R(6, 17, 2, 2, b ? P.o : P.g3); T("ENGINES STRAINING - TOBE IS ON HIS THIRD SHIFT", 11, 16, P.g1);
+}
+
+/* ====================================================================== MARKET */
+const STALLC = { ice: P.db, grain: P.dg, salt: P.dp, cells: P.dg, alloy: P.g3, glass: P.db, med: P.rd, data: P.br };
+const SHORT = { ice: "ICE", grain: "GRAIN", salt: "SALT", cells: "CELLS", alloy: "ALLOY", glass: "GLASS", med: "MEDS", data: "DATA" };
+function drawMarket() {
+  // sky, planet, skyline
+  for (let i = 0; i < 4; i++) dith(0, 15 + i * 12, W, 12, [P.d2, P.d2, P.d3, P.d3][i], [0.25, 0.6, 0.35, 0.7][i], [P.d1, P.d1, P.d2, P.d2][i]);
+  stars(); disc(274, 38, 17, P.dp); dith(260, 22, 32, 32, P.p, 0.5); dith(266, 40, 26, 14, P.d1, 0.5); ringpx(274, 38, 22, P.g1); R(250, 38, 48, 1, P.g1);
+  const g = rng(8); for (let i = 0; i < 22; i++) { const bx = i * 15 - 4, bh = 14 + Math.floor(g() * 26); R(bx, 66 - bh, 13, bh + 2, P.mt); R(bx, 66 - bh, 13, 1, P.d3);
+    for (let w = 0; w < 6; w++) if (g() < 0.45) px(bx + 2 + (w % 3) * 4, 66 - bh + 3 + Math.floor(w / 3) * 5, (i + w + t) % 17 === 0 ? P.k : P.y); }
+  // neon sign
+  box(88, 17, 144, 14, P.k, (t % 6 < 4) ? P.r : P.rd); T("KESTREL LANDING", 160, 21, P.w, "c"); T("OSSIA", 232 - 2, 33, P.p, "r");
+  // plaza floor
+  R(0, 66, W, 114, P.d2); for (let x = 0; x < W; x += 16) R(x, 112, 1, 68, P.d1); for (let y = 118; y < H; y += 12) R(0, y, W, 1, P.d1);
+  // stalls
+  const goods = S.market.goods, avgY = 85;
+  goods.forEach((gd, i) => {
+    const x0 = 6 + i * 39, dear = gd.ratio > 1.08, cheap = gd.ratio < 0.92;
+    for (let sx = 0; sx < 37; sx += 4) R(x0 + sx, 66, 4, 6, (sx / 4) % 2 ? P.w : STALLC[gd.id]);
+    for (let sx = 0; sx < 37; sx += 4) { R(x0 + sx, 72, 4, 1, (sx / 4) % 2 ? P.w : STALLC[gd.id]); }
+    R(x0, 72, 1, 26, P.br); R(x0 + 36, 72, 1, 26, P.br); R(x0 + 1, 73, 35, 24, P.d1);
+    R(x0 - 1, 95, 39, 4, P.br); R(x0 - 1, 95, 39, 1, P.tn);
+    // shelf stock: fewer items = scarcer
+    const n = Math.max(1, Math.ceil(gd.stock * 3)); for (let k = 0; k < n; k++) good7(gd.id, x0 + 3 + k * 8, 87);
+    R(x0 + 1, 94, 24, 1, P.g3);
+    // coin pillar: height = price, compared with the dashed average line
+    const coins = Math.round(gd.ratio * 5), px0 = x0 + 28;
+    for (let k = 0; k < coins; k++) { const cy = 94 - (k + 1) * 2, over = cy + 1 < avgY; R(px0, cy, 6, 2, over ? P.o : P.y); R(px0, cy, 6, 1, over ? P.y : P.w); }
+    T(SHORT[gd.id], x0 + 18, 102, P.w, "c");
+    // trend
+    if (gd.trend) { const up = gd.trend > 0, b = t % 4 < 2 ? 0 : 1; spr(up ? ["..#..", ".###.", "#####"] : ["#####", ".###.", "..#.."], x0 + 29, 106 + b, { "#": up ? P.o : P.gr }); }
+    // held crates
+    for (let k = 0; k < gd.held; k++) { R(x0 + 2 + k * 5, 109, 4, 4, GC[gd.id]); R(x0 + 2 + k * 5, 109, 4, 1, P.w); }
+    if (lens) { T("x" + gd.ratio.toFixed(2), x0 + 18, 62, P.y, "c"); }
+    hit(x0, 66, 37, 48, { tip: `<b>${gd.name}</b><br>${dear ? "Dear here" : cheap ? "Cheap here" : "Fair price"}${gd.held ? " - you carry " + gd.held : ""}${gd.stock < 0.2 ? "<br>Scarce." : ""}` });
+  });
+  for (let x = 6; x < W - 4; x += 3) px(x, avgY, P.g1);
+  R(8, avgY - 9, 15, 7, P.d1); T("AVG", 9, avgY - 8, P.g1);
+  // hot tips
+  const bob = t % 4 < 2 ? 0 : 1, mi = goods.findIndex((x) => x.id === "med"), si = goods.findIndex((x) => x.id === "salt");
+  [[mi, "SELL", P.o], [si, "BUY", P.gr]].forEach(([i, lab, col]) => { const x = 6 + i * 39 + 18; box(x - 11, 53 + bob, 22, 9, P.k, col); T(lab, x, 55 + bob, col, "c"); });
+  // hold
+  box(4, 120, 76, 32, P.d1, P.d3); T("HOLD", 8, 124, P.g2); if (lens) T(S.heldTotal + "/20", 76, 124, P.y, "r");
+  const cells = []; goods.forEach((gd) => { for (let i = 0; i < gd.held; i++) cells.push(gd.id); });
+  for (let i = 0; i < 20; i++) { const x = 9 + (i % 10) * 6.6, y = 131 + Math.floor(i / 10) * 6, id = cells[i]; if (id) { R(x, y, 5, 5, GC[id]); R(x, y, 5, 1, P.w); } else R(x, y + 2, 5, 1, P.g3); }
+  T("ROOM FOR " + (20 - S.heldTotal), 8, 144, P.g2);
+  // routes
+  box(84, 120, 146, 58, P.d1, P.d3); T("WHERE IT SELLS", 90, 124, P.g2);
+  const ox = 98, oy = 152; disc(ox, oy, 3, P.y); T("OSSIA", ox - 2, oy + 6, P.y);
+  S.market.routes.forEach((r, i) => { const dx = 168, dy = 135 + i * 12, risky = r.risk > 0.6, col = risky ? P.r : P.b, w = 1 + Math.round(r.profit * 2);
+    for (let k = 0; k < w; k++) line(ox + 4, oy - 1 + k - (w >> 1), dx - 3, dy + k - (w >> 1), col, risky ? 2 : 1);
+    for (let k = 1; k <= r.jumps; k++) { const f = 0.2 + (0.4 * k) / r.jumps; R(ox + 4 + (dx - ox - 7) * f, oy + (dy - oy) * f - 3 - (w >> 1), 2, 2, P.w); }
+    const big = r.profit > 0.6, sx = ox + 4 + (dx - ox - 7) * 0.72, sy = oy + (dy - oy) * 0.72 - (big ? 6 : 5);
+    spr(big ? ["..#....", "..##...", ".###...", "#######", ".#####."] : ["..#..", ".##..", "#####", ".###."], sx - 3, sy, { "#": risky ? P.r : P.w });
+    disc(dx, dy, 2, col); T(r.name.toUpperCase().replace("'S REACH", "").replace(" GATE", ""), dx + 5, dy - 2, P.w);
+    if (risky) spr(["#.#.#", ".###.", "#.#.#"], 212, dy - 2, { "#": P.r });
+    if (lens) T(Math.round(r.profit * 100) + "/" + Math.round(r.risk * 100), 226, dy - 2, P.y, "r");
+    hit(ox, dy - 5, 130, 11, { tip: `<b>${r.name}</b><br>${r.jumps} jump${r.jumps > 1 ? "s" : ""} - ${r.profit > 0.7 ? "rich" : r.profit > 0.4 ? "decent" : "thin"} pickings${risky ? "<br>Pirate country." : ""}` }); });
+  // merchants
+  S.market.factions.forEach((f, i) => { const x = 246 + i * 28, nm = ["COMPACT", "UNION", "FREE"][i]; R(x - 7, 134, 1, 30, P.br);
+    R(x - 6, 134, 9, 6, [P.rd, P.db, P.g3][i]); px(x - 3, 136, P.w); px(x - 2, 137, P.w); px(x - 1, 136, P.w);
+    const c = { id: ["tobe", "ferro", "pip"][i], doing: "", mood: f.warmth, name: f.name, role: "Faction" };
+    person(x, 148, c, 1, false, t >> 1); const e = f.warmth > 0.6 ? ["heart", P.r] : f.warmth > 0.35 ? ["dots", P.k] : ["grr", P.rd];
+    bubble(x + 6, 136, e[0], e[1]);
+    T(nm, x + 2, 166, P.g1, "c"); if (lens) T(f.warmth.toFixed(2), x + 2, 173, P.y, "c");
+    hit(x - 7, 134, 22, 42, { tip: `<b>${f.name}</b><br>${f.warmth > 0.6 ? "Warm toward you" : f.warmth > 0.35 ? "Neutral" : "Wary of you"}` }); });
+  // the ask, in the Compact's own bubble
+  box(236, 117, 80, 13, P.k, P.y); good7("med", 239, 120); for (let k = 0; k < 4; k++) R(250 + k * 5, 121, 4, 4, k < 3 || t % 4 < 2 ? P.r : P.d3); T("FEVER", 291, 122, P.y);
+  topbar("OSSIA");
+}
+
+/* =================================================================== EXPLORE */
+const POX = { probe: [62, 100], vein: [128, 60], spires: [50, 52], hesk: [150, 100], sink: [92, 114], signal: [182, 46] };
+function noise(x, y, s) { const f = (n) => { const v = Math.sin(n * 127.1 + s * 311.7) * 43758.5453; return v - Math.floor(v); }; const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const a = f(xi + yi * 57), b = f(xi + 1 + yi * 57), c = f(xi + (yi + 1) * 57), d = f(xi + 1 + (yi + 1) * 57), u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+let terrain = null;
+function buildTerrain() { terrain = []; for (let j = 0; j < 17; j++) { const row = []; for (let i = 0; i < 29; i++) { const n = noise(i * 0.33, j * 0.33, 4) * 0.7 + noise(i * 0.8, j * 0.8, 9) * 0.3; row.push(n); } terrain.push(row); } }
+const TX = 0, TY = 15, TS = 8, TEAM = [104, 92];
+function revealed(x, y) { const dx = (x - 112) / 84, dy = (y - 86) / 58; return dx * dx + dy * dy; }
+function drawExplore() {
+  if (!terrain) buildTerrain();
+  for (let j = 0; j < 17; j++) for (let i = 0; i < 29; i++) {
+    const n = terrain[j][i], x = TX + i * TS, y = TY + j * TS; let a, b, tree = false;
+    if (n < 0.3) { a = P.db; b = P.b; } else if (n < 0.38) { a = P.tn; b = P.y; } else if (n < 0.66) { a = P.dg; b = P.gr; } else if (n < 0.8) { a = P.dg; b = P.k; tree = true; } else { a = P.g3; b = P.g2; }
+    R(x, y, TS, TS, a); dith(x, y, TS, TS, b, 0.09); if (n < 0.3 && (t + i + j) % 8 === 0) px(x + 3, y + 3, P.w);
+    if (tree) { R(x + 3, y + 5, 2, 3, P.br); disc(x + 4, y + 3, 3, P.dg); px(x + 3, y + 2, P.gr); }
+    const d = revealed(x + 4, y + 4);
+    if (d > 1) { R(x, y, TS, TS, P.k); dith(x, y, TS, TS, P.d1, 0.5); if ((i + j) % 2 === 0) px(x + 3, y + 3, P.d2); }
+    else if (d > 0.82) dith(x, y, TS, TS, P.k, 0.7 - (1 - d) * 3);
+  }
+  // storm
+  for (let x = 190; x < 232; x++) { const edge = 190 + Math.sin(x * 0.4 + t * 0.2) * 3; for (let y = TY; y < 150; y += 1) { const lvl = Math.min(0.85, (x - 186) / 40); const th = BAYER[((y + (t >> 1)) & 3) * 4 + ((x + t) & 3)] / 16; if (th < lvl * 0.9 && x > edge) px(x, y, (x + y) % 5 ? P.mt : P.dp); } }
+  for (let k = 0; k < 14; k++) { const rx = 196 + ((k * 17 + t * 3) % 36), ry = TY + ((k * 29 + t * 5) % 130); px(rx, ry, P.b); px(rx - 1, ry + 2, P.b); }
+  if (t % 11 < 2) { let lx = 214, ly = TY + 4; for (let k = 0; k < 9; k++) { const nx = lx + (k % 2 ? 4 : -4); line(lx, ly, nx, ly + 7, P.w); lx = nx; ly += 7; } }
+  // safe range around the team (dotted) + lantern light
+  const air = S.planet.air, rr = Math.round(air * 80);
+  dith(TEAM[0] - 14, TEAM[1] - 14, 28, 28, P.y, 0.12); ringpx(TEAM[0], TEAM[1], rr, P.w, 3);
+  // tether: lander -> team, slack in the middle
+  const L = [30, 124]; for (let k = 0; k <= 90; k++) { const f = k / 90, x = L[0] + (TEAM[0] - L[0]) * f, y = L[1] + (TEAM[1] - L[1]) * f + Math.sin(f * 3.14) * 9; px(x, y, k % 6 < 4 ? P.w : P.g2); }
+  R(22, 118, 16, 8, P.g1); R(22, 118, 16, 2, P.w); R(26, 114, 8, 4, P.g2); R(25, 126, 2, 3, P.g3); R(33, 126, 2, 3, P.g3); R(28, 120, 4, 3, P.b);
+  T("LANDER", 30, 131, P.g1, "c");
+  // POIs
+  const blink = t % 4 < 2;
+  S.planet.pois.forEach((p) => { const [x, y] = POX[p.id], far = Math.hypot(x - TEAM[0], y - TEAM[1]) > rr, on = p.id === poiSel;
+    const kc = { wreck: P.o, vein: P.b, ruin: P.y, people: P.gr, hazard: P.r, unknown: P.p }[p.kind], bw = p.kind === "people" ? 17 : 13;
+    box(x - (bw >> 1), y - 6, bw, 13, P.d1, on ? P.w : kc);
+    if (on) { const c = t % 4 < 2 ? P.y : P.w, X0 = x - (bw >> 1) - 3, X1 = x + (bw >> 1) + 2, Y0 = y - 9, Y1 = y + 9; [[X0, Y0, 1, 1], [X1, Y0, -1, 1], [X0, Y1, 1, -1], [X1, Y1, -1, -1]].forEach(([a, b, sx, sy]) => { R(sx > 0 ? a : a - 2, b, 3, 1, c); R(a, sy > 0 ? b : b - 2, 1, 3, c); }); }
+    if (p.kind === "wreck") spr(["..#..#...", ".#####.#.", "#######..", ".#.#.#..."], x - 4, y - 3, { "#": P.g1 });
+    if (p.kind === "vein") spr(["..b..", ".bwb.", "bbwbb", ".bwb."], x - 2, y - 3, { b: P.b, w: P.w });
+    if (p.kind === "ruin") spr(["#.#.#", "#.#.#", "##.##", "#####"], x - 2, y - 3, { "#": P.tn });
+    if (p.kind === "people") { spr(["....#....", "...#.#...", ".#.###.#.", "###...###"], x - 4, y - 3, { "#": P.r }); px(x + 2 + (t % 3), y - 8 - (t % 3), P.g1); px(x + 3, y - 10, P.g2); }
+    if (p.kind === "hazard") { disc(x, y, 3, P.k); ringpx(x, y, 4, P.r, 2); }
+    if (p.kind === "unknown") { T("?", x - 1, y - 2, blink ? P.p : P.dp); ringpx(x, y, 10 + (t % 4), P.dp, 3); }
+    if (p.seen && p.kind !== "hazard" && p.id !== poiSel && blink && p.id !== "probe") px(x, y - 9, P.y);
+    if (far) { line(x, y + 8, x, y + 12, P.g2, 2); }
+    hit(x - 9, y - 9, 18, 18, { poi: p.id, tip: `<b>${p.seen ? p.name : "Unknown"}</b><br>${p.seen ? p.note : "Something answers the scanner."}${far ? "<br>Beyond the safe ring." : ""}` }); });
+  // team
+  S.planet.team.forEach((id, i) => { const c = crewById[id], x = TEAM[0] - 9 + i * 8, y = TEAM[1] - 5 + (i % 2) * 2; person(x, y, c, 1, false, (t >> 1) + i); hit(x - 2, y - 4, 10, 16, { crew: id, tip: `<b>${c.name}</b><br>Away team` }); });
+  R(TEAM[0] - 2, TEAM[1] - 17, 1, 8, P.g1); R(TEAM[0] - 1, TEAM[1] - 17, 5, 3, P.r); px(TEAM[0] + 4, TEAM[1] - 16 + (t % 2), P.r);
+  R(TEAM[0] - 20, TEAM[1] - rr - 4, 41, 9, P.k); T("SAFE RING", TEAM[0], TEAM[1] - rr - 2, P.w, "c"); if (lens) { T("AIR " + Math.round(air * 100) + "%", TEAM[0], TEAM[1] - rr + 6, P.y, "c"); T("MAPPED " + Math.round(S.planet.surveyed * 100) + "%", 4, 18, P.y); }
+  // right: poi panel
+  const p = S.planet.pois.find((q) => q.id === poiSel);
+  box(238, 17, 78, 134, P.d1, P.d3); T(p.name, 277, 22, P.w, "c"); R(246, 29, 62, 1, P.d3);
+  if (p.kind === "people") {
+    R(257, 33, 40, 34, P.mt); R(257, 33, 40, 1, P.d3);
+    R(265, 38, 24, 22, P.tn); R(263, 42, 28, 14, P.tn); R(266, 38, 22, 3, P.k); R(268, 46, 4, 4, P.k); R(280, 46, 4, 4, P.k); px(269, 47, P.w); px(281, 47, P.w);
+    R(271, 54, 10, 1, P.rd); R(264, 43, 2, 6, P.rd); R(288, 43, 2, 6, P.rd); R(272, 58, 8, 1, P.rd);
+    bubble(292, 29, "q", P.d3);
+    T("RAPPORT", 277, 71, P.g2, "c"); for (let k = 0; k < 5; k++) spr(E5.heart, 248 + k * 12, 78, { "#": k < Math.round(p.rapport * 5) ? P.r : P.g3 }); if (lens) T(p.rapport.toFixed(2), 277, 86, P.y, "c");
+    wrap(p.note, 18).slice(0, 4).forEach((ln, i) => T(ln, 246, 94 + i * 7, P.g1));
+    [["gift", ["#####", "#.#.#", "#####", "#.#.#", "#####"]], ["ask", E5.q], ["hand", ["#.#.#", "#####", "#####", ".###.", "..#.."]]].forEach(([n, ic], i) => { const x = 244 + i * 24; box(x, 126, 20, 20, P.d2, P.y); spr(ic, x + 7, 133, { "#": P.w }); hit(x, 126, 20, 20, { tip: `<b>${{ gift: "Offer a gift", ask: "Ask a question", hand: "Open hands" }[n]}</b>` }); });
+  } else {
+    const ic = { wreck: 0, vein: 0, ruin: 0, hazard: 0, unknown: 0 }; ctx.save(); ctx.translate(0, 0); ctx.restore();
+    wrap(p.note, 18).forEach((ln, i) => T(ln, 246, 40 + i * 7, P.g1)); T(Math.hypot(...[POX[p.id][0] - TEAM[0], POX[p.id][1] - TEAM[1]]) > rr ? "BEYOND THE RING" : "WITHIN REACH", 277, 100, Math.hypot(POX[p.id][0] - TEAM[0], POX[p.id][1] - TEAM[1]) > rr ? P.o : P.gr, "c");
+  }
+  // bottom bar
+  R(0, 152, W, 28, P.d1); R(0, 152, W, 1, P.d3);
+  // lantern
+  const fl = Math.max(1, Math.round(air * 7)); R(8, 158, 10, 14, P.g2); R(10, 160, 6, 10, P.d1); R(11 - 0, 170 - fl, 4, fl, P.o); R(12, 170 - fl - 1 + (t % 2), 2, 2, P.y); R(7, 157, 12, 2, P.g1); R(7, 172, 12, 2, P.g1); hit(6, 155, 14, 20, { tip: "<b>Lantern</b><br>Air and charge. Burning lower." });
+  // hourglass
+  const e = S.planet.stormEta; R(26, 157, 12, 2, P.g1); R(26, 172, 12, 2, P.g1); for (let k = 0; k < 6; k++) { const w = 8 - k * 1.2; R(32 - w / 2, 159 + k, w, 1, k >= 6 - Math.round(e * 6) ? P.tn : P.d2); R(32 - w / 2, 170 - k, w, 1, k < 6 - Math.round(e * 6) ? P.tn : P.d2); }
+  hit(24, 155, 16, 20, { tip: "<b>Hourglass</b><br>The storm arrives when the sand runs out." }); if (lens) T("ETA " + Math.round(e * 100) + "%", 24, 176, P.y);
+  // team strip
+  S.planet.team.forEach((id, i) => { bust(50 + i * 24, 156, crewById[id], false, t >> 1); });
+  [["SCAN", E5.planet], ["MOVE", E5.bang], ["SAMPLE", E5.q], ["TALK", E5.note], ["RECALL", E5.heart]].forEach(([n], i) => btn(124 + i * 39, 157, 36, 16, n, P.o));
+  topbar("SABLE");
+  R(6, 17 + 0, 0, 0, P.k);
+}
+
+/* ================================================================ LOOP/MOUNT */
+const stage = document.querySelector("#stage");
+let tip = document.createElement("div"); tip.className = "tip"; document.body.appendChild(tip);
+function draw() {
+  hits = []; ctx.fillStyle = P.k; ctx.fillRect(0, 0, W, H);
+  if (cur === "ship") { stars(); topbarShip(); drawShip(); } else if (cur === "market") drawMarket(); else drawExplore();
+}
+function topbarShip() { topbar("VESPER - DAY 214"); }
+function mount(root) {
+  if (cv && root.contains(cv)) return;
+  cv = document.createElement("canvas"); cv.width = W; cv.height = H; root.innerHTML = ""; root.appendChild(cv); ctx = cv.getContext("2d");
+  const at = (e) => { const r = cv.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * W, y = ((e.clientY - r.top) / r.height) * H; return [...hits].reverse().find((h) => x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h); };
+  cv.addEventListener("pointermove", (e) => { const h = at(e); cv.classList.toggle("hand", !!(h && (h.crew || h.poi || h.btn)));
+    if (h && h.tip) { tip.innerHTML = h.tip; tip.style.opacity = 1; tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, e.clientX + 14) + "px"; tip.style.top = e.clientY + 16 + "px"; } else tip.style.opacity = 0; });
+  cv.addEventListener("pointerleave", () => (tip.style.opacity = 0));
+  cv.addEventListener("click", (e) => { const h = at(e); if (!h) return; if (h.crew && cur === "ship") sel = h.crew; if (h.poi) poiSel = h.poi; draw(); });
+}
+initShell({ render(tab, root, l) { cur = tab; lens = l; mount(root); draw(); } });
+setInterval(() => { t++; if (ctx) draw(); }, 150);
+</script>
+</body>
+</html>

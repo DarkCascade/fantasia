@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starship UI · mockups</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e8e6df;--mut:#9a9a9a;--line:#262a33;--acc:#ffd166}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:1180px;margin:0 auto;padding:40px 20px 80px}
+  h1{font:600 34px/1.15 Georgia,serif;margin:0 0 6px;letter-spacing:.01em}
+  .sub{color:var(--mut);margin:0 0 28px;max-width:70ch}
+  h2{font:600 13px/1 system-ui;letter-spacing:.18em;text-transform:uppercase;color:var(--acc);margin:44px 0 14px}
+  .ideas{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px}
+  .idea{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#12151c}
+  .idea b{display:block;margin-bottom:2px}.idea span{color:var(--mut);font-size:14px}
+  section.skin{margin-top:46px}
+  .skin h3{font:600 24px/1.2 Georgia,serif;margin:0}
+  .skin p{color:var(--mut);margin:4px 0 14px;max-width:80ch}
+  .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+  figure{margin:0}
+  figure a{display:block;border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:transform .15s,border-color .15s}
+  figure a:hover{transform:translateY(-2px);border-color:var(--acc)}
+  img{display:block;width:100%;height:auto}
+  figcaption{font-size:14px;color:var(--mut);margin-top:8px}
+  figcaption b{color:var(--fg);font-weight:600}
+  .how{margin-top:34px;border:1px solid var(--line);border-radius:10px;overflow:auto}
+  table{border-collapse:collapse;width:100%;font-size:14px;min-width:760px}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{font-weight:600;color:var(--acc);background:#12151c;font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+  tr:last-child td{border-bottom:0}td:first-child{color:var(--fg);font-weight:600;white-space:nowrap}td{color:#c9c7c0}
+  kbd{background:#1d212b;border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Starship UI</h1>
+  <p class="sub">Three art directions for one sci-fi management game — crew, planet exploration, diplomacy and trading across star systems —
+  each with a ship screen, a trade-hub screen and an exploration screen. All nine render the <em>same</em> game state
+  (<code>shared/state.js</code>), so what changes is the language, not the data. Click any screen to open it live; inside, press
+  <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> to switch screens, <kbd>N</kbd> to flip on the <b>numbers lens</b>, and click crew or map markers.</p>
+
+  <h2>The shared idea: say it with the picture, not the table</h2>
+  <div class="ideas">
+    <div class="idea"><b>Status lives in the world</b><span>Crew mood is posture, a halo, a weather icon or an emote. A strained engine room flickers and steams. Nobody reads a bar to learn Tobe is exhausted.</span></div>
+    <div class="idea"><b>Quiet unless it matters</b><span>One attention line and, at most, a couple of threads to the thing that needs you. Healthy systems stay dark; only the exceptions light up.</span></div>
+    <div class="idea"><b>Fuel is a ring, not a bar</b><span>Fuel draws your jump range on the star map; air and rope draw the away team's "safe ring" on the planet. Anything outside it is visibly out of reach.</span></div>
+    <div class="idea"><b>Price is a position</b><span>Height, balance tilt or coin-stack against a "fair price" line. One picture replaces the market table; scarcity is size or an emptier shelf; your own crates ride on the goods.</span></div>
+    <div class="idea"><b>Routes show their reasons</b><span>Line thickness is profit for your current cargo, dashes are danger, pips are jumps. "Where should I take this?" is answered by looking.</span></div>
+    <div class="idea"><b>Relationships on demand</b><span>Select a crew member and their bonds appear as threads — jagged for friction, soft for closeness. Deselect and the screen is calm again.</span></div>
+    <div class="idea"><b>Diplomacy is a shape</b><span>Rapport is overlapping circles, a rope bridge with planks, or hearts. Faction attitude is a ring, a wax seal, or a merchant's face.</span></div>
+    <div class="idea"><b>Pressure is an object</b><span>The coming storm is a sundial, an hourglass or a wind-head blowing across the map. The survey is the map filling in.</span></div>
+    <div class="idea"><b>Numbers on request</b><span>Every skin has a lens (<kbd>N</kbd>) that reveals the underlying values for players who want them. The default screen never needs them.</span></div>
+  </div>
+
+  <section class="skin">
+    <h3>A · Hologlass</h3>
+    <p>Dark translucent glass, cyan line-work, amber and magenta only for things that need you. Thin light, lots of empty space; the information is the glow.</p>
+    <div class="shots">
+      <figure><a href="hologlass/index.html#ship"><img src="shots/hologlass-ship.png" alt="Hologlass ship screen" loading="lazy"></a>
+        <figcaption><b>Ship.</b> Halo colour and pulse rate are mood; slumped posture and a thought-bubble show what Tobe needs; threads show who he clashes with. Fuel is the dashed range ring.</figcaption></figure>
+      <figure><a href="hologlass/index.html#market"><img src="shots/hologlass-market.png" alt="Hologlass trade hub" loading="lazy"></a>
+        <figcaption><b>Trade hub.</b> Goods float above or below the galaxy-average line; orb size is scarcity, little squares are your crates. The Compact's request is a bubble tied to the medicine orb.</figcaption></figure>
+      <figure><a href="hologlass/index.html#explore"><img src="shots/hologlass-explore.png" alt="Hologlass exploration" loading="lazy"></a>
+        <figcaption><b>Exploration.</b> Scanned ground is filled terrain, the rest is wireframe. The mint ring is how far the air and tether allow; Rapport is two circles that overlap as trust grows.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="skin">
+    <h3>B · Cartographer</h3>
+    <p>An explorer's atlas on warm parchment: ink, watercolour wash, brass, wax seals. Everything is a drawn object — weather for mood, flasks for supplies, balance scales for price.</p>
+    <div class="shots">
+      <figure><a href="cartographer/index.html#ship"><img src="shots/cartographer-ship.png" alt="Cartographer ship screen" loading="lazy"></a>
+        <figcaption><b>Ship.</b> Mood is a weather symbol over each head and a watercolour wash on the room; the last ten days are a tiny forecast strip. Concerns are notes pinned with red thread.</figcaption></figure>
+      <figure><a href="cartographer/index.html#market"><img src="shots/cartographer-market.png" alt="Cartographer trade hub" loading="lazy"></a>
+        <figcaption><b>Trade hub.</b> Each good sits beside a brass balance that tips toward "dear" or "cheap"; rubber stamps mark the deals. Faction goodwill is the state of its wax seal; the chart shows richer routes as bigger ships.</figcaption></figure>
+      <figure><a href="cartographer/index.html#explore"><img src="shots/cartographer-explore.png" alt="Cartographer exploration" loading="lazy"></a>
+        <figcaption><b>Exploration.</b> Surveyed land is inked and washed, the rest is blank vellum. The rope is the tether, the lantern is air, the hourglass is the storm — and the wind-head shows where it blows from.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="skin">
+    <h3>C · Pixel Bridge</h3>
+    <p>Chunky 320×180 pixel art with a 3×5 bitmap font, drawn from code. A game-feel language of emotes, dialogue boxes, coin stacks and lamps that only light when something is wrong.</p>
+    <div class="shots">
+      <figure><a href="pixel/index.html#ship"><img src="shots/pixel-ship.png" alt="Pixel ship screen" loading="lazy"></a>
+        <figcaption><b>Ship.</b> Emote bubbles are mood (♥, ♪, rain, bolt) or a wish. The systems row stays dark until a system needs attention; the dialogue box is the crew card.</figcaption></figure>
+      <figure><a href="pixel/index.html#market"><img src="shots/pixel-market.png" alt="Pixel trade hub" loading="lazy"></a>
+        <figcaption><b>Trade hub.</b> Each stall has a coin stack measured against the dashed average line; sparse shelves mean scarcity; merchants' faces are standing; routes are lanes whose width is profit.</figcaption></figure>
+      <figure><a href="pixel/index.html#explore"><img src="shots/pixel-explore.png" alt="Pixel exploration" loading="lazy"></a>
+        <figcaption><b>Exploration.</b> Fog of war lifts as you survey. A dotted white ring is the safe range; the lantern and hourglass are the resource clocks; rapport is hearts.</figcaption></figure>
+    </div>
+  </section>
+
+  <h2>Same idea, three dialects</h2>
+  <div class="how"><table>
+    <thead><tr><th>Question the player asks</th><th>Hologlass</th><th>Cartographer</th><th>Pixel Bridge</th></tr></thead>
+    <tbody>
+      <tr><td>How is the crew?</td><td>Halo colour + pulse, posture, thought-bubble</td><td>Weather over the head, wash on the room, ten-day forecast</td><td>Emote bubble, slump / bounce, portrait frame colour</td></tr>
+      <tr><td>Who clashes?</td><td>Jagged magenta vs. soft gold threads</td><td>Zig-zag vs. wavy ink ribbons</td><td>Red bolt vs. heart under the portraits</td></tr>
+      <tr><td>Can we get there?</td><td>Dashed range ring on the star map</td><td>Compass-drawn range circle, faded far isles</td><td>Dotted range ring, dim far stars</td></tr>
+      <tr><td>Is this cheap or dear?</td><td>Height above/below the fair line</td><td>Tilt of a brass balance</td><td>Coin stack against the average line</td></tr>
+      <tr><td>Where will it sell?</td><td>Bezier lanes: width = profit, dashes = danger</td><td>Voyage chart: ship size = profit, skull flag = pirates</td><td>Lanes with sail size and pips for jumps</td></tr>
+      <tr><td>How do they feel about us?</td><td>Ring around a faction medallion</td><td>Wax seal: bright, plain, cracked</td><td>Merchant emote</td></tr>
+      <tr><td>How close are we to the locals?</td><td>Overlapping circles</td><td>Planks on a rope bridge</td><td>Five hearts</td></tr>
+      <tr><td>How long do we have?</td><td>Sweeping arc + storm front</td><td>Hourglass + wind-head</td><td>Hourglass + rain wall</td></tr>
+    </tbody>
+  </table></div>
+</main>
+</body>
+</html>
