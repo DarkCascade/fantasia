@@ -8,7 +8,7 @@ try { ({ chromium } = require("playwright")); }
 catch { ({ chromium } = require("/opt/node22/lib/node_modules/playwright/index.js")); }
 
 const BASE = process.env.BASE || "http://localhost:8123/experiments/starship-ui";
-const skins = process.argv.slice(2).length ? process.argv.slice(2) : ["hologlass", "cartographer", "pixel"];
+const skins = process.argv.slice(2).length ? process.argv.slice(2) : ["hologlass", "atomic", "pixel"];
 const screens = ["ship", "market", "explore"];
 
 (async () => {

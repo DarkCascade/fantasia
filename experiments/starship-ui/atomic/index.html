@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starship UI · Atomic Age</title>
+<style>
+  :root{--cream:#f4e8cc;--navy:#1f2a44;--or:#f4722b;--mu:#eab543;--te:#2a9d8f}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#16203a;color:var(--navy);
+    font-family:Futura,"Century Gothic","Avenir Next","Trebuchet MS",system-ui,sans-serif;font-weight:700}
+  body{display:flex;flex-direction:column;align-items:center}
+  .bar{width:100%;display:flex;gap:14px;align-items:center;padding:8px 16px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    background:#101830;color:#c9bfa5;border-bottom:3px solid var(--or)}
+  .bar a{color:#c9bfa5;text-decoration:none}.bar b{color:var(--mu);letter-spacing:.3em}
+  .bar nav{margin-left:auto;display:flex;gap:6px}
+  .bar button{all:unset;cursor:pointer;padding:5px 12px;border:2px solid #3b4a72;border-radius:99px;color:#c9bfa5}
+  .bar button.on{background:var(--or);border-color:var(--or);color:#fff}
+  #stage{width:min(100vw,calc((100vh - 42px)*16/9));aspect-ratio:16/9}
+  svg{width:100%;height:100%;display:block}
+  text{fill:var(--navy);letter-spacing:.06em}
+  .sc{text-transform:uppercase;letter-spacing:.14em}
+  .num{opacity:0;transition:opacity .25s;font-size:12px;fill:#d1495b;pointer-events:none}
+  body.lens .num{opacity:1}
+  [data-crew],[data-poi]{cursor:pointer}
+  .spin{animation:spin 40s linear infinite;transform-box:fill-box;transform-origin:center}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .puff{animation:puff 3s ease-out infinite;transform-box:fill-box;transform-origin:center}
+  @keyframes puff{0%{transform:translate(0,8px) scale(.4);opacity:0}25%{opacity:.95}100%{transform:translate(-8px,-40px) scale(1.5);opacity:0}}
+  .throb{animation:throb 1.1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+  @keyframes throb{50%{transform:scale(1.18)}}
+  .bob{animation:bob 2.6s ease-in-out infinite alternate}
+  @keyframes bob{to{transform:translateY(-4px)}}
+  .flame{animation:flame .35s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:100% 50%}
+  @keyframes flame{to{transform:scaleX(.8)}}
+  .rain{animation:rain .6s linear infinite}
+  @keyframes rain{to{transform:translate(-14px,24px)}}
+  .gust{animation:gust 1.8s linear infinite}
+  @keyframes gust{from{transform:translateX(30px);opacity:0}30%{opacity:1}to{transform:translateX(-30px);opacity:0}}
+  .btn:hover rect{filter:brightness(1.08)}
+  .tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .12s;z-index:9;max-width:240px;padding:7px 11px;background:#fbf3de;
+    border:3px solid var(--navy);border-radius:12px;font-size:13px;line-height:1.35;color:var(--navy)}
+  .tip b{color:var(--or)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <a href="../index.html">◂ Gallery</a><b>Atomic Age</b>
+  <nav><button data-tab="ship">1 · Ship</button><button data-tab="market">2 · Trade hub</button>
+  <button data-tab="explore">3 · Exploration</button><button data-lens>N · Numbers lens</button></nav>
+</div>
+<div id="stage"></div>
+
+<script src="../shared/state.js"></script>
+<script>
+const S = STATE, crewById = S.crewById;
+const A = { cream: "#f4e8cc", cream2: "#fbf3de", navy: "#1f2a44", navy2: "#33415f", teal: "#2a9d8f", teal2: "#7cc6b8", orange: "#f4722b", mustard: "#eab543",
+  red: "#d1495b", sage: "#8ab17d", plum: "#6d597a", plum2: "#a58bb0", sky: "#bfe0e3", blush: "#f2b8a2" };
+const MOODC = { radiant: A.mustard, content: A.sage, steady: A.teal, restless: A.orange, strained: A.red, fraying: A.plum };
+const SKIN = { reyes: "#e8b896", juno: "#f1c9a5", tobe: "#c68b64", ama: "#8d5a3b", ferro: "#9fc5a8", pip: "#f4d2b3" };
+const UNI = { reyes: A.teal, juno: A.orange, tobe: A.red, ama: A.sage, ferro: A.mustard, pip: A.plum };
+const HAIR = { reyes: A.navy, juno: "#a9441e", tobe: A.navy, ama: A.navy, ferro: "#5f8f78", pip: "#4b3a63" };
+const GOODC = { ice: A.sky, grain: A.mustard, salt: A.plum2, cells: A.sage, alloy: A.navy2, glass: A.teal2, med: A.red, data: A.orange };
+const pct = (v) => Math.round(v * 100) + "%";
+const lvl = (v) => (v >= 0.5 ? A.teal : v >= 0.25 ? A.mustard : A.red);
+
+function star(cx, cy, r1, r2, n, rot = 0) {
+  let p = []; for (let i = 0; i < n * 2; i++) { const r = i % 2 ? r2 : r1, a = rot + (i / (n * 2)) * 6.2832 - 1.5708; p.push((cx + Math.cos(a) * r).toFixed(1) + "," + (cy + Math.sin(a) * r).toFixed(1)); }
+  return p.join(" ");
+}
+const ICO = {
+  fuel: "M0-10Q8 0 8 4A8 8 0 0 1 -8 4Q-8 0 0-10Z", rations: "M-9 0H9Q9 9 0 9Q-9 9 -9 0Z", parts: "M-3-9H3L4-5L8-7L10-3L6-1L6 1L10 3L8 7L4 5L3 9H-3L-4 5L-8 7L-10 3L-6 1L-6-1L-10-3L-8-7L-4-5Z",
+  coin: "M-9 0A9 9 0 1 0 9 0A9 9 0 1 0 -9 0Z", ice: "M0-10L8-3L5 9H-5L-8-3Z", grain: "M0 10V-9M0-3Q-8-5-7-10M0-3Q8-5 7-10M0 3Q-8 1-7-4M0 3Q8 1 7-4", salt: "M-9 9L-6-2L-2 9ZM-2 9L2-9L7 9ZM5 9L8 2L11 9Z",
+  cells: "M-6-8H6V10H-6ZM-2-11H2V-8Z", alloy: "M-10 7L-6-6H6L10 7Z", glass: "M-7-9H7L4 1Q0 5-4 1ZM-1 4H1V9H5V10H-5V9H-1Z", med: "M-3-9H3V-3H9V3H3V9H-3V3H-9V-3H-3Z",
+  data: "M-9 0A9 9 0 1 0 9 0A9 9 0 1 0 -9 0ZM-3 0A3 3 0 1 0 3 0A3 3 0 1 0 -3 0Z", heart: "M0 9L-9-1Q-10-9-4-9Q0-9 0-5Q0-9 4-9Q10-9 9-1Z", bolt: "M3-10L-6 2H0L-3 10L7-3H1Z",
+  zz: "M-6-7H0L-6 0H0M1 1H6L1 7H6", planet: "M-8 0A8 8 0 1 0 8 0A8 8 0 1 0 -8 0Z", gift: "M-8-2H8V9H-8ZM-9-7H9V-2H-9Z", ask: "M-4-5Q-4-10 0-10Q5-10 5-5Q5-1 0 1V3M0 6V8",
+  hands: "M-9 3Q-9-3-4-3H2V3M9 3Q9-3 4-3M-9 3H9", wreck: "M-9 5L-3-7L1-1L9-7L7 6Z", vein: "M0-10L6-2L0 6L-6-2ZM6 3L10 7L6 10L3 6Z", ruin: "M-8 9V-1L-4-9L0-1V9M0 9V1L4-6L8 1V9",
+  people: "M-9 9L0-9L9 9ZM-3 9L0 2L3 9", hazard: "M0-9L9 8H-9Z", unknown: "M-4-5Q-4-9 0-9Q5-9 5-4Q5-1 0 1V3M0 6V7", scan: "M-9 2A9 9 0 0 1 9 2M-5 2A5 5 0 0 1 5 2", move: "M-8 0H8M3-5L8 0L3 5",
+  sample: "M-3-9H3M-2-9V-2L-8 8H8L2-2V-9", talk: "M-9-6H9V3H0L-5 8V3H-9Z", recall: "M-8 4Q-8-6 0-6Q8-6 8 4M5 1L8 4L11 1",
+};
+const ico = (n, x, y, s = 1, fill = A.navy, stroke = "none", sw = 1.6) => `<g transform="translate(${x} ${y}) scale(${s})"><path d="${ICO[n]}" fill="${fill}" stroke="${stroke}" stroke-width="${sw / s}" stroke-linejoin="round" stroke-linecap="round"/></g>`;
+const line = (n, x, y, s = 1, col = A.navy, sw = 1.8) => `<g transform="translate(${x} ${y}) scale(${s})"><path d="${ICO[n]}" fill="none" stroke="${col}" stroke-width="${sw / s}" stroke-linejoin="round" stroke-linecap="round"/></g>`;
+
+function defs() {
+  return `<defs>
+  <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="5"/><feColorMatrix values="0 0 0 0 .3  0 0 0 0 .22  0 0 0 0 .12  0 0 0 .13 0"/></filter>
+  <pattern id="ht" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r="1.5" fill="#1f2a44" opacity=".45"/></pattern>
+  <pattern id="ht2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="2.5" cy="2.5" r="1" fill="#1f2a44" opacity=".5"/></pattern>
+  <pattern id="stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="12" fill="#fff" opacity=".18"/></pattern>
+  </defs>`;
+}
+function frame(title, sub) {
+  return `<rect width="1280" height="720" fill="${A.cream}"/><rect width="1280" height="720" filter="url(#grain)"/>
+  <rect x="14" y="14" width="1252" height="692" rx="26" fill="none" stroke="${A.navy}" stroke-width="6"/>
+  ${[[34, 34], [1246, 34], [34, 686], [1246, 686]].map(([x, y]) => `<polygon points="${star(x, y, 11, 3, 4)}" fill="${A.orange}"/>`).join("")}
+  <g transform="translate(76 58)"><circle r="21" fill="${A.navy}"/><circle r="5" fill="${A.mustard}"/>
+    <ellipse rx="19" ry="7" fill="none" stroke="${A.cream}" stroke-width="2" transform="rotate(30)"/><ellipse rx="19" ry="7" fill="none" stroke="${A.cream}" stroke-width="2" transform="rotate(-30)"/>
+    <ellipse rx="19" ry="7" fill="none" stroke="${A.cream}" stroke-width="2" transform="rotate(90)"/></g>
+  <text x="112" y="62" font-size="32" class="sc" style="letter-spacing:.1em">${title}</text><text x="114" y="86" font-size="13" class="sc" opacity=".65" style="letter-spacing:.3em">${sub}</text>`;
+}
+function resources() {
+  const sp = S.ship.supplies; let s = "";
+  [["fuel", sp.fuel, "Fuel"], ["rations", sp.rations, "Rations"], ["parts", sp.parts, "Spares"]].forEach(([k, v, n], i) => {
+    const x = 800 + i * 128, y = 42;
+    s += `<g data-tip="<b>${n}</b><br>${v < 0.5 ? "Getting low." : "Plenty."}"><rect x="${x}" y="${y}" width="116" height="32" rx="16" fill="${A.cream2}" stroke="${A.navy}" stroke-width="3.5"/>
+      <clipPath id="cap${i}"><rect x="${x + 4}" y="${y + 4}" width="108" height="24" rx="12"/></clipPath>
+      <rect x="${x + 4}" y="${y + 4}" width="${(108 * v).toFixed(0)}" height="24" fill="${lvl(v)}" clip-path="url(#cap${i})"/><rect x="${x + 4}" y="${y + 4}" width="108" height="24" fill="url(#stripe)" clip-path="url(#cap${i})"/>
+      <circle cx="${x + 16}" cy="${y + 16}" r="15" fill="${A.navy}"/>${ico(k, x + 16, y + 16, 0.9, A.cream)}<text class="num" x="${x + 58}" y="${y + 52}" text-anchor="middle">${pct(v)}</text></g>`;
+  });
+  s += `<g data-tip="<b>Credits</b>"><circle cx="1214" cy="58" r="26" fill="${A.mustard}" stroke="${A.navy}" stroke-width="3.5"/><polygon points="${star(1214, 58, 21, 17, 14)}" fill="none" stroke="${A.navy}" stroke-width="1.5"/>
+    <text x="1214" y="63" text-anchor="middle" font-size="11">12.4K</text></g>`;
+  return s;
+}
+function ribbon(x, y, w, text, col = A.orange) {
+  return `<g><path d="M${x} ${y}H${x + w}L${x + w + 12} ${y + 15}L${x + w} ${y + 30}H${x}Z" fill="${col}" stroke="${A.navy}" stroke-width="3" stroke-linejoin="round"/>
+  <text x="${x + 14}" y="${y + 20}" font-size="13" class="sc" style="fill:#fff;letter-spacing:.12em">${text}</text></g>`;
+}
+
+/* ----- the faces: mood is an expression ------------------------------------ */
+function face(cx, cy, r, mood, skin) {
+  const ink = A.navy, e = r * 0.36, ey = cy - r * 0.1, my = cy + r * 0.42, sw = Math.max(1.4, r * 0.13);
+  const dot = (x, y, k = 0.11) => `<circle cx="${x}" cy="${y}" r="${r * k}" fill="${ink}"/>`;
+  const arc = (x, y, up) => `<path d="M${x - r * 0.2} ${y}Q${x} ${y + (up ? -r * 0.28 : r * 0.28)} ${x + r * 0.2} ${y}" fill="none" stroke="${ink}" stroke-width="${sw}" stroke-linecap="round"/>`;
+  let g = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${skin}" stroke="${ink}" stroke-width="${r * 0.14}"/>`;
+  if (mood === "radiant") g += arc(cx - e, ey, true) + arc(cx + e, ey, true) + `<path d="M${cx - r * 0.5} ${my - r * 0.12}Q${cx} ${my + r * 0.7} ${cx + r * 0.5} ${my - r * 0.12}Z" fill="${ink}"/><circle cx="${cx - r * 0.62}" cy="${my - r * 0.2}" r="${r * 0.14}" fill="${A.orange}" opacity=".6"/><circle cx="${cx + r * 0.62}" cy="${my - r * 0.2}" r="${r * 0.14}" fill="${A.orange}" opacity=".6"/>`;
+  if (mood === "content") g += dot(cx - e, ey) + dot(cx + e, ey) + `<path d="M${cx - r * 0.38} ${my - r * 0.05}Q${cx} ${my + r * 0.4} ${cx + r * 0.38} ${my - r * 0.05}" fill="none" stroke="${ink}" stroke-width="${sw}" stroke-linecap="round"/>`;
+  if (mood === "steady") g += dot(cx - e, ey) + dot(cx + e, ey) + `<path d="M${cx - r * 0.3} ${my + r * 0.05}H${cx + r * 0.3}" stroke="${ink}" stroke-width="${sw}" stroke-linecap="round"/>`;
+  if (mood === "restless") g += dot(cx - e + r * 0.1, ey) + dot(cx + e + r * 0.1, ey) + `<path d="M${cx - r * 0.5} ${ey - r * 0.32}L${cx - r * 0.2} ${ey - r * 0.4}" stroke="${ink}" stroke-width="${sw * 0.8}" stroke-linecap="round"/><ellipse cx="${cx + r * 0.1}" cy="${my + r * 0.08}" rx="${r * 0.14}" ry="${r * 0.18}" fill="${ink}"/>`;
+  if (mood === "strained") g += dot(cx - e, ey + r * 0.06) + dot(cx + e, ey + r * 0.06) + `<path d="M${cx - r * 0.56} ${ey - r * 0.16}L${cx - r * 0.14} ${ey - r * 0.4}M${cx + r * 0.56} ${ey - r * 0.16}L${cx + r * 0.14} ${ey - r * 0.4}" stroke="${ink}" stroke-width="${sw * 0.8}" stroke-linecap="round"/><path d="M${cx - r * 0.38} ${my + r * 0.22}Q${cx} ${my - r * 0.18} ${cx + r * 0.38} ${my + r * 0.22}" fill="none" stroke="${ink}" stroke-width="${sw}" stroke-linecap="round"/><path d="M${cx + r * 0.78} ${cy - r * 0.45}q${r * 0.2} ${r * 0.3} 0 ${r * 0.4}q${-r * 0.2} ${-r * 0.1} 0 ${-r * 0.4}Z" fill="${A.sky}" stroke="${ink}" stroke-width="1.2"/>`;
+  if (mood === "fraying") g += `<path d="M${cx - e - r * 0.14} ${ey - r * 0.14}l${r * 0.28} ${r * 0.28}m0 ${-r * 0.28}l${-r * 0.28} ${r * 0.28}M${cx + e - r * 0.14} ${ey - r * 0.14}l${r * 0.28} ${r * 0.28}m0 ${-r * 0.28}l${-r * 0.28} ${r * 0.28}" stroke="${ink}" stroke-width="${sw * 0.8}" stroke-linecap="round"/><path d="M${cx - r * 0.45} ${my + r * 0.12}l${r * 0.15} ${-r * 0.2}l${r * 0.15} ${r * 0.2}l${r * 0.15} ${-r * 0.2}l${r * 0.15} ${r * 0.2}l${r * 0.15} ${-r * 0.2}" fill="none" stroke="${ink}" stroke-width="${sw * 0.8}" stroke-linejoin="round"/>`;
+  return g;
+}
+function figure(c, x, y, k, sel) {
+  const m = S.moodOf(c.mood).id, lean = { radiant: -3, content: -1, steady: 0, restless: 0, strained: 7, fraying: 11 }[m];
+  const hair = c.id === "pip" ? `<circle cx="0" cy="-45" r="11" fill="${HAIR.pip}"/>` : c.id === "juno" ? `<path d="M-10-36Q-10-50 0-50Q10-50 10-36Q4-42-10-36Z" fill="${HAIR.juno}"/><path d="M8-38Q18-34 14-24" fill="none" stroke="${HAIR.juno}" stroke-width="4" stroke-linecap="round"/>` :
+    c.id === "ferro" ? `<path d="M-9-44Q-14-58-4-56Q0-62 5-56Q14-58 9-44Z" fill="${A.cream2}" stroke="${A.navy}" stroke-width="1.6"/>` :
+    c.id === "reyes" ? `<path d="M-10-40Q-10-52 0-52Q10-52 10-40Z" fill="${A.navy}"/><rect x="-11" y="-42" width="22" height="3" rx="1.5" fill="${A.navy}"/><circle cx="0" cy="-47" r="2" fill="${A.mustard}"/>` :
+    c.id === "tobe" ? `<path d="M-10-38Q-10-50 0-50Q10-50 10-38Q0-44-10-38Z" fill="${HAIR.tobe}"/><rect x="-10" y="-45" width="20" height="4" rx="2" fill="${A.mustard}"/><circle cx="-4" cy="-43" r="2.2" fill="${A.sky}" stroke="${A.navy}" stroke-width="1"/><circle cx="4" cy="-43" r="2.2" fill="${A.sky}" stroke="${A.navy}" stroke-width="1"/>` :
+    `<path d="M-10-36Q-12-50 0-50Q12-50 10-36Q6-44-10-36Z" fill="${HAIR.ama}"/>`;
+  return `<g transform="translate(${x} ${y}) scale(${k})" data-crew="${c.id}" data-tip="<b>${c.name}</b> · ${c.role}<br>${S.moodOf(c.mood).word}${c.wants ? " — wants " + c.wants : ""}">
+    ${sel ? `<g transform="translate(0 -26)"><polygon class="spin" points="${star(0, 0, 44, 30, 10)}" fill="${A.mustard}" opacity=".75"/></g>` : ""}
+    <ellipse rx="14" ry="3" fill="${A.navy}" opacity=".22"/>
+    <g transform="rotate(${lean})"><rect x="-6" y="-12" width="5" height="12" rx="2" fill="${A.navy}"/><rect x="1" y="-12" width="5" height="12" rx="2" fill="${A.navy}"/>
+    <path d="M-9-12L-7-30Q0-34 7-30L9-12Z" fill="${UNI[c.id]}" stroke="${A.navy}" stroke-width="1.8" stroke-linejoin="round"/>
+    <rect x="-13" y="-29" width="5" height="14" rx="2.5" fill="${UNI[c.id]}" stroke="${A.navy}" stroke-width="1.4"/><rect x="8" y="-29" width="5" height="14" rx="2.5" fill="${UNI[c.id]}" stroke="${A.navy}" stroke-width="1.4"/>
+    <circle cx="0" cy="-23" r="3.2" fill="${A.cream2}" stroke="${A.navy}" stroke-width="1"/>${c.id === "ama" ? `<path d="M-1.4-23H1.4M0-24.4V-21.6" stroke="${A.red}" stroke-width="1.2"/>` : ""}
+    ${hair}${face(0, -37, 10.5, m, SKIN[c.id])}</g></g>`;
+}
+
+/* ======================================================================== SHIP */
+let sel = "tobe";
+const ROOMS = { engine: [20, 40, 180, 220, "Engine"], lab: [200, 60, 170, 90, "Lab"], medbay: [370, 60, 170, 90, "Sick bay"], quarters: [540, 60, 160, 90, "Bunks"],
+  cargo: [200, 150, 240, 90, "Hold"], galley: [440, 150, 180, 90, "Galley"], bay: [620, 150, 80, 90, "Bay"] };
+const SPOT = { reyes: [846, 226], juno: [780, 240], tobe: [110, 254], ama: [455, 146], ferro: [526, 236], pip: [285, 146] };
+const HIST = { tobe: ["steady", "steady", "restless", "restless", "restless", "strained", "strained", "strained", "strained", "strained"],
+  juno: ["content", "content", "steady", "steady", "steady", "restless", "restless", "restless", "restless", "restless"], reyes: ["steady", "content", "steady", "steady", "content", "steady", "steady", "content", "steady", "steady"],
+  ama: ["content", "content", "content", "radiant", "content", "content", "content", "content", "content", "content"], ferro: ["content", "radiant", "radiant", "content", "radiant", "radiant", "radiant", "radiant", "radiant", "radiant"],
+  pip: ["steady", "steady", "content", "content", "content", "radiant", "radiant", "radiant", "radiant", "radiant"] };
+function roomAvg(id) { const cs = S.crew.filter((c) => c.room === id); return cs.length ? cs.reduce((a, c) => a + c.mood, 0) / cs.length : null; }
+function shipDraw() {
+  const HULL = "M0 90L20 40H700L780 20L900 90L960 150L900 210L780 280L700 260H20L0 210Z", pw = S.ship.systems.power;
+  let s = `<polygon points="-10,60 60,30 60,270 -10,240" fill="${A.orange}" stroke="${A.navy}" stroke-width="6" stroke-linejoin="round" transform="translate(30 0)" opacity="0"/>
+    <path d="M60 40L20-20L110 40ZM60 260L20 320L110 260Z" fill="${A.orange}" stroke="${A.navy}" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M-34 108L0 96V204L-34 192Z" fill="${A.navy2}" stroke="${A.navy}" stroke-width="6" stroke-linejoin="round"/>
+    <g transform="translate(-34 150)"><path class="flame" d="M0-26Q-70-14-92 0Q-70 14 0 26Z" fill="${A.orange}" stroke="${A.navy}" stroke-width="4" stroke-linejoin="round"/><path class="flame" d="M0-14Q-40-8-56 0Q-40 8 0 14Z" fill="${A.mustard}"/></g>
+    <path d="${HULL}" fill="${A.navy}" stroke="${A.navy}" stroke-width="12" stroke-linejoin="round"/>`;
+  Object.entries(ROOMS).forEach(([id, [x, y, w, h, name]]) => { const m = roomAvg(id), col = m == null ? A.cream2 : MOODC[S.moodOf(m).id];
+    s += `<rect x="${x + 3}" y="${y + 3}" width="${w - 6}" height="${h - 6}" rx="10" fill="${col}"/><rect x="${x + 3}" y="${y + 3}" width="${w - 6}" height="${h - 6}" rx="10" fill="url(#ht)" opacity=".28"/>
+      <text x="${x + 14}" y="${y + 22}" font-size="10.5" class="sc" style="fill:${A.navy};opacity:.8">${name}</text>`; });
+  const bm = (crewById.reyes.mood + crewById.juno.mood) / 2;
+  s += `<polygon points="702,52 780,38 890,102 928,150 890,198 780,262 702,248" fill="${MOODC[S.moodOf(bm).id]}" stroke="${A.navy}" stroke-width="4" stroke-linejoin="round"/>
+    <text x="716" y="72" font-size="10.5" class="sc" style="opacity:.8">Bridge</text>
+    <path d="M860 96Q930 150 860 204" fill="${A.sky}" stroke="${A.navy}" stroke-width="4"/>`;
+  // props, flat and bold
+  s += `<g fill="${A.cream2}" stroke="${A.navy}" stroke-width="3" stroke-linejoin="round">
+    <circle cx="112" cy="150" r="38" fill="${A.navy}"/><circle cx="112" cy="150" r="26" fill="none" stroke="${A.mustard}" stroke-width="4" stroke-dasharray="8 8" class="spin"/><circle cx="112" cy="150" r="12" fill="${A.orange}" class="throb"/>
+    <rect x="240" y="136" width="95" height="8" rx="3"/><path d="M262 136V124H278V136" fill="${A.teal2}"/>
+    <rect x="408" y="128" width="86" height="12" rx="5"/><rect x="408" y="140" width="86" height="4" fill="${A.navy}" stroke="none"/><path d="M505 86H517M511 80V92" stroke="${A.red}" stroke-width="4" fill="none"/>
+    <rect x="560" y="96" width="120" height="40" rx="6" fill="none"/><path d="M560 116H680" fill="none"/>
+    <rect x="470" y="228" width="140" height="10" rx="4"/><rect x="496" y="214" width="26" height="14" rx="3" fill="${A.mustard}"/>
+    <path d="M632 232H692L682 198H642Z" fill="${A.navy2}"/>
+    <rect x="768" y="226" width="26" height="14" rx="5" fill="${A.navy2}"/><rect x="828" y="210" width="26" height="14" rx="5" fill="${A.navy2}"/></g>
+    <g transform="translate(298 112)"><polygon class="spin" points="0,-10 9,0 0,10 -9,0" fill="${A.mustard}" stroke="${A.navy}" stroke-width="2"/></g>`;
+  const cells = []; S.market.goods.forEach((g) => { for (let i = 0; i < g.held; i++) cells.push(g.id); });
+  for (let i = 0; i < S.ship.holdCap; i++) { const cx = 214 + (i % 10) * 22, cy = 178 + Math.floor(i / 10) * 27, id = cells[i];
+    s += id ? `<rect x="${cx}" y="${cy}" width="18" height="18" rx="4" fill="${GOODC[id]}" stroke="${A.navy}" stroke-width="2.5"/>` : `<rect x="${cx}" y="${cy}" width="18" height="18" rx="4" fill="none" stroke="${A.navy}" stroke-width="1.5" stroke-dasharray="3 4" opacity=".45"/>`; }
+  // lamps: bigger glow = more power
+  [[285, 78], [455, 78], [620, 78], [320, 168], [530, 168], [800, 66]].forEach(([x, y]) => { s += `<circle cx="${x}" cy="${y}" r="${(8 + pw * 12).toFixed(0)}" fill="${A.cream2}" opacity=".35"/><circle cx="${x}" cy="${y}" r="5" fill="${A.cream2}" stroke="${A.navy}" stroke-width="2"/>`; });
+  // steam from the engine room
+  s += [0, 1, 2].map((i) => `<circle class="puff" style="animation-delay:${i}s" cx="${150 + i * 8}" cy="68" r="9" fill="${A.cream2}" stroke="${A.navy}" stroke-width="2"/>`).join("");
+  // hull cracks: jagged cut-outs
+  s += `<g fill="none" stroke="${A.cream}" stroke-width="5" stroke-linejoin="round"><path d="M332 270l8-12-8-8 10-10"/><path d="M606 30l-8 12 8 8-10 10"/></g><g fill="none" stroke="${A.red}" stroke-width="2" stroke-linejoin="round"><path d="M332 270l8-12-8-8 10-10"/><path d="M606 30l-8 12 8 8-10 10"/></g>`;
+  S.crew.forEach((c) => { const [x, y] = SPOT[c.id]; s += figure(c, x, y, 1.65, c.id === sel);
+    if (c.wants) s += `<g transform="translate(${x + 26} ${y - 100})" class="bob"><polygon points="${star(0, 0, 21, 17, 12)}" fill="${A.cream2}" stroke="${A.navy}" stroke-width="3"/>${c.wants === "rest" ? `<text y="5" text-anchor="middle" font-size="14">Zz</text>` : `<circle r="7" fill="${A.teal}" stroke="${A.navy}" stroke-width="2"/><ellipse rx="12" ry="3.5" fill="none" stroke="${A.navy}" stroke-width="2" transform="rotate(-20)"/>`}</g>`; });
+  // bonds
+  S.bonds.filter((b) => b[0] === sel || b[1] === sel).forEach(([a, b, v]) => { const o = a === sel ? b : a, [x1, y1] = SPOT[sel], [x2, y2] = SPOT[o], mx = (x1 + x2) / 2, my = Math.min(y1, y2) - 190;
+    const col = v < 0 ? A.red : A.teal; s += `<path d="M${x1} ${y1 - 92}Q${mx} ${my} ${x2} ${y2 - 92}" fill="none" stroke="${A.cream2}" stroke-width="9" stroke-linecap="round" opacity=".9"/><path d="M${x1} ${y1 - 92}Q${mx} ${my} ${x2} ${y2 - 92}" fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round" ${v < 0 ? 'stroke-dasharray="3 12"' : ""}/>
+      <g transform="translate(${((x1 + 2 * mx + x2) / 4).toFixed(0)} ${((y1 - 92 + 2 * my + y2 - 92) / 4).toFixed(0)})"><circle r="14" fill="${A.cream2}" stroke="${A.navy}" stroke-width="3"/>${ico(v < 0 ? "bolt" : "heart", 0, 0, 0.9, col)}</g>`; });
+  return s;
+}
+function orbitMap() {
+  const f = S.ship.supplies.fuel, cx = 150, cy = 590, R = 110;
+  let s = `<circle cx="${cx}" cy="${cy}" r="${R + 8}" fill="${A.navy}"/><g fill="none" stroke="${A.cream}" stroke-width="1.5" opacity=".5"><ellipse cx="${cx}" cy="${cy}" rx="${R * 0.9}" ry="${R * 0.55}" transform="rotate(-18 ${cx} ${cy})"/><ellipse cx="${cx}" cy="${cy}" rx="${R * 0.62}" ry="${R * 0.38}" transform="rotate(24 ${cx} ${cy})"/></g>
+    <circle cx="${cx}" cy="${cy}" r="${(f * R * 1.15).toFixed(0)}" fill="${A.teal}" opacity=".5"/><circle cx="${cx}" cy="${cy}" r="${(f * R * 1.15).toFixed(0)}" fill="none" stroke="${A.mustard}" stroke-width="3" stroke-dasharray="9 7"/>`;
+  S.map.forEach((m) => { const x = cx + m.x * R * 0.95, y = cy + m.y * R * 0.95, d = Math.hypot(m.x, m.y) * R * 0.95, inr = d <= f * R * 1.15 || m.here;
+    s += `<g data-tip="<b>${m.name}</b><br>${m.here ? "You are here" : inr ? "Within reach" : "Out of reach — more fuel"}">${m.here ? `<polygon points="${star(x, y, 14, 6, 8)}" fill="${A.orange}" stroke="${A.cream2}" stroke-width="2"/><circle cx="${x}" cy="${y}" r="4" fill="${A.cream2}"/>` : `<circle cx="${x}" cy="${y}" r="6" fill="${inr ? A.cream2 : "none"}" stroke="${A.cream2}" stroke-width="2" ${inr ? "" : 'stroke-dasharray="3 3"'}/>`}
+      <text x="${x > cx + 40 ? x - 10 : x + 10}" text-anchor="${x > cx + 40 ? "end" : "start"}" y="${y + 4}" font-size="9" style="fill:${A.cream2};opacity:${inr ? 1 : 0.5}" class="sc">${m.here ? "" : m.name.split(" ")[0]}</text></g>`; });
+  return s + `<text class="num" x="${cx}" y="${cy - R - 14}" text-anchor="middle" style="fill:${A.mustard}">fuel ${pct(f)}</text>`;
+}
+function shipScreen() {
+  let s = frame("The Marigold", "Vesper · Day 214") + resources() + ribbon(60, 108, 600, "Engines straining — Tobe has worked three shifts straight");
+  s += `<g transform="translate(112 165) scale(.9)">${shipDraw()}</g>`;
+  // attention roundels: only what's not fine
+  const sy = S.ship.systems, bad = [["hull", "Hull", sy.hull], ["engines", "Engines", sy.engines], ["shields", "Shields", sy.shields]].filter((x) => x[2] < 0.8);
+  bad.forEach(([id, n, v], i) => { const x = 320 + i * 120, y = 482, col = v < 0.55 ? A.red : A.mustard;
+    s += `<g data-tip="<b>${n}</b><br>Needs attention."><circle class="${v < 0.55 ? "throb" : ""}" cx="${x}" cy="${y}" r="20" fill="${col}" stroke="${A.navy}" stroke-width="3.5"/>${ico(id === "hull" ? "alloy" : id === "engines" ? "parts" : "hazard", x, y, 0.9, A.navy)}
+      <text x="${x + 28}" y="${y + 5}" font-size="12" class="sc">${n}</text><text class="num" x="${x}" y="${y + 36}" text-anchor="middle">${pct(v)}</text></g>`; });
+  s += `<g transform="translate(0 0)">${orbitMap()}</g>`;
+  // dock
+  S.crew.forEach((c, i) => { const x = 380 + i * 88, y = 636, on = c.id === sel, m = S.moodOf(c.mood);
+    s += `<g data-crew="${c.id}" data-tip="<b>${c.name}</b> · ${c.role}<br>${m.word}${c.wants ? " — wants " + c.wants : ""}">${on ? `<polygon class="spin" points="${star(x, y, 50, 38, 12)}" fill="${A.mustard}"/>` : ""}
+      <circle cx="${x}" cy="${y}" r="${on ? 36 : 31}" fill="${MOODC[m.id]}" stroke="${A.navy}" stroke-width="4"/>${face(x, y + 2, on ? 27 : 23, m.id, SKIN[c.id])}
+      ${c.wants ? `<circle cx="${x + 25}" cy="${y - 25}" r="8" fill="${A.orange}" stroke="${A.navy}" stroke-width="2.5"/>` : ""}
+      ${on ? `<text x="${x}" y="${y + 58}" text-anchor="middle" font-size="12" class="sc">${c.name.replace("Dr. ", "").split(" ")[0]} · ${c.role}</text>` : ""}<text class="num" x="${x}" y="${y + (on ? 72 : 52)}" text-anchor="middle">${c.mood.toFixed(2)}</text></g>`; });
+  // card
+  const c = crewById[sel], m = S.moodOf(c.mood);
+  s += `<rect x="990" y="130" width="250" height="360" rx="22" fill="${A.cream2}" stroke="${A.navy}" stroke-width="5"/>
+    <polygon class="spin" points="${star(1115, 206, 74, 54, 14)}" fill="${MOODC[m.id]}"/><circle cx="1115" cy="206" r="46" fill="${A.cream2}" stroke="${A.navy}" stroke-width="4"/>${face(1115, 208, 38, m.id, SKIN[c.id])}
+    <text x="1115" y="298" text-anchor="middle" font-size="20" class="sc">${c.name.replace("Dr. ", "")}</text><text x="1115" y="318" text-anchor="middle" font-size="12" class="sc" opacity=".6">${c.role}</text>
+    <g transform="translate(1025 330)"><path d="M0 0H180L192 14L180 28H0Z" fill="${MOODC[m.id]}" stroke="${A.navy}" stroke-width="3" stroke-linejoin="round"/><text x="90" y="19" text-anchor="middle" font-size="13" class="sc" style="fill:#fff">${m.word}</text></g>
+    <text x="1010" y="384" font-size="10" class="sc" opacity=".6">Ten days</text>${HIST[c.id].map((h, i) => `<circle cx="${1018 + i * 22}" cy="400" r="8" fill="${MOODC[h]}" stroke="${A.navy}" stroke-width="2"/>`).join("")}
+    <foreignObject x="1008" y="418" width="214" height="52"><div xmlns="http://www.w3.org/1999/xhtml" style="font:700 12.5px/1.3 Futura,'Century Gothic',sans-serif;color:#1f2a44">“${c.quote}”</div></foreignObject>
+    <text class="num" x="1226" y="150" text-anchor="end">mood ${c.mood.toFixed(2)}</text>`;
+  S.bonds.filter((b) => b[0] === sel || b[1] === sel).slice(0, 2).forEach(([a, b, v], i) => { const o = crewById[a === sel ? b : a]; s += `<g transform="translate(${1020 + i * 108} 504)"><circle r="14" fill="${MOODC[S.moodOf(o.mood).id]}" stroke="${A.navy}" stroke-width="2.5"/>${face(0, 1, 10, S.moodOf(o.mood).id, SKIN[o.id])}<g transform="translate(18 -4)">${ico(v < 0 ? "bolt" : "heart", 0, 0, 0.7, v < 0 ? A.red : A.teal)}</g><text x="30" y="5" font-size="11" class="sc">${o.name.replace("Dr. ", "").split(" ")[0]}</text></g>`; });
+  s += `<g class="btn" transform="translate(990 586)" style="cursor:pointer"><rect width="250" height="62" rx="31" fill="${A.orange}" stroke="${A.navy}" stroke-width="5"/>${ico("move", 52, 31, 1.4, A.cream2)}<text x="86" y="40" font-size="20" class="sc" style="fill:#fff">Set course</text></g>`;
+  return s;
+}
+
+/* ====================================================================== MARKET */
+function dial(cx, cy, r, ratio) { // needle: left = cheap, right = dear
+  const a = Math.max(-1, Math.min(1, (ratio - 1) / 0.7)) * 70, rad = (a - 90) * Math.PI / 180;
+  const arcp = (a0, a1, col) => { const p = (a) => [cx + Math.cos((a - 90) * Math.PI / 180) * r, cy + Math.sin((a - 90) * Math.PI / 180) * r]; const [x0, y0] = p(a0), [x1, y1] = p(a1); return `<path d="M${x0.toFixed(1)} ${y0.toFixed(1)}A${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="butt"/>`; };
+  return `<g>${arcp(-78, -24, A.teal)}${arcp(-24, 24, A.cream2)}${arcp(24, 78, A.orange)}<path d="M${cx} ${cy}L${(cx + Math.cos(rad) * (r + 3)).toFixed(1)} ${(cy + Math.sin(rad) * (r + 3)).toFixed(1)}" stroke="${A.navy}" stroke-width="4" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="6" fill="${A.navy}"/></g>`;
+}
+function marketScreen() {
+  let s = frame("The Ossian Exchange", "Kestrel Landing · Ossia") + resources() + ribbon(60, 108, 660, "The fever ward is out of medicine — the Compact will pay well");
+  S.market.goods.forEach((g, i) => {
+    const cx = 150 + (i % 4) * 185, cy = 214 + Math.floor(i / 4) * 168, r = 38 + g.stock * 14, dear = g.ratio > 1.08, cheap = g.ratio < 0.92;
+    s += `<g data-tip="<b>${g.name}</b><br>${dear ? "Dear here" : cheap ? "Cheap here" : "Fair price"}${g.held ? " · you carry " + g.held : ""}${g.stock < 0.2 ? "<br>Scarce." : ""}">
+      <circle cx="${cx}" cy="${cy}" r="${r.toFixed(0)}" fill="${GOODC[g.id]}" stroke="${A.navy}" stroke-width="5"/><circle cx="${cx}" cy="${cy}" r="${r.toFixed(0)}" fill="url(#ht)" opacity=".35"/>
+      <circle cx="${cx}" cy="${cy + 6}" r="${(r * 0.62).toFixed(0)}" fill="${A.cream2}" stroke="${A.navy}" stroke-width="3"/>${ico(g.id, cx, cy + 6, 1.45, A.navy)}
+      ${dial(cx, cy - 4, r + 10, g.ratio)}
+      <text x="${cx}" y="${cy + r + 24}" text-anchor="middle" font-size="12.5" class="sc">${g.name}</text>
+      ${Array.from({ length: g.held }, (_, k) => `<rect x="${cx - g.held * 8 + k * 16 + 1}" y="${cy + r + 32}" width="12" height="12" rx="3" fill="${GOODC[g.id]}" stroke="${A.navy}" stroke-width="2"/>`).join("")}
+      ${g.trend ? `<path d="${g.trend > 0 ? `M${cx + r - 6} ${cy + r - 22}l7-12 7 12Z` : `M${cx + r - 6} ${cy + r - 34}l7 12 7-12Z`}" fill="${g.trend > 0 ? A.orange : A.teal}" stroke="${A.navy}" stroke-width="2" stroke-linejoin="round"/>` : ""}
+      <text class="num" x="${cx}" y="${cy + 10}" text-anchor="middle" style="font-size:14px">×${g.ratio.toFixed(2)}</text></g>`;
+  });
+  const burst = (x, y, t, col) => `<g transform="translate(${x} ${y}) rotate(-10)"><polygon points="${star(0, 0, 36, 26, 12)}" fill="${col}" stroke="${A.navy}" stroke-width="3.5" stroke-linejoin="round"/><text y="5" text-anchor="middle" font-size="14" class="sc" style="fill:#fff;letter-spacing:.04em">${t}</text></g>`;
+  const mi = S.market.goods.findIndex((g) => g.id === "med"), si = S.market.goods.findIndex((g) => g.id === "salt");
+  s += burst(150 + (mi % 4) * 185 + 50, 214 + Math.floor(mi / 4) * 168 - 40, "SELL!", A.orange) + burst(150 + (si % 4) * 185 + 50, 214 + Math.floor(si / 4) * 168 - 40, "BUY!", A.teal);
+  // factions: pennants with a little face for attitude
+  s += `<text x="900" y="158" font-size="11" class="sc" opacity=".6">Who we trade with</text>`;
+  S.market.factions.forEach((f, i) => { const y = 200 + i * 94, mood = f.warmth > 0.6 ? "radiant" : f.warmth > 0.35 ? "steady" : "strained", col = [A.red, A.teal, A.plum][i];
+    s += `<g data-tip="<b>${f.name}</b><br>${f.warmth > 0.6 ? "Warm toward you" : f.warmth > 0.35 ? "Neutral" : "Wary of you"}"><rect x="912" y="${y - 40}" width="6" height="84" rx="3" fill="${A.navy}"/>
+      <path d="M918 ${y - 38}H1090L1068 ${y - 12}L1090 ${y + 14}H918Z" fill="${col}" stroke="${A.navy}" stroke-width="4" stroke-linejoin="round"/><path d="M918 ${y - 38}H1090L1068 ${y - 12}L1090 ${y + 14}H918Z" fill="url(#ht)" opacity=".2"/>
+      <text x="932" y="${y - 8}" font-size="12.5" class="sc" style="fill:#fff">${f.name.split(" ")[0]}</text><text x="932" y="${y + 6}" font-size="10" class="sc" style="fill:#fff;opacity:.85">${f.name.split(" ").slice(1).join(" ")}</text>
+      <circle cx="1140" cy="${y - 8}" r="30" fill="${A.cream2}" stroke="${A.navy}" stroke-width="4"/>${face(1140, y - 7, 24, mood, [SKIN.tobe, SKIN.ferro, SKIN.pip][i])}<text class="num" x="1140" y="${y + 40}" text-anchor="middle">${f.warmth.toFixed(2)}</text></g>`; });
+  s += `<g transform="translate(1112 120)"><path d="M0 0H122Q132 0 132 10V32Q132 42 122 42H40L24 56V42H0Z" fill="${A.cream2}" stroke="${A.navy}" stroke-width="3.5" transform="scale(.9)"/>${ico("med", 22, 19, 0.9, A.red)}${[0, 1, 2, 3].map((k) => `<rect x="${44 + k * 18}" y="11" width="13" height="13" rx="3" fill="${k < 3 ? A.red : "none"}" stroke="${A.navy}" stroke-width="2" ${k < 3 ? "" : 'stroke-dasharray="2 3"'}/>`).join("")}</g>`;
+  // hold
+  s += `<text x="900" y="494" font-size="11" class="sc" opacity=".6">The hold</text>`;
+  const cells = []; S.market.goods.forEach((g) => { for (let i = 0; i < g.held; i++) cells.push(g.id); });
+  for (let i = 0; i < 20; i++) { const x = 900 + (i % 10) * 34, y = 506 + Math.floor(i / 10) * 34, id = cells[i];
+    s += id ? `<rect x="${x}" y="${y}" width="28" height="28" rx="6" fill="${GOODC[id]}" stroke="${A.navy}" stroke-width="3"/>${ico(id, x + 14, y + 14, 0.8, A.navy)}` : `<rect x="${x}" y="${y}" width="28" height="28" rx="6" fill="none" stroke="${A.navy}" stroke-width="2" stroke-dasharray="3 4" opacity=".4"/>`; }
+  s += `<text class="num" x="1240" y="494" text-anchor="end">${S.heldTotal}/20</text><text x="900" y="592" font-size="12" opacity=".7" class="sc">Room for ${20 - S.heldTotal} more</text>`;
+  // routes: a little solar system
+  s += `<rect x="60" y="494" width="800" height="196" rx="24" fill="${A.navy}"/><text x="86" y="522" font-size="11" class="sc" style="fill:${A.cream2};opacity:.7">Where it sells best</text>`;
+  const ox = 140, oy = 600;
+  s += `<polygon class="spin" points="${star(ox, oy, 52, 40, 14)}" fill="${A.mustard}"/><circle cx="${ox}" cy="${oy}" r="34" fill="${A.orange}" stroke="${A.cream2}" stroke-width="3"/><text x="${ox}" y="${oy + 5}" text-anchor="middle" font-size="12" class="sc" style="fill:#fff">Ossia</text>`;
+  const PCOL = [A.sky, A.teal2, A.blush, A.plum2];
+  S.market.routes.forEach((r, i) => { const dx = 640, dy = 530 + i * 48, risky = r.risk > 0.6, pr = 9 + r.profit * 14, mx = (ox + dx) / 2;
+    s += `<g data-tip="<b>${r.name}</b><br>${r.jumps} jump${r.jumps > 1 ? "s" : ""} · ${r.profit > 0.7 ? "Rich" : r.profit > 0.4 ? "Decent" : "Thin"} pickings${risky ? "<br>Pirate country." : ""}">
+      <path d="M${ox + 40} ${oy}Q${mx} ${(oy + dy) / 2 + (i - 1.5) * 8} ${dx - pr - 6} ${dy}" fill="none" stroke="${risky ? A.red : A.cream2}" stroke-width="${risky ? 4 : 3}" stroke-dasharray="${risky ? "3 9" : "none"}" stroke-linecap="round" opacity=".9"/>
+      ${Array.from({ length: r.jumps }, (_, k) => `<circle cx="${mx - (r.jumps - 1) * 20 + k * 40 + 20}" cy="${(oy + dy) / 2 + (i - 1.5) * 4 + 1}" r="5" fill="${A.mustard}" stroke="${A.navy}" stroke-width="2"/>`).join("")}
+      <circle cx="${dx}" cy="${dy}" r="${pr.toFixed(0)}" fill="${PCOL[i]}" stroke="${A.cream2}" stroke-width="3"/>${i === 3 ? `<ellipse cx="${dx}" cy="${dy}" rx="${pr + 11}" ry="5" fill="none" stroke="${A.cream2}" stroke-width="3" transform="rotate(-20 ${dx} ${dy})"/>` : ""}
+      <text x="${dx + pr + 20}" y="${dy + 4}" font-size="13" class="sc" style="fill:${A.cream2}">${r.name}</text>${risky ? `<g transform="translate(${dx + pr + 4} ${dy - pr - 2})">${ico("hazard", 0, 0, 0.9, A.red)}</g>` : ""}
+      <text class="num" x="${dx + 190}" y="${dy + 18}" style="fill:${A.mustard}">profit ${pct(r.profit)} · risk ${pct(r.risk)}</text></g>`; });
+  return s;
+}
+
+/* =================================================================== EXPLORE */
+let poiSel = "hesk";
+const PO = { spires: [180, 360], probe: [292, 506], vein: [548, 436], hesk: [656, 462], sink: [340, 520], signal: [676, 220] };
+function explorePanel() {
+  const P = S.planet, tx = 430, ty = 500;
+  let s = `<clipPath id="pano"><rect x="60" y="150" width="740" height="420" rx="22"/></clipPath><g clip-path="url(#pano)">
+    ${["#f9e7c1", "#f6d49c", "#f2b57a", "#ee9a62"].map((c, i) => `<rect x="60" y="${120 + i * 55}" width="740" height="56" fill="${c}"/>`).join("")}
+    <circle cx="330" cy="290" r="96" fill="${A.mustard}"/><circle cx="330" cy="290" r="72" fill="${A.orange}" opacity=".65"/><circle cx="330" cy="290" r="48" fill="${A.cream2}" opacity=".55"/>
+    <path d="M60 340L120 270L170 320L240 240L300 330L380 262L450 336L520 280L590 340L660 258L730 330L800 290V400H60Z" fill="${A.plum2}"/><path d="M60 340L120 270L170 320L240 240L300 330L380 262L450 336L520 280L590 340L660 258L730 330L800 290V400H60Z" fill="url(#ht2)" opacity=".4"/>
+    <path d="M60 390Q150 340 250 380T450 372T650 384T800 360V470H60Z" fill="${A.teal}"/><path d="M60 440Q180 400 300 430T560 424T800 420V570H60Z" fill="${A.sage}"/>
+    <path d="M150 570Q230 500 340 520T560 470T690 450" fill="none" stroke="${A.cream}" stroke-width="22" stroke-linecap="round" opacity=".85"/></g>`;
+  // the spotlight: how far the team can go and still get home
+  const rx = P.air * 380;
+  s += `<ellipse cx="${tx}" cy="${ty + 6}" rx="${rx}" ry="${rx * 0.2}" fill="${A.cream2}" opacity=".4"/><ellipse cx="${tx}" cy="${ty + 6}" rx="${rx}" ry="${rx * 0.2}" fill="none" stroke="${A.navy}" stroke-width="3" stroke-dasharray="10 8"/>
+    <g transform="translate(${tx} ${ty + 6 + rx * 0.2})"><rect x="-44" y="-11" width="88" height="22" rx="11" fill="${A.cream2}" stroke="${A.navy}" stroke-width="3"/><text y="4" text-anchor="middle" font-size="10" class="sc">Rope reach</text></g><text class="num" x="${tx}" y="${ty + rx * 0.2 + 36}" text-anchor="middle">air ${pct(P.air)}</text>`;
+  // unexplored: unprinted paper at the edges
+  s += `<g clip-path="url(#pano)"><rect x="60" y="120" width="130" height="450" fill="${A.cream}" opacity=".9"/><rect x="60" y="120" width="130" height="450" fill="url(#ht)" opacity=".55"/><rect x="190" y="120" width="26" height="450" fill="${A.cream}" opacity=".45"/>
+    <text x="108" y="360" font-size="12" class="sc" text-anchor="middle" opacity=".55" transform="rotate(-90 108 360)">not yet charted</text></g>`;
+  // storm
+  s += `<g clip-path="url(#pano)"><path d="M630 120H800V330L770 300L750 360L720 300L690 380L670 310L640 340Z" fill="${A.navy}"/><path d="M630 120H800V330L770 300L750 360L720 300L690 380L670 310L640 340Z" fill="url(#ht2)" opacity=".5"/>
+    ${[[650, 150, 40], [700, 140, 46], [760, 156, 42], [680, 200, 36], [740, 214, 40]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${A.navy2}" stroke="${A.navy}" stroke-width="3"/>`).join("")}
+    <polygon points="700,236 684,284 700,284 690,330 722,270 706,270 716,236" fill="${A.mustard}" stroke="${A.navy}" stroke-width="2.5" stroke-linejoin="round"/>
+    <g class="rain" stroke="${A.sky}" stroke-width="3" stroke-linecap="round">${Array.from({ length: 12 }, (_, i) => `<path d="M${650 + i * 14} ${300 + (i % 3) * 10}l-6 14"/>`).join("")}</g>
+    ${[0, 1, 2].map((i) => `<path class="gust" style="animation-delay:${i * 0.6}s" d="M${606 - i * 8} ${270 + i * 36}l-16 8 16 8" fill="none" stroke="${A.navy}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`).join("")}</g>`;
+  // lander + rope
+  const lx = 150, ly = 520;
+  s += `<path d="M${lx + 20} ${ly - 4}Q${(lx + tx) / 2} ${ly + 50} ${tx - 10} ${ty - 8}" fill="none" stroke="${A.navy}" stroke-width="7" stroke-linecap="round"/><path d="M${lx + 20} ${ly - 4}Q${(lx + tx) / 2} ${ly + 50} ${tx - 10} ${ty - 8}" fill="none" stroke="${A.cream2}" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round"/>
+    <g transform="translate(${lx} ${ly})"><path d="M-22 14L-12-22H12L22 14Z" fill="${A.cream2}" stroke="${A.navy}" stroke-width="4" stroke-linejoin="round"/><circle cy="-6" r="6" fill="${A.teal}" stroke="${A.navy}" stroke-width="2.5"/><path d="M-26 20L-22 14M26 20L22 14" stroke="${A.navy}" stroke-width="4" stroke-linecap="round"/></g>`;
+  // POIs
+  P.pois.forEach((p) => { const [x, y] = PO[p.id], on = p.id === poiSel, far = Math.abs(x - tx) > rx || (p.id === "signal");
+    let art = "";
+    if (p.kind === "ruin") art = `<g fill="${A.plum}" stroke="${A.navy}" stroke-width="3" stroke-linejoin="round"><path d="M-30 20V-30L-22-60L-14-30V20ZM-10 20V-50L0-92L10-50V20ZM14 20V-20L24-44L34-20V20Z"/></g>`;
+    if (p.kind === "wreck") art = `<g stroke="${A.navy}" stroke-width="3.5" stroke-linejoin="round"><path d="M-26 8L-12-18L0-4L18-22L26 6Z" fill="#c9c9d4"/><path d="M-18 8L-22 18M18 8L24 18" fill="none"/><circle cx="-16" cy="-24" r="6" fill="${A.cream2}"/></g>`;
+    if (p.kind === "vein") art = `<g stroke="${A.navy}" stroke-width="3.5" stroke-linejoin="round"><path d="M-6 16L-16-14L-4-4L4-30L14-4L26-16L20 16Z" fill="${A.teal2}"/><path d="M4-30V16M-16-14L-6 16" stroke-width="2" fill="none"/></g>`;
+    if (p.kind === "people") art = `<g stroke="${A.navy}" stroke-width="3.5" stroke-linejoin="round"><path d="M-40 18L-18-34L4 18Z" fill="${A.red}"/><path d="M-6 18L18-40L42 18Z" fill="${A.mustard}"/><path d="M-18-34V18M18-40V18" fill="none"/><path class="puff" d="M20-44q8-10 0-20" fill="none" stroke="${A.navy}" stroke-width="3"/></g>`;
+    if (p.kind === "hazard") art = `<ellipse rx="34" ry="11" fill="${A.navy}"/><ellipse rx="22" ry="7" fill="${A.plum}"/><ellipse rx="10" ry="3" fill="${A.navy}"/>`;
+    if (p.kind === "unknown") art = `<circle r="26" fill="${A.cream2}" stroke="${A.navy}" stroke-width="4" stroke-dasharray="6 6"/><text y="12" text-anchor="middle" font-size="34" style="font-weight:700">?</text><circle class="throb" r="34" fill="none" stroke="${A.plum}" stroke-width="3"/>`;
+    s += `<g data-poi="${p.id}" data-tip="<b>${p.seen ? p.name : "Unknown"}</b><br>${p.seen ? p.note : "Something answers the scanner."}${far ? "<br>Beyond reach." : ""}" transform="translate(${x} ${y})" opacity="${far ? 0.8 : 1}">
+      ${on ? `<polygon class="spin" points="${star(0, -4, 62, 50, 14)}" fill="${A.cream2}" opacity=".7"/>` : ""}${art}
+      ${far && p.id !== "signal" ? `<path d="M0 30V52" stroke="${A.navy}" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>` : ""}<text y="${p.kind === "hazard" ? -22 : p.kind === "ruin" ? 42 : 40}" text-anchor="middle" font-size="11" class="sc" style="fill:${A.navy}">${p.seen ? p.name : ""}</text></g>`; });
+  // team
+  ["reyes", "pip", "ferro"].forEach((id, i) => { s += figure(crewById[id], tx - 26 + i * 26, ty + 4 + (i % 2) * 6, 1.1, false); });
+  s += `<g transform="translate(${tx} ${ty - 76})"><path d="M0 0V30" stroke="${A.navy}" stroke-width="4"/><path d="M0 0L28 8L0 18Z" fill="${A.red}" stroke="${A.navy}" stroke-width="3" stroke-linejoin="round"/></g>`;
+  s += `<rect x="60" y="150" width="740" height="420" rx="22" fill="none" stroke="${A.navy}" stroke-width="6"/><text class="num" x="200" y="174">mapped ${pct(P.surveyed)}</text>`;
+  return s;
+}
+function exploreScreen() {
+  const P = S.planet, p = P.pois.find((q) => q.id === poiSel);
+  let s = frame("Sable", "A dim world · survey in progress") + resources() + ribbon(60, 108, 620, "A storm is rolling in — the Spires are beyond the rope") + explorePanel();
+  // card
+  s += `<rect x="830" y="128" width="410" height="330" rx="22" fill="${A.cream2}" stroke="${A.navy}" stroke-width="5"/>${line(p.kind, 866, 168, 1.4, A.navy, 2.4)}
+    <text x="900" y="170" font-size="21" class="sc">${p.name}</text><text x="900" y="190" font-size="11" class="sc" opacity=".6">${{ people: "People", ruin: "Ruin", vein: "Resource", wreck: "Salvage", hazard: "Hazard", unknown: "Unknown" }[p.kind]}</text>
+    <foreignObject x="852" y="206" width="370" height="46"><div xmlns="http://www.w3.org/1999/xhtml" style="font:700 13.5px/1.35 Futura,'Century Gothic',sans-serif;color:#1f2a44">${p.note}</div></foreignObject>`;
+  if (p.kind === "people") {
+    const have = Math.round(p.rapport * 10);
+    s += `<text x="852" y="278" font-size="11" class="sc" opacity=".6">Between us and the Hesk</text>
+      <g transform="translate(878 360)">${figure(crewById.pip, 0, 40, 1.2, false)}</g><g transform="translate(1196 360)"><circle cx="0" cy="-20" r="26" fill="${A.mustard}" stroke="${A.navy}" stroke-width="4"/>${face(0, -19, 20, "steady", "#d9a07a")}<path d="M-18 24Q0 10 18 24L14 60H-14Z" fill="${A.red}" stroke="${A.navy}" stroke-width="3" stroke-linejoin="round"/></g>
+      <path d="M902 316Q1037 380 1176 316" fill="none" stroke="${A.navy}" stroke-width="4"/>
+      ${Array.from({ length: 10 }, (_, i) => { const t = (i + 1) / 11, x = 902 + t * 274, y = 316 + Math.sin(t * Math.PI) * 52 * 0.98; return `<path d="M${x - 10} ${y}H${x + 10}L${x} ${y + 24}Z" fill="${i < have ? [A.red, A.mustard, A.teal][i % 3] : "none"}" stroke="${A.navy}" stroke-width="2.5" stroke-linejoin="round" ${i < have ? "" : 'stroke-dasharray="3 3" opacity=".5"'}/>`; }).join("")}
+      <text class="num" x="1040" y="304" text-anchor="middle">${have} of 10 flags · ${p.rapport.toFixed(2)}</text>
+      ${[["gift", "A gift"], ["ask", "A question"], ["hands", "Open hands"]].map(([ic, n], i) => `<g class="btn" transform="translate(${842 + i * 132} 404)" style="cursor:pointer" data-tip="<b>${n}</b>"><rect width="124" height="40" rx="20" fill="${A.teal}" stroke="${A.navy}" stroke-width="3.5"/>${ico(ic, 24, 20, 0.8, A.cream2)}<text x="42" y="25" font-size="9.5" class="sc" style="fill:#fff;letter-spacing:.06em">${n}</text></g>`).join("")}`;
+  } else s += `<text x="1035" y="340" text-anchor="middle" font-size="14" class="sc" opacity=".5">Not yet visited</text>`;
+  // air + storm
+  s += `<g data-tip="<b>Air and charge</b><br>Burning lower."><rect x="830" y="478" width="196" height="38" rx="19" fill="${A.cream2}" stroke="${A.navy}" stroke-width="4"/><rect x="835" y="483" width="${(186 * P.air).toFixed(0)}" height="28" rx="14" fill="${lvl(P.air)}"/><rect x="835" y="483" width="186" height="28" rx="14" fill="url(#stripe)"/><text x="928" y="534" text-anchor="middle" font-size="11" class="sc" opacity=".7">Air · charge</text><text class="num" x="928" y="500" text-anchor="middle" style="fill:#fff">${pct(P.air)}</text></g>`;
+  const e = P.stormEta, a = (1 - e) * 360;
+  s += `<g transform="translate(1136 518)" data-tip="<b>Storm clock</b><br>The storm lands when the wedge fills."><circle r="42" fill="${A.cream2}" stroke="${A.navy}" stroke-width="5"/>
+    <path d="M0 0L0-38A38 38 0 ${a > 180 ? 1 : 0} 1 ${(38 * Math.sin(a * Math.PI / 180)).toFixed(1)} ${(-38 * Math.cos(a * Math.PI / 180)).toFixed(1)}Z" fill="${A.red}"/><circle r="5" fill="${A.navy}"/>
+    ${Array.from({ length: 12 }, (_, i) => `<path d="M0-42V-34" stroke="${A.navy}" stroke-width="2" transform="rotate(${i * 30})"/>`).join("")}<text y="68" text-anchor="middle" font-size="11" class="sc" opacity=".7">Storm</text><text class="num" y="82" text-anchor="middle">eta ${pct(e)}</text></g>`;
+  // away team
+  s += `<g transform="translate(60 602)">${["reyes", "pip", "ferro"].map((id, i) => `<g transform="translate(${i * 80} 0)"><circle cx="30" cy="30" r="28" fill="${MOODC[S.moodOf(crewById[id].mood).id]}" stroke="${A.navy}" stroke-width="4"/>${face(30, 32, 21, S.moodOf(crewById[id].mood).id, SKIN[id])}</g>`).join("")}</g>`;
+  [["scan", "Scan"], ["move", "Walk"], ["sample", "Sample"], ["talk", "Talk"], ["recall", "Recall"]].forEach(([ic, n], i) => {
+    s += `<g class="btn" transform="translate(${320 + i * 112} 616)" style="cursor:pointer"><rect width="102" height="52" rx="26" fill="${A.orange}" stroke="${A.navy}" stroke-width="4"/>${ico(ic === "scan" ? "planet" : ic, 28, 26, 0.9, A.cream2)}<text x="46" y="31" font-size="12" class="sc" style="fill:#fff">${n}</text></g>`; });
+  return s;
+}
+
+/* ======================================================================= MOUNT */
+const stage = document.querySelector("#stage");
+initTips(stage);
+const shell = initShell({ render(tab, root) { const b = { ship: shipScreen, market: marketScreen, explore: exploreScreen }[tab](); root.innerHTML = `<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">${defs()}${b}</svg>`; } });
+stage.addEventListener("click", (e) => { const c = e.target.closest("[data-crew]"), p = e.target.closest("[data-poi]");
+  if (c && c.dataset.crew !== sel) { sel = c.dataset.crew; shell.redraw(); } if (p && p.dataset.poi !== poiSel) { poiSel = p.dataset.poi; shell.redraw(); } });
+</script>
+</body>
+</html>

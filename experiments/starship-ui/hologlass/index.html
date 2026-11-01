@@ -127,6 +127,7 @@ function hud(sub) {
     h += `<g data-tip="<b>${n}</b><br>${v < 0.5 ? "Getting low." : "Comfortable."}">${ring(x, 44, 17, v, lvlCol(v))}${ico(k, x, 44, 0.8, lvlCol(v), 1.4)}
       <text class="num" x="${x}" y="76" text-anchor="middle">${pct(v)}</text></g>`;
   });
+  h += topRail();
   h += `<g>${ico("credit", 1186, 44, 0.9, C.gold)}<text x="1240" y="49" text-anchor="end" font-size="15" style="font-weight:400" fill="${C.gold}">12.4k</text></g>`;
   return h;
 }
@@ -135,6 +136,149 @@ function attention(line, x = 40, y = 100) {
   <text x="${x + 20}" y="${y}" font-size="14" fill="${C.ice}">${line}</text></g>`;
 }
 const crewById = S.crewById;
+
+/* ===================================================== control-panel widgets
+ * LCARS-flavoured bridge-console parts. None of them carry meaning that the main
+ * screen doesn't already show: they're texture and a second, optional read-out
+ * (the EKG speeds up with stress, the harmonics go ragged with a strained
+ * engine, the power sliders are the ship's systems). */
+const LC = { am: "#ffb454", pe: "#ffd3a1", vi: "#9d8cff", li: "#c9bfff", ro: "#ff7fb0", cy: "#5ee7ff", ink: "#050a10" };
+let _u = 0; const uid = (p) => p + ++_u;
+const hex = (r, n = 4) => Math.floor(r() * 16 ** n).toString(16).toUpperCase().padStart(n, "0");
+
+function lcTab(x, y, w, label, col = LC.am) { // pill with a round left end, dark label
+  return `<g><path d="M${x + 9} ${y}H${x + w}V${y + 17}H${x + 9}A8.5 8.5 0 0 1 ${x + 9} ${y}Z" fill="${col}"/><text x="${x + w - 8}" y="${y + 12.5}" text-anchor="end" font-size="9" letter-spacing="2.2" style="fill:${LC.ink};font-weight:600">${label}</text></g>`;
+}
+function lcElbow(x, y, w, vh, th, col) { // top-left elbow: bar along the top, bar down the left
+  const vw = th * 1.7, r = th * 1.5, ri = th * 0.6;
+  return `<path d="M${x} ${y + vh}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}H${x + w}V${y + th}H${x + vw + ri}A${ri} ${ri} 0 0 0 ${x + vw} ${y + th + ri}V${y + vh}Z" fill="${col}"/>`;
+}
+function lcButton(x, y, w, label, col, code) { // stacked console button, flat left, round right
+  return `<g class="btn" style="cursor:pointer"><path d="M${x} ${y}H${x + w - 9}A9 9 0 0 1 ${x + w - 9} ${y + 18}H${x}Z" fill="${col}"/><text x="${x + 8}" y="${y + 13}" font-size="9.5" letter-spacing="2" style="fill:${LC.ink};font-weight:600">${label}</text>
+    <text x="${x + w - 20}" y="${y + 13}" text-anchor="end" font-size="8" style="fill:${LC.ink};opacity:.6">${code}</text></g>`;
+}
+function topRail(seed = 3) { // a row of segmented pills with tiny codes, and a stardate readout
+  const r = rng(seed), cols = [LC.am, LC.vi, LC.ro, LC.pe, LC.li]; let x = 300, s = "", i = 0;
+  while (x < 740) { let w = 24 + Math.floor(r() * 70); if (x + w > 792) w = 792 - x; const c = cols[i++ % cols.length];
+    s += `<rect x="${x}" y="14" width="${w}" height="10" rx="5" fill="${c}" opacity="${(0.55 + r() * 0.4).toFixed(2)}"/>${w > 54 ? `<text x="${x + w / 2}" y="22.2" text-anchor="middle" font-size="6.5" style="fill:${LC.ink};font-weight:600">${hex(r, 2)}-${Math.floor(r() * 90 + 10)}</text>` : ""}`; x += w + 5; }
+  return s + `<text x="808" y="23" font-size="9" letter-spacing="2" style="fill:${LC.am}">STARDATE 47214.6</text>`;
+}
+function knob(cx, cy, r, v, label, col = LC.am) { // rotary dial: 270° sweep, filled arc = value
+  const a0 = -135, a1 = a0 + v * 270, P = (a, rr) => [cx + Math.cos((a - 90) * Math.PI / 180) * rr, cy + Math.sin((a - 90) * Math.PI / 180) * rr];
+  const [sx, sy] = P(a0, r), [ex, ey] = P(a1, r), [ox, oy] = P(135, r);
+  let s = `<circle cx="${cx}" cy="${cy}" r="${r + 5}" fill="#050c14" stroke="#17384a"/><path d="M${sx} ${sy}A${r} ${r} 0 1 1 ${ox.toFixed(1)} ${oy.toFixed(1)}" fill="none" stroke="#17384a" stroke-width="3" stroke-linecap="round"/>
+    <path d="M${sx} ${sy}A${r} ${r} 0 ${v * 270 > 180 ? 1 : 0} 1 ${ex.toFixed(1)} ${ey.toFixed(1)}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" filter="url(#glow)"/>`;
+  for (let i = 0; i <= 10; i++) { const a = a0 + i * 27, [x1, y1] = P(a, r + 7), [x2, y2] = P(a, r + 10); s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${C.cy}" stroke-opacity=".45"/>`; }
+  const [px, py] = P(a1, r - 4);
+  return s + `<circle cx="${cx}" cy="${cy}" r="${r - 6}" fill="url(#glass)" stroke="${C.cy}" stroke-opacity=".5"/><line x1="${cx}" y1="${cy}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${C.ice}" stroke-width="2" stroke-linecap="round"/>
+    <text class="cap" x="${cx}" y="${cy + r + 22}" text-anchor="middle" style="font-size:7.5px;letter-spacing:.18em">${label}</text>`;
+}
+function vSlider(x, y, h, v, label, col = LC.am, n = 12) { // LED ladder + a slider cap
+  let s = ""; const sh = (h - 4) / n;
+  for (let i = 0; i < n; i++) { const on = (n - i) / n <= v + 0.001, yy = y + i * sh; s += `<rect x="${x - 9}" y="${yy.toFixed(1)}" width="18" height="${(sh - 2).toFixed(1)}" rx="1.5" fill="${on ? col : "#12293a"}" opacity="${on ? 0.85 : 1}"/>`; }
+  const ky = y + (1 - v) * (h - 8);
+  return s + `<rect x="${x - 13}" y="${ky.toFixed(1)}" width="26" height="8" rx="3" fill="${LC.ink}" stroke="${C.ice}" stroke-width="1.4" filter="url(#glow)"/><line x1="${x - 5}" y1="${(ky + 4).toFixed(1)}" x2="${x + 5}" y2="${(ky + 4).toFixed(1)}" stroke="${col}" stroke-width="1.6"/>
+    <text class="cap" x="${x}" y="${y + h + 13}" text-anchor="middle" style="font-size:7.5px;letter-spacing:.14em">${label}</text>`;
+}
+function scope(x, y, w, h, { kind = "sine", dur = 3, amp = 0.7, col = C.cy, beats = 2, seed = 1 } = {}) { // scrolling trace
+  const id = uid("sc"), r = rng(seed), N = 160, mid = y + h / 2; let d = "";
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * 2, ph = (t * beats) % 1, X = x + (t * w) / 1; let v = 0;
+    if (kind === "sine") v = Math.sin(t * Math.PI * 2 * beats);
+    if (kind === "noisy") v = Math.sin(t * Math.PI * 2 * beats) * 0.7 + (r() - 0.5) * 0.9;
+    if (kind === "square") v = Math.sin(t * Math.PI * 2 * beats) > 0 ? 0.8 : -0.8;
+    if (kind === "ekg") v = ph < 0.1 ? 0 : ph < 0.18 ? 0.25 * Math.sin(((ph - 0.1) / 0.08) * Math.PI) : ph < 0.3 ? 0 : ph < 0.34 ? -0.3 * ((ph - 0.3) / 0.04) : ph < 0.4 ? -0.3 + 1.6 * ((ph - 0.34) / 0.06) : ph < 0.46 ? 1.3 - 1.9 * ((ph - 0.4) / 0.06) : ph < 0.5 ? -0.6 + 0.6 * ((ph - 0.46) / 0.04) : ph < 0.66 ? 0.28 * Math.sin(((ph - 0.5) / 0.16) * Math.PI) : 0;
+    d += (i ? "L" : "M") + X.toFixed(1) + " " + (mid - v * amp * (h / 2)).toFixed(1);
+  }
+  const grid = Array.from({ length: 5 }, (_, i) => `<line x1="${x + (i + 1) * w / 6}" y1="${y}" x2="${x + (i + 1) * w / 6}" y2="${y + h}"/>`).join("") + Array.from({ length: 3 }, (_, i) => `<line x1="${x}" y1="${y + (i + 1) * h / 4}" x2="${x + w}" y2="${y + (i + 1) * h / 4}"/>`).join("");
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#04101a" stroke="#1f5a6c"/><g stroke="${C.cy}" stroke-opacity=".12">${grid}</g>
+    <clipPath id="${id}"><rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${h - 2}"/></clipPath><g clip-path="url(#${id})"><g><animateTransform attributeName="transform" type="translate" from="0 0" to="${-w} 0" dur="${dur}s" repeatCount="indefinite"/>
+    <path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" filter="url(#glow)"/></g></g>`;
+}
+function spectrum(x, y, w, h, n, { seed = 5, rough = 0.3, col = C.cy, hot = LC.ro } = {}) {
+  const r = rng(seed), bw = w / n; let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="#04101a" stroke="#1f5a6c"/>`;
+  for (let i = 0; i < n; i++) {
+    const base = 0.25 + 0.55 * Math.exp(-Math.pow((i - n * 0.35) / (n * 0.28), 2)), hs = Array.from({ length: 5 }, () => Math.max(0.06, Math.min(1, base + (r() - 0.5) * (0.35 + rough))));
+    const hh = (v) => (v * (h - 6)).toFixed(1), yy = (v) => (y + h - 3 - v * (h - 6)).toFixed(1), c = hs.some((v) => v > 0.88) ? hot : col, d = (0.7 + r() * 0.9).toFixed(2);
+    s += `<rect x="${(x + i * bw + 1.5).toFixed(1)}" y="${yy(hs[0])}" width="${(bw - 3).toFixed(1)}" height="${hh(hs[0])}" fill="${c}" opacity=".8"><animate attributeName="height" values="${[...hs, hs[0]].map(hh).join(";")}" dur="${d}s" repeatCount="indefinite"/><animate attributeName="y" values="${[...hs, hs[0]].map(yy).join(";")}" dur="${d}s" repeatCount="indefinite"/></rect>`;
+  }
+  return s;
+}
+function toggles(x, y, states, labels = []) {
+  return states.map((on, i) => `<g transform="translate(${x + i * 34} ${y})"><rect width="26" height="12" rx="6" fill="${on ? "rgba(255,180,84,.25)" : "#0a1a26"}" stroke="${on ? LC.am : "#2c4f60"}"/><circle cx="${on ? 19 : 7}" cy="6" r="4.2" fill="${on ? LC.am : "#4b6a7a"}" ${on ? 'filter="url(#glow)"' : ""}/>
+    <text class="cap" x="13" y="25" text-anchor="middle" style="font-size:6.5px;letter-spacing:.1em">${labels[i] || ""}</text></g>`).join("");
+}
+function lamps(x, y, cols, rows, seed = 2, col = LC.am) {
+  const r = rng(seed); let s = "";
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { const on = r() > 0.35, blink = on && r() > 0.7;
+    s += `<circle cx="${x + i * 11}" cy="${y + j * 11}" r="3.2" fill="${on ? col : "#12293a"}" ${on ? 'filter="url(#glow)"' : ""} opacity="${on ? 0.9 : 1}">${blink ? `<animate attributeName="opacity" values=".95;.15;.95" dur="${(0.6 + r() * 1.6).toFixed(1)}s" repeatCount="indefinite"/>` : ""}</circle>`; }
+  return s;
+}
+function radar(cx, cy, r, blips, col = C.cy) {
+  const id = uid("rd"); let s = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#04101a" stroke="#1f5a6c"/><g fill="none" stroke="${col}" stroke-opacity=".25"><circle cx="${cx}" cy="${cy}" r="${r * 0.66}"/><circle cx="${cx}" cy="${cy}" r="${r * 0.33}"/><path d="M${cx - r} ${cy}H${cx + r}M${cx} ${cy - r}V${cy + r}"/></g>
+    <clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath><g clip-path="url(#${id})"><g><animateTransform attributeName="transform" type="rotate" from="0 ${cx} ${cy}" to="360 ${cx} ${cy}" dur="4s" repeatCount="indefinite"/>
+    <path d="M${cx} ${cy}L${cx + r} ${cy}A${r} ${r} 0 0 0 ${cx + r * Math.cos(0.9)} ${cy - r * Math.sin(0.9)}Z" fill="${col}" fill-opacity=".22"/><line x1="${cx}" y1="${cy}" x2="${cx + r}" y2="${cy}" stroke="${col}" stroke-width="1.4" filter="url(#glow)"/></g></g>`;
+  blips.forEach(([a, d, c = LC.am], i) => { s += `<circle cx="${(cx + Math.cos(a) * d * r).toFixed(1)}" cy="${(cy + Math.sin(a) * d * r).toFixed(1)}" r="2.6" fill="${c}" filter="url(#glow)"><animate attributeName="opacity" values="1;.25;1" dur="4s" begin="${(-i * 0.7).toFixed(1)}s" repeatCount="indefinite"/></circle>`; });
+  return s;
+}
+function dataRail(x, y, w, h, seed = 4, col = C.cy) { // scrolling hex, like a diagnostic readout
+  const r = rng(seed), id = uid("dr"); let lines = "";
+  for (let i = 0; i < 24; i++) lines += `<text x="${x}" y="${y + 8 + i * 9}" font-size="7" style="fill:${col};opacity:${(0.3 + r() * 0.35).toFixed(2)};font-family:ui-monospace,Menlo,monospace;font-weight:400">${hex(r)} ${hex(r)} ${hex(r, 2)}</text>`;
+  return `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath><g clip-path="url(#${id})"><g><animateTransform attributeName="transform" type="translate" from="0 0" to="0 ${-12 * 9}" dur="9s" repeatCount="indefinite"/>${lines}</g></g>`;
+}
+function shieldBubble() { // hex shield around the hull; the lit arc is how intact it is
+  const sh = S.ship.systems.shields;
+  return `<defs><pattern id="hexp" width="22" height="19" patternUnits="userSpaceOnUse"><path d="M5.5 0L16.5 0L22 9.5L16.5 19L5.5 19L0 9.5Z" fill="none" stroke="${C.cy}" stroke-opacity=".5" stroke-width=".8"/></pattern>
+    <clipPath id="shclip"><ellipse cx="480" cy="150" rx="500" ry="178"/></clipPath><radialGradient id="shg" cx="50%" cy="50%" r="50%"><stop offset=".78" stop-color="${C.cy}" stop-opacity="0"/><stop offset="1" stop-color="${C.cy}" stop-opacity=".22"/></radialGradient></defs>
+    <g data-tip="<b>Shields</b><br>${sh < 0.8 ? "Gaps on the port side." : "Holding."}"><ellipse cx="480" cy="150" rx="500" ry="178" fill="url(#shg)"/><rect x="-30" y="-40" width="1020" height="380" fill="url(#hexp)" clip-path="url(#shclip)" opacity=".12"/>
+    <ellipse cx="480" cy="150" rx="500" ry="178" fill="none" stroke="${C.cy}" stroke-opacity=".18" stroke-width="2"/><ellipse cx="480" cy="150" rx="500" ry="178" pathLength="100" fill="none" stroke="${C.cy}" stroke-width="2.2" stroke-dasharray="${(sh * 100).toFixed(0)} ${(100 - sh * 100).toFixed(0)}" stroke-dashoffset="-60" filter="url(#glow)" opacity=".8"/></g>`;
+}
+function alertPill(x, y, text, col) {
+  return `<g transform="translate(${x} ${y})"><rect width="${text.length * 7.6 + 30}" height="20" rx="10" fill="rgba(255,180,84,.12)" stroke="${col}" filter="url(#glow)"><animate attributeName="stroke-opacity" values="1;.35;1" dur="1.6s" repeatCount="indefinite"/></rect>
+    <circle cx="12" cy="10" r="3.5" fill="${col}"><animate attributeName="opacity" values="1;.2;1" dur="1.6s" repeatCount="indefinite"/></circle><text x="22" y="14" font-size="9.5" letter-spacing="2.6" fill="${col}" style="font-weight:500">${text}</text></g>`;
+}
+const EKG_DUR = { radiant: 3.2, content: 2.8, steady: 2.4, restless: 1.9, strained: 1.4, fraying: 1.0 };
+
+/* ---- per-screen widget groups ---- */
+function shipPanels() {
+  const c = crewById[sel], m = S.moodOf(c.mood), col = MOODC[m.id], sy = S.ship.systems;
+  let s = panel(290, 468, 232, 124, 12) + lcTab(304, 476, 112, "POWER GRID") +
+    [["ENG", sy.engines], ["SHD", sy.shields], ["LIF", sy.life], ["SNS", sy.sensors]].map(([n, v], i) => vSlider(318 + i * 42, 504, 56, v, n, v < 0.55 ? LC.ro : v < 0.8 ? LC.am : LC.cy, 9)).join("") +
+    knob(478, 540, 18, 0.62, "TRIM", LC.vi) + `<text class="num" x="508" y="486" text-anchor="end">${pct(sy.engines)} eng</text>`;
+  s += panel(534, 468, 232, 124, 12) + lcTab(548, 476, 126, "BIO · " + c.name.replace("Dr. ", "").split(" ")[0].toUpperCase(), LC.ro) + scope(548, 502, 204, 52, { kind: "ekg", dur: EKG_DUR[m.id], amp: 0.8, col, beats: 2, seed: 9 }) +
+    `<text x="552" y="578" font-size="11" fill="${col}" style="font-weight:500;letter-spacing:.12em">${{ radiant: "RESTED", content: "STEADY", steady: "NOMINAL", restless: "ELEVATED", strained: "STRESSED", fraying: "CRITICAL" }[m.id]}</text>${ico("heart", 740, 574, 0.6, col, 1.4)}<text class="num" x="728" y="578" text-anchor="end">pulse ${Math.round(60 / (EKG_DUR[m.id] / 2))}</text>`;
+  s += panel(778, 468, 212, 124, 12) + lcTab(792, 476, 140, "ENGINE HARMONICS", LC.vi) + spectrum(792, 500, 184, 46, 16, { seed: 11, rough: sy.engines < 0.6 ? 0.55 : 0.15 }) +
+    toggles(792, 556, [1, 1, 0, 1, 0], ["INJ", "CPL", "AUX", "REG", "OVR"]) + lamps(960, 556, 2, 2, 7, LC.am);
+  return s;
+}
+function marketWidgets() {
+  let s = lcElbow(40, 392, 190, 124, 14, LC.am) + `<text x="102" y="403" font-size="8" letter-spacing="2.4" style="fill:${LC.ink};font-weight:600">TRADE CONSOLE</text>` +
+    lcButton(70, 414, 160, "BUY", LC.pe, "04-7") + lcButton(70, 436, 160, "SELL", LC.am, "12-1") + lcButton(70, 458, 160, "HAGGLE", LC.vi, "07-3") + lcButton(70, 480, 160, "APPRAISE", LC.ro, "19-9");
+  // quantity dial + offer slider
+  s += knob(84, 580, 22, S.goodById.med.held / 8, "QUANTITY", LC.am);
+  s += `<text class="cap" x="150" y="556" style="font-size:7.5px">OFFER</text><rect x="150" y="566" width="84" height="8" rx="4" fill="#0a1a26" stroke="#2c4f60"/><rect x="178" y="566" width="26" height="8" fill="rgba(109,240,194,.3)"/><rect x="192" y="561" width="12" height="18" rx="3" fill="${LC.ink}" stroke="${C.ice}" stroke-width="1.4" filter="url(#glow)"/>
+    <text class="cap" x="150" y="592" style="font-size:6.5px">FAIR</text><text class="cap" x="234" y="592" text-anchor="end" style="font-size:6.5px">GREEDY</text>` + toggles(144, 612, [1, 0, 1], ["ESC", "INS", "AUTO"]);
+  s += lamps(60, 660, 8, 2, 3, LC.cy);
+  // hail: speech waveform + tuner
+  s += panel(1030, 466, 210, 66, 10) + lcTab(1040, 472, 132, "HAIL · COMPACT", LC.vi) + scope(1042, 494, 130, 30, { kind: "noisy", dur: 2.2, amp: 0.8, col: C.mint, beats: 5, seed: 21 }) + knob(1204, 508, 11, 0.55, "", LC.vi);
+  // traffic radar
+  s += radar(1190, 616, 46, [[0.8, 0.5], [2.4, 0.7, LC.cy], [3.9, 0.35], [5.1, 0.82, LC.ro], [1.7, 0.9, LC.cy]]) + `<text class="cap" x="1190" y="678" text-anchor="middle" style="font-size:7.5px">Dock traffic</text>`;
+  s += dataRail(1128, 552, 52, 48, 8, C.cy);
+  return s;
+}
+function exploreWidgets() {
+  const P = S.planet;
+  let s = panel(830, 580, 410, 118, 12) + lcTab(844, 588, 96, "TRICORDER") + lcTab(950, 588, 128, "UNKNOWN SIGNAL", LC.ro);
+  s += scope(844, 612, 220, 44, { kind: "sine", dur: 1.6, amp: 0.8, col: C.vio, beats: 4, seed: 4 }) + `<text class="cap" x="848" y="670" style="font-size:7.5px;fill:${C.vio}">Regular · not natural</text>`;
+  // atmosphere: segmented bars
+  [["O₂".replace("₂", "2"), 0.78, C.mint], ["PRS", 0.4, C.cy], ["TMP", 0.22, C.am]].forEach(([n, v, c], i) => { const y = 612 + i * 17;
+    s += `<text class="cap" x="1082" y="${y + 9}" style="font-size:7.5px">${n}</text>` + Array.from({ length: 10 }, (_, k) => `<rect x="${1108 + k * 9}" y="${y}" width="7" height="10" rx="1.5" fill="${(k + 1) / 10 <= v ? c : "#12293a"}" opacity=".85"/>`).join("") + `<text class="num" x="1206" y="${y + 9}">${pct(v)}</text>`; });
+  s += knob(1218, 640, 12, 0.7, "", LC.am) + toggles(1082, 668, [1, 0, 1, 1], ["GRV", "EMI", "BIO", "SPC"]);
+  s += dataRail(1170, 611, 44, 52, 13, C.vio);
+  // surface radar: where the points of interest sit relative to the away team
+  s += radar(82, 628, 38, [[5.0, 0.55, C.am], [3.6, 0.35, C.cy], [0.6, 0.6, C.mint], [1.9, 0.5, C.mag], [5.6, 0.85, C.vio]]) + `<text class="cap" x="82" y="682" text-anchor="middle" style="font-size:7.5px">Surface scan</text>`;
+  return s;
+}
 
 /* ======================================================================== SHIP */
 let sel = "tobe";
@@ -267,7 +411,7 @@ function dock() {
       <text class="num" x="${x}" y="${y + 50}" text-anchor="middle">${c.mood.toFixed(2)}</text>
       ${on ? `<text class="cap" x="${x}" y="${y + 68}" text-anchor="middle" style="fill:${C.ice}">${c.name.split(" ").slice(-1)[0]} · ${c.role}</text>` : ""}</g>`;
   });
-  return s + `<text class="cap" x="360" y="590" style="font-size:9px">Crew</text>`;
+  return s + `<text class="cap" x="352" y="644" style="font-size:9px">Crew</text>`;
 }
 function crewCard() {
   const c = crewById[sel], m = S.moodOf(c.mood), col = MOODC[m.id], h = HIST[c.id];
@@ -291,12 +435,12 @@ function crewCard() {
 function shipScreen() {
   const t = crewById.tobe;
   return `${bg()}${hud("Vesper · Day 214")}
-  ${attention("Engines are straining — Tobe has worked three shifts straight.")}
+  ${attention("Engines are straining — Tobe has worked three shifts straight.")}${alertPill(560, 88, "CONDITION YELLOW", LC.am)}
   <g transform="translate(62 150) scale(.94)">
-    ${hullShape()}${roomShapes()}${props()}${conduits()}
+    ${shieldBubble()}${hullShape()}${roomShapes()}${props()}${conduits()}
     ${S.crew.map((c) => figure(c, c.id === sel)).join("")}${threads()}
   </g>
-  ${miniMap()}${dock()}${crewCard()}
+  ${miniMap()}${shipPanels()}${dock()}${crewCard()}
   <g class="btn" transform="translate(1000 622)"><rect width="240" height="54" rx="27" fill="rgba(94,231,255,.08)" stroke="${C.cy}" filter="url(#glow)"/>
     ${ico("move", 40, 27, 1, C.cy)}<text x="64" y="32" font-size="14" letter-spacing="4" style="font-weight:400">PLOT JUMP</text></g>
   ${overlay()}`;
@@ -375,6 +519,7 @@ function marketScreen() {
       ${r.risk > 0.6 ? ico("hazard", dx + 150, dy, 0.55, C.mag) : ""}
       <text class="num" x="${dx + 190}" y="${dy + 4}">profit ${pct(r.profit)} · risk ${pct(r.risk)}</text></g>`;
   });
+  s += marketWidgets();
   return s + overlay();
 }
 
@@ -467,6 +612,7 @@ function exploreScreen() {
   [["scan", "Scan"], ["move", "Move"], ["sample", "Sample"], ["talk", "Talk"], ["recall", "Recall"]].forEach(([ic, n], i) => {
     s += `<g class="btn" transform="translate(${230 + i * 118} 636)"><rect width="106" height="42" rx="21" fill="rgba(94,231,255,.07)" stroke="${C.cy}" stroke-opacity=".7"/>${ico(ic, 26, 21, 0.62, C.cy)}<text x="46" y="26" font-size="12" letter-spacing="1">${n}</text></g>`;
   });
+  s += exploreWidgets();
   return s + overlay();
 }
 
