@@ -651,8 +651,8 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     `.game.push()` is handy for headless tests.
 - **Chibi Crawl** (`src/chibi-crawl.js`) — an isometric, cutesy-chibi **party
   auto-battler** on three.js (DOM HUD, three imported on demand like Slopeman),
-  the **Featured marquee on menu page 1** (and, as a plain button, alone on the
-  last page, 5). A first-draft *lab*: it opens on a **world map** (below); tapping a town
+  formerly the Featured marquee (now Tiny Haulers'; its button is on the last
+  page, 5). A first-draft *lab*: it opens on a **world map** (below); tapping a town
   starts a 3-encounter trip, a loop of **run → sight → intro → battle →
   victory/wipe → run** that ends in an arrival beat and back to the map, with
   most design questions
@@ -1019,6 +1019,73 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   - **Not done yet** (obvious next steps): audio, player agency (formation
     drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
     colour-blind-safe damage palette.
+- **Tiny Haulers** (`src/tiny-haulers.js` + `src/tiny-haulers/sim.js`) — a
+  cosy logistics sim on three.js, and the **Featured marquee on menu page 1**
+  (plus a plain button on page 5). An experiment in whether *managing* a fleet
+  is more fun than driving: you never steer. Two small towns joined by a country
+  highway — **Maplewood** (3x3 grid, brick cottages, autumn maples, **all-way
+  stop signs**) and **Seabright** (back street + curved shore road, pastel beach
+  houses, palms, the sea, **traffic lights**). Pick routes off a job board and
+  assign them to trucks; drivers do the rest.
+  - **Split for testing.** `sim.js` is pure logic (UMD: `window.TinyHaulersSim`
+    in the browser, `module.exports` under Node) — road graph, traffic, jobs,
+    economy, save/load. `test/tiny-haulers.test.js` drives it with
+    `node --test test/` (~0.6s, 15 tests: routing/connectivity, conflict
+    geometry, job generation, pay curve, a truck completing a job, queueing,
+    buying, signals, a 15-minute traffic soak asserting no collisions and no
+    gridlock, and a mid-job save/load round trip). Run it after touching sim.js.
+    The renderer file is view + DOM HUD + title + slots only.
+  - **Roads.** Nodes + undirected edges (`mapSpec`); each edge has one lane per
+    direction keyed `"a>b"`, right-hand traffic, lanes inset from nodes. Crossing
+    a node is a **move**: a quadratic curve from the incoming lane's end to the
+    outgoing lane's start. Move **conflicts are computed from the curves'
+    geometry** (polylines closer than 1.0, or the same exit lane), so any
+    layout gets correct crossing rules for free. The map is a shared singleton
+    (`getMap`); `World` resets its per-tick traffic state, so only one World may
+    be live at a time (the title screen's demo world is discarded on New/Load).
+  - **Traffic.** IDM car-following (`lookAhead` walks the route through lanes
+    and moves for the nearest vehicle / un-granted stop line / curb target).
+    Controlled nodes (degree >= 3) need a **grant**: given only when no
+    *reserved* vehicle's move conflicts and the exit lane has room (no blocking
+    the box). Stop signs: full stop, then first-come-first-served among
+    conflicting waiters (FIFO is waived after 6s so nothing deadlocks). Lights:
+    two axes, green/yellow/all-red, **actuated** — a green with nobody coming
+    ends early when someone waits at red. Drivers **re-plan at every lane**
+    with congestion-weighted costs (`laneCost`), so they route around queues.
+    Parking is off-lane at the curb; pulling out waits for a safe gap
+    (`tryDepart`). Emotes are sim events: honk when stuck behind someone, wave
+    at stop signs, "!" on hard braking, "…" waiting to merge.
+  - **Vehicle budget.** 8 ambient cars (3 per town + 2 that travel between
+    them) plus 1–5 trucks — kept small on purpose, with towns sized so three
+    cars in one feels busy.
+  - **Economy.** Board of 5 jobs (`genJob`): one producer's goods (Maplewood:
+    bread/lumber/honey; Seabright: fish/ice cream/taffy) to 1–4 consumer stops
+    in the same or the other town, ordered greedily. Pay grows faster than
+    linearly with stops, plus distance and a cross-town bonus (`jobPay`), paid
+    per stop; an **on-time bonus** (30%) needs the route done inside its
+    deadline, **measured from pickup** (so a busy or distant truck isn't
+    punished). A greedy bot is on time ~60% — traffic is what decides it. Busy
+    trucks queue up to 2 jobs. Trucks cost 400/650/900/1250 (max 5), $20/day
+    upkeep, fuel per unit driven; a day is 180s (6am–10pm clock).
+  - **Saves.** Three `localStorage` slots (`tiny-haulers-slot-1..3`), each a
+    `World.serialize()` blob with a `summary` for the slot cards. Trucks resume
+    from the curb where they were (mid-job included); ambient cars respawn.
+    Title screen: New / Continue (latest slot) / Load / Fantasia menu; in game:
+    💾 and ☰ (Resume / Save / Load / Title / Fantasia menu).
+  - **Art: Meshy** (another exception to no-external-assets): 24 models in
+    `src/tiny-haulers/models/` made as concept image → smart-topology
+    image-to-3D → 512px WebP + quantized GLB; pipeline, prompts, task ids and
+    credits in `experiments/tiny-haulers-art/README.md`. Vehicles were generated
+    **white** and `tintMaterial` recolours only near-white unsaturated texels,
+    so each truck/car keeps its colour; materials are swapped for the shared
+    toon ramp; trees are InstancedMeshes. Every model is optional (primitive
+    fallbacks remain; `?art=0` forces them). `marquee.webp` is the tinted truck
+    rendered by `experiments/tiny-haulers-art/marquee.html`.
+  - **Headless.** `window.tinyHaulersGame.game` is the `Game`; `.world` the
+    sim (`step(dt)`, `acceptJob`, `buyTruck`, `serialize`). SwiftShader runs at
+    a few fps, so snap the camera before screenshots
+    (`g.cam.x = g.cam.tx; g.cam.z = g.cam.tz; g.cam.zoom = g.cam.tzoom`).
+    `destroy()` takes no arguments.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -1046,6 +1113,10 @@ src/planetary-tycoon.js  Planetary Manufacturing Tycoon incremental factory game
 src/greenlit.js        Greenlit Reigns-style game-dev card game (DOM overlay); window.launchGreenlit()
 src/the-button.js      The Button — all-juice button pusher (DOM + 2 canvases, WebAudio); window.launchTheButton()
 src/chibi-crawl.js     Chibi Crawl isometric chibi party auto-battler (three.js, DOM HUD); window.launchChibiCrawl()
+src/tiny-haulers.js    Tiny Haulers logistics sim view/HUD/title/saves (three.js); window.launchTinyHaulers()
+src/tiny-haulers/sim.js  Tiny Haulers simulation core (no rendering; also require()-able from Node)
+src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
+test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
 vendor/three.module.min.js  three.js r160 ES module (vendored; imported on demand)
@@ -1055,6 +1126,7 @@ experiments/           Scratch prototypes kept out of the deploy's copy step; ne
 experiments/neon-ledger/  NEON//LEDGER: local-only Python/Streamlit personal-finance analyser (not a game; ./run.sh; see its README)
 experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules sim + balance sweeps, printable PDFs in dist/, Meshy mini prompts); not deployed
 experiments/chibi-level-art/  Meshy generate + bake pipeline and prop viewer for Chibi Crawl's level art
+experiments/tiny-haulers-art/  Meshy concept->3D pipeline, prompts, task ids and model viewer for Tiny Haulers
 experiments/chibi-hero-art/  Chibi Crawl's rigged Meshy heroes: prompts, task ids, bake_hero.py (GLBs ship in src/chibi-crawl/heroes/)
 experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real model (node experiments/greenlit-balance/sweep.js)
 experiments/starship-ui/  Starship UI: nine mockups (Hologlass / Atomic Age / Pixel Bridge x ship / trade hub / exploration) for a sci-fi crew+trade+exploration management game; shared state, SVG + canvas skins, shoot.js regenerates shots; not deployed
@@ -1170,8 +1242,9 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   (dim set + two lit sets blinking in antiphase, all CSS gradients with
   `background-repeat: round` so bulbs never clip), neon title, Sir Fish from
   Chibi Crawl's map art, and a Play Now pill; `prefers-reduced-motion` freezes
-  it. It currently features **Chibi Crawl**; to feature another game, change the
-  button's copy and its click handler (the game's regular button stays on its
+  it. It currently features **Tiny Haulers** (image: `src/tiny-haulers/marquee.webp`;
+  Chibi Crawl held the spot before it); to feature another game, change the
+  button's copy, image and click handler (the game's regular button stays on its
   list page too). Pages 2–5 are the game lists. Every page sits in one grid
   cell (so the carousel is as tall as its tallest page) and slides by
   `translateX((--i - --cur) * 120%)`; `--cur` comes from
@@ -1185,7 +1258,8 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
-  `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`);
+  `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`,
+  `launchTinyHaulers`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
@@ -1193,12 +1267,12 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
   `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame` /
-  `chibiCrawlGame`) and
+  `chibiCrawlGame` / `tinyHaulersGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
   see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
-  `indieGrindGame`, `slopemanGame`, `greenlitGame`, `theButtonGame` and
-  `chibiCrawlGame`, whose handles take a plain `destroy()`.
+  `indieGrindGame`, `slopemanGame`, `greenlitGame`, `theButtonGame`,
+  `chibiCrawlGame` and `tinyHaulersGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
@@ -1236,5 +1310,6 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 - `node --check src/game.js` (syntax) and, for workflow edits,
   validate the YAML.
+- `node --test test/` (unit tests; currently Tiny Haulers' simulation).
 - Prefer a quick headless render to confirm no runtime errors when you touch
   `src/game.js`.

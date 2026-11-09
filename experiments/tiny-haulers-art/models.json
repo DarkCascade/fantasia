@@ -1,0 +1,122 @@
+[
+ {
+  "name": "truck",
+  "subject": "a tiny chibi delivery box truck with a short rounded white cab, a light blue windshield, a big boxy white cargo box on the back, round yellow headlights and four chunky black wheels",
+  "poly": 3000
+ },
+ {
+  "name": "car0",
+  "subject": "a tiny chibi rounded hatchback car with a white body, light blue windows, round headlights and four chunky black wheels",
+  "poly": 2000
+ },
+ {
+  "name": "car1",
+  "subject": "a tiny chibi retro camper van with a white body, light blue windows, round headlights and four chunky black wheels",
+  "poly": 2000
+ },
+ {
+  "name": "car2",
+  "subject": "a tiny chibi round bubble car with a white egg-shaped body, a light blue glass top and four small black wheels",
+  "poly": 2000
+ },
+ {
+  "name": "cottage_a",
+  "subject": "a tiny cozy cottage with red brick walls, a steep orange tiled gable roof, a chimney, a round wooden front door and two windows with flower boxes",
+  "poly": 3000
+ },
+ {
+  "name": "cottage_b",
+  "subject": "a tiny cozy cottage with cream timber-framed walls, a dark brown shingle gable roof, a green front door, small windows and a little porch",
+  "poly": 3000
+ },
+ {
+  "name": "shop_m",
+  "subject": "a tiny village corner shop with cream walls, a red and white striped awning over a big front window, a wooden front door and a small blank sign board, flat roof",
+  "poly": 3000
+ },
+ {
+  "name": "bakery",
+  "subject": "a tiny village bakery with warm yellow walls, a brown gable roof with a chimney, a red striped awning over the front window and a giant loaf of bread sign on the roof",
+  "poly": 3000
+ },
+ {
+  "name": "sawmill",
+  "subject": "a tiny rustic red wooden sawmill barn with a dark roof, big open front doors, a small stack of logs beside it and a round saw blade",
+  "poly": 3000
+ },
+ {
+  "name": "apiary",
+  "subject": "a tiny honey farm shed with yellow walls and a brown roof, three stacked white and yellow wooden beehive boxes beside the door and a honey pot sign",
+  "poly": 3000
+ },
+ {
+  "name": "hq",
+  "subject": "a tiny delivery company depot garage with teal walls, a big roll-up garage door, a plain yellow sign board above the door, a small office door and a flat roof",
+  "poly": 3000
+ },
+ {
+  "name": "maple",
+  "subject": "a small round autumn maple tree with a short brown trunk and one big fluffy orange and red leafy canopy",
+  "poly": 800
+ },
+ {
+  "name": "beach_a",
+  "subject": "a tiny pastel mint green two storey beach house with white trim, a flat white roof, big windows, a white front door and a little wooden porch",
+  "poly": 3000
+ },
+ {
+  "name": "beach_b",
+  "subject": "a tiny pastel pink seaside cottage with white wooden trim, a light blue roof, a round porthole window and a white front door with steps",
+  "poly": 3000
+ },
+ {
+  "name": "shop_s",
+  "subject": "a tiny seaside boardwalk shop with pastel blue walls, a pink and white striped awning, a big front window, a white door and a flat roof with a small blank sign",
+  "poly": 3000
+ },
+ {
+  "name": "fishmarket",
+  "subject": "a tiny seaside fish market shed with light blue wooden walls, a dark blue gable roof, an open front counter with fish on ice and a big fish sign on the roof",
+  "poly": 3000
+ },
+ {
+  "name": "icecream",
+  "subject": "a tiny pastel pink ice cream parlour with white trim, a pink and white striped awning and a giant ice cream cone sign on the roof",
+  "poly": 3000
+ },
+ {
+  "name": "taffy",
+  "subject": "a tiny candy factory with pink and white candy striped walls, a purple roof, a small chimney and a big wrapped candy sign",
+  "poly": 3000
+ },
+ {
+  "name": "lighthouse",
+  "subject": "a small red and white striped lighthouse with a glass lantern room and a red cap on a small rocky base",
+  "poly": 2500
+ },
+ {
+  "name": "palm",
+  "subject": "a small palm tree with a gently curved trunk and a few bright green fronds",
+  "poly": 800
+ },
+ {
+  "name": "inn",
+  "poly": 3000,
+  "subject": "a tiny cozy two storey village inn with cream timber-framed walls, a red tiled gable roof, a hanging wooden sign, a wooden front door and window boxes with flowers"
+ },
+ {
+  "name": "school",
+  "poly": 3000,
+  "subject": "a tiny little red village schoolhouse with white trim, a small bell tower on the roof, a white front door with steps and tall windows"
+ },
+ {
+  "name": "hotel",
+  "poly": 3000,
+  "subject": "a tiny pastel yellow seaside hotel with white balconies, a light blue flat roof with a small sign, a white front door and striped window awnings"
+ },
+ {
+  "name": "cafe",
+  "poly": 3000,
+  "subject": "a tiny pastel seafoam green seaside cafe with white trim, a mint and white striped awning, a big front window and one small table with an umbrella beside the door, flat roof"
+ }
+]

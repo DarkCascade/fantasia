@@ -534,16 +534,16 @@
           <!-- Featured: the headliner gets the whole front page. To feature a
                different game, change this button's label/copy and its click
                handler below. -->
-          <button id="btn-featured" class="marquee" type="button" aria-label="Featured: Chibi Crawl. Play now">
+          <button id="btn-featured" class="marquee" type="button" aria-label="Featured: Tiny Haulers. Play now">
             <span class="marquee-awning" aria-hidden="true"></span>
             <span class="marquee-board">
               <span class="marquee-bulbs marquee-bulbs--off" aria-hidden="true"></span>
               <span class="marquee-bulbs marquee-bulbs--a" aria-hidden="true"></span>
               <span class="marquee-bulbs marquee-bulbs--b" aria-hidden="true"></span>
               <span class="marquee-kicker">&#9733; Now Showing &#9733;</span>
-              <img class="marquee-fish" src="src/chibi-crawl/map/sir-fish.webp" alt="" draggable="false" />
-              <span class="marquee-title">Chibi<br />Crawl</span>
-              <span class="marquee-sub">Guard Sir Fish&rsquo;s wagon across the Turning Wilds</span>
+              <img class="marquee-fish" src="src/tiny-haulers/marquee.webp" alt="" draggable="false" />
+              <span class="marquee-title">Tiny<br />Haulers</span>
+              <span class="marquee-sub">Run a cosy delivery company across two little towns</span>
               <span class="marquee-cta">&#9654; Play Now</span>
             </span>
           </button>
@@ -603,6 +603,9 @@
           <button id="btn-chibicrawl" class="menu-btn menu-btn--secondary" type="button">
             Chibi Crawl
           </button>
+          <button id="btn-tinyhaulers" class="menu-btn menu-btn--secondary" type="button">
+            Tiny Haulers
+          </button>
         </div>
       </div>
     </div>
@@ -633,6 +636,10 @@
   <script src="src/the-button.js"></script>
   <!-- Imports three.js (+ BufferGeometryUtils) on demand, same as slopeman.js. -->
   <script src="src/chibi-crawl.js"></script>
+  <!-- Tiny Haulers: the simulation core (also unit-tested under Node) and the
+       three.js view, which imports three.js on demand like the others. -->
+  <script src="src/tiny-haulers/sim.js"></script>
+  <script src="src/tiny-haulers.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -730,14 +737,19 @@
         if (typeof window.launchTheButton === "function") window.launchTheButton();
       });
 
-      // Chibi Crawl is launched from both its own button (last page) and the
-      // Featured marquee on page 1.
-      function playChibiCrawl() {
+      document.getElementById("btn-chibicrawl").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchChibiCrawl === "function") window.launchChibiCrawl();
+      });
+
+      // Tiny Haulers is launched from both its own button (last page) and the
+      // Featured marquee on page 1.
+      function playTinyHaulers() {
+        hideMenu();
+        if (typeof window.launchTinyHaulers === "function") window.launchTinyHaulers();
       }
-      document.getElementById("btn-chibicrawl").addEventListener("click", playChibiCrawl);
-      document.getElementById("btn-featured").addEventListener("click", playChibiCrawl);
+      document.getElementById("btn-tinyhaulers").addEventListener("click", playTinyHaulers);
+      document.getElementById("btn-featured").addEventListener("click", playTinyHaulers);
 
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying
@@ -763,6 +775,7 @@
           if (window.theButtonGame) { try { window.theButtonGame.destroy(); } catch (e) {} window.theButtonGame = null; }
           if (window.chibiCrawlGame) { try { window.chibiCrawlGame.destroy(); } catch (e) {} window.chibiCrawlGame = null; }
           if (window.greenlitGame) { try { window.greenlitGame.destroy(); } catch (e) {} window.greenlitGame = null; }
+          if (window.tinyHaulersGame) { try { window.tinyHaulersGame.destroy(); } catch (e) {} window.tinyHaulersGame = null; }
         }, 0);
       };
     })();

@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Tiny Haulers marquee render</title>
+<style>body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "../../vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<!-- Renders the truck model, tinted Pip's teal, on a transparent background.
+     Screenshot it (omitBackground) to make src/tiny-haulers/marquee.webp, the
+     Fantasia menu's Featured image. Same body-tint shader as the game. -->
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "../../vendor/jsm/loaders/GLTFLoader.js";
+const W = 480, H = 360;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setSize(W, H);
+r.setClearColor(0x000000, 0);
+r.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(r.domElement);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight("#fff6e5", "#9aa0b0", 1.5));
+const sun = new THREE.DirectionalLight("#fff1d6", 1.8);
+sun.position.set(-2, 5, 4);
+scene.add(sun);
+const cam = new THREE.PerspectiveCamera(28, W / H, 0.1, 50);
+cam.position.set(2.6, 1.5, 3.4);
+cam.lookAt(0, 0.3, 0);
+new GLTFLoader().load("../../src/tiny-haulers/models/truck.glb", (g) => {
+  const o = g.scene;
+  o.traverse((m) => {
+    if (!m.isMesh) return;
+    const mat = new THREE.MeshLambertMaterial({ map: m.material.map });
+    const tint = { value: new THREE.Color("#2ec4b6") };
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTint = tint;
+      sh.fragmentShader = "uniform vec3 uTint;\n" + sh.fragmentShader.replace("#include <map_fragment>",
+        "#include <map_fragment>\n{ vec3 tc = diffuseColor.rgb; float mx = max(tc.r, max(tc.g, tc.b)); float mn = min(tc.r, min(tc.g, tc.b));" +
+        " float sat = (mx - mn) / max(mx, 1e-3); float wh = smoothstep(0.28, 0.55, mx) * (1.0 - smoothstep(0.10, 0.26, sat));" +
+        " diffuseColor.rgb = mix(tc, uTint * min(1.0, mx * 1.2), wh); }");
+    };
+    m.material = mat;
+  });
+  const box = new THREE.Box3().setFromObject(o);
+  const s = box.getSize(new THREE.Vector3());
+  const k = 1.9 / Math.max(s.x, s.z);
+  o.scale.setScalar(k);
+  const c = box.getCenter(new THREE.Vector3());
+  const pivot = new THREE.Group();
+  o.position.set(-c.x * k, -box.min.y * k, -c.z * k);
+  pivot.add(o);
+  pivot.rotation.y = Math.PI / 2 - 0.5; // nose toward the camera's left
+  scene.add(pivot);
+  r.render(scene, cam);
+  document.title = "ready";
+});
+</script>
+</body>
+</html>

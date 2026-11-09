@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Tiny Haulers model viewer</title>
+<style>
+  body { margin: 0; background: #e8f4f8; font: 12px sans-serif; }
+  canvas { display: block; }
+</style>
+<script type="importmap">{ "imports": { "three": "../../vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<!-- Serve the repo root and open /experiments/tiny-haulers-art/viewer.html.
+     Lines every shipped model up in a grid, each normalised to a 1-unit
+     footprint, seen from the front-right like the game camera. The red arrow
+     points along +z: a building's door and a vehicle's nose should face it.
+     ?names=a,b,c limits the set; ?view=front|side|top changes the angle. -->
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "../../vendor/jsm/loaders/GLTFLoader.js";
+const qs = new URLSearchParams(location.search);
+const names = (qs.get("names") || "truck,car0,car1,car2,cottage_a,cottage_b,shop_m,bakery,sawmill,apiary,hq,maple,beach_a,beach_b,shop_s,fishmarket,icecream,taffy,lighthouse,palm").split(",");
+const view = qs.get("view") || "iso";
+const W = innerWidth, H = innerHeight;
+const r = new THREE.WebGLRenderer({ antialias: true });
+r.setSize(W, H);
+r.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(r.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#e8f4f8");
+scene.add(new THREE.HemisphereLight("#fff", "#889", 1.6));
+const sun = new THREE.DirectionalLight("#fff", 1.6);
+sun.position.set(3, 6, 4);
+scene.add(sun);
+const cols = 5, gap = 1.6;
+const rows = Math.ceil(names.length / cols);
+const cam = new THREE.OrthographicCamera(-cols * gap / 2, cols * gap / 2, (rows * gap / 2) * (H / W) * (cols / rows) , -(rows * gap / 2) * (H / W) * (cols / rows), 0.1, 100);
+const span = Math.max(cols * gap, rows * gap * W / H) / 2;
+cam.left = -span; cam.right = span; cam.top = span * H / W; cam.bottom = -span * H / W;
+const dir = view === "front" ? [0, 0.25, 1] : view === "side" ? [1, 0.25, 0] : view === "top" ? [0, 1, 0.001] : [0.8, 0.9, 1];
+cam.position.set(dir[0] * 30, dir[1] * 30, dir[2] * 30);
+cam.lookAt(0, 0, 0);
+cam.updateProjectionMatrix();
+const loader = new GLTFLoader();
+let done = 0;
+names.forEach((n, i) => {
+  const gx = (i % cols - (cols - 1) / 2) * gap, gz = (Math.floor(i / cols) - (rows - 1) / 2) * gap;
+  const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(gx, 0.01, gz), 0.7, 0xff3355, 0.15, 0.1);
+  scene.add(arrow);
+  loader.load("../../src/tiny-haulers/models/" + n + ".glb", (g) => {
+    const o = g.scene;
+    const box = new THREE.Box3().setFromObject(o);
+    const s = box.getSize(new THREE.Vector3());
+    const k = 1 / Math.max(s.x, s.z);
+    o.scale.setScalar(k);
+    const c = box.getCenter(new THREE.Vector3());
+    o.position.set(gx - c.x * k, -box.min.y * k, gz - c.z * k);
+    scene.add(o);
+    if (++done === names.length) { r.render(scene, cam); document.title = "ready"; }
+  }, undefined, () => { if (++done === names.length) { r.render(scene, cam); document.title = "ready"; } });
+});
+</script>
+</body>
+</html>
