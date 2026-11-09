@@ -1817,6 +1817,10 @@
     this.selected = id;
     this.follow = !!follow;
     this.routeT = 0;
+    if (follow) {
+      this.viewName = null;
+      this.markView();
+    }
   };
 
   /* ---------- camera ---------- */
