@@ -596,11 +596,11 @@
       var rel2 = function () { node.classList.remove("down"); };
       self.on(node, "pointerup", rel2); self.on(node, "pointercancel", rel2); self.on(node, "pointerleave", rel2);
     }
-    btn(el.atk, function () { self.wantAtk = 0.3; }); btn(el.skl, function () { self.wantSkl = 0.25; });
+    btn(el.atk, function () { self.wantAtk = 0.3; }); btn(el.skl, function () { self.wantSkl = 0.4; });
     this.on(window, "keydown", function (e) {
       if (e.repeat) return; var k = e.key.toLowerCase(); self.keys[k] = true;
       if (k === "j" || k === " " || k === "z") { self.wantAtk = 0.3; self.sfx.init(); e.preventDefault(); }
-      if (k === "k" || k === "shift" || k === "x") { self.wantSkl = 0.25; self.sfx.init(); }
+      if (k === "k" || k === "shift" || k === "x") { self.wantSkl = 0.4; self.sfx.init(); }
       if ((k === "enter" || k === " ") && self.phase === "title" && self.ready) self.begin();
       if (k === "r" && self.phase === "end") self.restart();
     });
@@ -629,7 +629,7 @@
     this.cutF.fill(1);
     this.phase = "title"; this.ready = true;
     this.clearTele(); this.updHud(true);
-    this.el.go.textContent = COARSE ? "tap to begin" : "click or press enter";
+    this.el.go.innerHTML = COARSE ? "tap to begin" : "click or press enter<br><br><span style='opacity:.6;font-size:.8em'>WASD move · J attack · K moonstep</span>";
   };
   Game.prototype.begin = function () {
     var self = this; this.phase = "intro"; this.introT = 0; this.el.card.classList.add("off"); this.bars.classList.add("on");
@@ -692,7 +692,7 @@
     this.updHud(); return true;
   };
   Game.prototype.perfectDodge = function () {
-    var h = this.hero; h.perfect = true; h.emp = 4.5; h.dashCd = 0.4; this.slow = 0.55;
+    var h = this.hero; h.perfect = true; h.emp = 4.5; h.dashCd = 0.4; this.slow = 0.55; h.hp = Math.min(HERO.hp, h.hp + 8);
     this.num(h.x, h.y + 2.4, h.z, "MOONSTEP", "txt"); this.sfx.chime();
     this.spark(h.x, h.y + 1, h.z, 26, 6, 1.2, 1.8, 2.6, 0.7, 0);
   };

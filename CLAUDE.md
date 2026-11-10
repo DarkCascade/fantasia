@@ -1115,7 +1115,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     beam strikes). Hits build **posture** (the thin bar under the Souls-style
     boss bar with its delayed damage ghost); full posture = a stagger window
     with x1.5 damage. Dashing *through* a hit is a **perfect dodge**: slow-mo,
-    cooldown refund and 4.5s of x1.6 empowered hits. Feel comes from hit-stop
+    cooldown refund, +8 life and 4.5s of x1.6 empowered hits. Feel comes from hit-stop
     (`hitstop`), slow-mo (`slow`), a trauma shake, sparks, clippings and
     synthesised WebAudio (`Sfx`).
   - **Art is Meshy** (another exception to no-external-assets): the hero and
