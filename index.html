@@ -606,6 +606,9 @@
           <button id="btn-tinyhaulers" class="menu-btn menu-btn--secondary" type="button">
             Tiny Haulers
           </button>
+          <button id="btn-hollowmoon" class="menu-btn menu-btn--secondary" type="button">
+            Hollow Moon
+          </button>
         </div>
       </div>
     </div>
@@ -640,6 +643,7 @@
        three.js view, which imports three.js on demand like the others. -->
   <script src="src/tiny-haulers/sim.js"></script>
   <script src="src/tiny-haulers.js"></script>
+  <script src="src/hollow-moon.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -751,6 +755,11 @@
       document.getElementById("btn-tinyhaulers").addEventListener("click", playTinyHaulers);
       document.getElementById("btn-featured").addEventListener("click", playTinyHaulers);
 
+      document.getElementById("btn-hollowmoon").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchHollowMoon === "function") window.launchHollowMoon();
+      });
+
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying
       // mid-callback).
@@ -776,6 +785,7 @@
           if (window.chibiCrawlGame) { try { window.chibiCrawlGame.destroy(); } catch (e) {} window.chibiCrawlGame = null; }
           if (window.greenlitGame) { try { window.greenlitGame.destroy(); } catch (e) {} window.greenlitGame = null; }
           if (window.tinyHaulersGame) { try { window.tinyHaulersGame.destroy(); } catch (e) {} window.tinyHaulersGame = null; }
+          if (window.hollowMoonGame) { try { window.hollowMoonGame.destroy(); } catch (e) {} window.hollowMoonGame = null; }
         }, 0);
       };
     })();

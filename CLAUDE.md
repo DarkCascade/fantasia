@@ -1086,6 +1086,56 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     a few fps, so snap the camera before screenshots
     (`g.cam.x = g.cam.tx; g.cam.z = g.cam.tz; g.cam.zoom = g.cam.tzoom`).
     `destroy()` takes no arguments.
+- **Hollow Moon** (`src/hollow-moon.js`) — an artistic **one-fight ARPG** on
+  three.js (DOM HUD, three imported on demand), last button on menu page 5. A
+  moonlit hilltop of tall wind-blown grass, a lone duelist, one boss ("The
+  Antlered Vigil"), and nothing else — the scope is the duel. Built in a
+  one-hour sprint, so it is a compact single file.
+  - **Controls.** The bottom-left half of the screen is the movement zone: a
+    drag there spawns a **floating joystick** at the touch point (the base
+    trails the thumb past its radius). Bottom-right: a big circular **attack**
+    button (3-hit combo, taps are buffered) and a smaller **skill** button
+    (Moonstep: an invulnerable dash-slash on a `HERO.dashCd` cooldown shown as
+    a conic sweep). Keys: WASD/arrows, J/Space/Z attack, K/Shift/X skill. The
+    camera never rotates, so stick directions are screen directions. Attacks
+    auto-face the boss inside 8.5 units (soft lock).
+  - **The grass is the UI.** One `InstancedBufferGeometry` draw call (110k
+    blades desktop / 46k touch, `?hmgrass=N`) with a custom shader: layered
+    wind gusts, blades pushed aside by `uPush` (hero, boss, a transient), a
+    128x128 **cut map** (`cut`/`cutArc` write `cutF`, `regrow` restores it;
+    slashes mow arcs, the slam flattens a disc, the charge parts a lane), and
+    **every boss telegraph is painted into the blade tips** by the shared
+    `TELE_GLSL` (`uCirc[8]`, cone, line, ring) — ground decals would be hidden
+    by the grass. Grid coords are world coords; `hill(x,z)` is the dome.
+  - **Boss** (`updBoss`, a state machine; `bossSet(state)` is the only way to
+    change state): **sweep** (cone telegraph; twice in phase 2), **leap** (a
+    tracked circle, a slam, then an expanding **shockwave ring** you dash
+    through), **charge** (line telegraph, then a rush), and at half health a
+    **roar** into phase 2 (wind and moon turn, shorter cooldowns, **moonfall**
+    beam strikes). Hits build **posture** (the thin bar under the Souls-style
+    boss bar with its delayed damage ghost); full posture = a stagger window
+    with x1.5 damage. Dashing *through* a hit is a **perfect dodge**: slow-mo,
+    cooldown refund and 4.5s of x1.6 empowered hits. Feel comes from hit-stop
+    (`hitstop`), slow-mo (`slow`), a trauma shake, sparks, clippings and
+    synthesised WebAudio (`Sfx`).
+  - **Art is Meshy** (another exception to no-external-assets): the hero and
+    boss are text-to-3D, auto-rigged GLBs in `src/hollow-moon/` (`hero.glb`,
+    `foe.glb`, ~1.6 MB each) plus one tiny animation-only GLB per clip
+    (`hero-slash1.glb`, `foe-leap.glb`, ...; only quaternion tracks are kept,
+    so clips never move the root — all motion is code). Clips are timed to the
+    code's attack timings with `play(name, {dur})`, never the reverse.
+    Weapons (moon blade, scythe), the antlers and eyes are glowing primitives
+    that follow the hand/head bones. Any missing file, or `?art=0`, falls back
+    to primitive capsules. Pipeline, prompts and task ids:
+    `experiments/hollow-moon-art/README.md` (`bake.py` strips Meshy's GLBs).
+  - **Look.** `EffectComposer` bloom (`?hmbloom=0` off) over HDR-coloured
+    emitters; a shader sky with a giant low moon; `rage` (phase 2) blends sky,
+    moon, light and grass toward blood-red. Touch devices get the low tier
+    (no AA, pixel ratio <= 1.25, fewer blades); `?hmq=low|high` forces one.
+  - **Headless.** `window.hollowMoonGame.game` is the `Game`; set
+    `g.paused = true` and drive `g.step(1/30)` then `g.render(0.03)`;
+    `g.snapCam = true` snaps the camera; `g.begin()` starts the intro,
+    `g.bossSet("leap")` stages an attack. `destroy()` takes no arguments.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -1116,6 +1166,8 @@ src/chibi-crawl.js     Chibi Crawl isometric chibi party auto-battler (three.js,
 src/tiny-haulers.js    Tiny Haulers logistics sim view/HUD/title/saves (three.js); window.launchTinyHaulers()
 src/tiny-haulers/sim.js  Tiny Haulers simulation core (no rendering; also require()-able from Node)
 src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
+src/hollow-moon.js      Hollow Moon one-fight artistic ARPG (three.js, DOM HUD); window.launchHollowMoon()
+src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
@@ -1128,6 +1180,7 @@ experiments/glimmerdark/  GLIMMERDARK: tabletop game for a standard deck (rules 
 experiments/chibi-level-art/  Meshy generate + bake pipeline and prop viewer for Chibi Crawl's level art
 experiments/tiny-haulers-art/  Meshy concept->3D pipeline, prompts, task ids and model viewer for Tiny Haulers
 experiments/chibi-hero-art/  Chibi Crawl's rigged Meshy heroes: prompts, task ids, bake_hero.py (GLBs ship in src/chibi-crawl/heroes/)
+experiments/hollow-moon-art/  Hollow Moon's Meshy prompts, task ids, credit tally and bake.py
 experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real model (node experiments/greenlit-balance/sweep.js)
 experiments/starship-ui/  Starship UI: nine mockups (Hologlass / Atomic Age / Pixel Bridge x ship / trade hub / exploration) for a sci-fi crew+trade+exploration management game; shared state, SVG + canvas skins, shoot.js regenerates shots; not deployed
 experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowing glass-orb spray with flame tails (see its README); not deployed
@@ -1259,7 +1312,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
   `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`,
-  `launchTinyHaulers`);
+  `launchTinyHaulers`, `launchHollowMoon`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
@@ -1267,12 +1320,12 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
   `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame` /
-  `chibiCrawlGame` / `tinyHaulersGame`) and
+  `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
   see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
   `indieGrindGame`, `slopemanGame`, `greenlitGame`, `theButtonGame`,
-  `chibiCrawlGame` and `tinyHaulersGame`, whose handles take a plain `destroy()`.
+  `chibiCrawlGame`, `tinyHaulersGame` and `hollowMoonGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
