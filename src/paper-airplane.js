@@ -59,6 +59,9 @@
   const TUBE_R = 20; // mail-tube mouth radius
   const TUBE_MIN_SPEED = 380; // a tube never lets the plane out slower than this
   const SHELF_DEPTH = 12; // a one-way shelf only catches a falling plane within this many px of its top
+  const CAM_LEAD = 150; // scrolling levels: the resting plane sits this far from the left screen edge
+  const CAM_AHEAD = 0.36; // ...and in flight the camera keeps it this fraction of the screen from the left
+  const CAM_RATE = 6; // camera ease (1/s)
   const STALL_RADIUS = 40;
   const STALL_SECONDS = 2;
   const MAX_FLIGHT_SECONDS = 10;
@@ -200,12 +203,24 @@
   // and margin are hand-drawn (seeded wobble), and the page has punched holes
   // unless opts.holes === false.
   function drawPaperBackground(g, opts) {
+    const width = (opts && opts.width) || W; // scrolling levels draw a long strip of paper
     g.fillStyle(PALETTE.paper, 1);
-    g.fillRect(0, 0, W, H);
+    g.fillRect(0, 0, width, H);
     for (let y = 96, i = 0; y < H; y += 32, i++) {
-      D.line(g, -4, y, W + 4, y, { seed: 1000 + i, amp: 0.9, width: 1.3, color: PALETTE.rule, alpha: 0.95, double: false });
+      D.line(g, -4, y, width + 4, y, { seed: 1000 + i, amp: 0.9, width: 1.3, color: PALETTE.rule, alpha: 0.95, double: false });
     }
     D.line(g, 40, -4, 40, H + 4, { seed: 77, amp: 1.1, width: 2, color: PALETTE.margin, alpha: 0.95 });
+    // Long strips are several sheets taped edge to edge: a faint seam and tape at each join.
+    for (let sx = W, k = 0; sx < width - 1; sx += W, k++) {
+      D.line(g, sx, -4, sx, H + 4, { seed: 500 + k, amp: 1.2, width: 1.4, color: PALETTE.pencil, alpha: 0.35, double: false });
+      [130, 420, 690].forEach((ty, j) => {
+        const tx = sx, tw = 11, th = 26, a = ((k * 3 + j * 5) % 7 - 3) * 0.04;
+        const pts = [[-tw, -th], [tw, -th], [tw, th], [-tw, th]].map(([lx, ly]) => ({ x: tx + lx * Math.cos(a) - ly * Math.sin(a), y: ty + lx * Math.sin(a) + ly * Math.cos(a) }));
+        g.fillStyle(0xf2dc8a, 0.7);
+        g.fillPoints(pts, true);
+        D.polyline(g, pts.concat([pts[0]]), 1, PALETTE.ink, 0.3);
+      });
+    }
     if (!opts || opts.holes !== false) {
       [150, 400, 650].forEach((hy, i) => {
         g.fillStyle(0x6b5a4c, 1);
@@ -264,7 +279,9 @@
       this.fxGraphics = this.add.graphics();
       // paper grain over everything (below the HUD chips' hit areas, which don't use depth)
       D.makePaperGrain(this, 'pa-grain', W, H);
-      this.add.image(0, 0, 'pa-grain').setOrigin(0).setDepth(100);
+      this.add.image(0, 0, 'pa-grain').setOrigin(0).setDepth(100).setScrollFactor(0);
+      this.worldW = W; // the level's width in px (> W = a scrolling level; set in loadLevel)
+      this.introT = null; // seconds into the opening fly-over of a scrolling level (null = not playing)
 
       // HUD (top band, y < ~90, kept clear of level geometry): level name and
       // throw count on two lines, plus a hint that fades after the first throw.
@@ -275,7 +292,7 @@
         fontStyle: "bold",
         lineSpacing: 4,
       });
-      this.hudText.setStroke(css(PALETTE.paper), 5);
+      this.hudText.setStroke(css(PALETTE.paper), 5).setScrollFactor(0).setDepth(101);
       this.hintText = this.add.text(
         16,
         62,
@@ -287,7 +304,7 @@
           wordWrap: { width: W - 32 },
         }
       );
-      this.hintText.setStroke(css(PALETTE.paper), 4);
+      this.hintText.setStroke(css(PALETTE.paper), 4).setScrollFactor(0).setDepth(101);
       this.labelTexts = []; // per-level doodle labels (hazards), rebuilt on load
 
       this.levels = LEVELS; // data: src/paper-airplane/levels.js
@@ -295,6 +312,7 @@
       // Input handlers (Zero-delay pull-back even mid-flight)
       this.input.on('pointerdown', (pointer) => {
         if (this.planeState === 'WIN') return;
+        this.introT = null; // a touch cuts the opening fly-over short
         if (this.planeState === 'FLYING') {
           this.resetToSafeSpot();
         }
@@ -330,6 +348,8 @@
           padding: { x: 10, y: 6 },
         })
         .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(101)
         .setInteractive({ useHandCursor: true });
       levelsBtn.on("pointerdown", (pointer, lx, ly, event) => {
         if (event && event.stopPropagation) event.stopPropagation();
@@ -349,9 +369,14 @@
     loadLevel(idx) {
       this.levelIndex = idx % this.levels.length;
       const lvl = this.levels[this.levelIndex];
+      this.worldW = lvl.width || W;
+      this.cameras.main.setScroll(0, 0);
+      // Scrolling levels open with a fly-over to the bin and back, so you know where you are going.
+      this.introT = this.worldW > W ? 0 : null;
       this.strokes = 0;
       this.ghostTrails = [];
       this.currentTrail = [];
+      this.hintText.setText(this.worldW > W ? 'Long level: the ruler shows where the bin is. Ride the thermals.' : 'Drag back to aim: the dots show your first second of flight.');
       this.safePos.set(lvl.start.x, lvl.start.y);
       this.resetToSafeSpot();
       this.drawStaticEnvironment();
@@ -398,7 +423,41 @@
         }
       }
       this.stepFx(delta / 1000);
+      this.updateCamera(delta / 1000);
       this.drawDynamicFrame(time);
+    }
+
+    // Scrolling levels: where the camera wants to be. Resting, the plane sits CAM_LEAD
+    // from the left edge (finger room to pull back); in flight the camera leads it so
+    // most of the screen shows what is ahead.
+    cameraTarget() {
+      const maxScroll = Math.max(0, this.worldW - W);
+      const follow = this.planeState === 'FLYING' || this.planeState === 'WIN'; // a win holds on the bin
+      const want = follow ? this.pos.x - W * CAM_AHEAD : this.safePos.x - CAM_LEAD;
+      return Math.max(0, Math.min(maxScroll, want));
+    }
+
+    updateCamera(dt) {
+      const cam = this.cameras.main;
+      const maxScroll = Math.max(0, this.worldW - W);
+      if (maxScroll <= 0) { cam.scrollX = 0; return; }
+      if (this.introT !== null) {
+        // out to the bin (1.3 s, eased), hold, and home again (1.1 s)
+        this.introT += dt;
+        const t = this.introT, out = 1.3, hold = 0.5, back = 1.1;
+        const ease = (u) => u * u * (3 - 2 * u);
+        const home = this.cameraTarget();
+        let f;
+        if (t < out) f = ease(t / out);
+        else if (t < out + hold) f = 1;
+        else if (t < out + hold + back) f = 1 - ease((t - out - hold) / back);
+        else { this.introT = null; f = 0; }
+        cam.scrollX = home + (maxScroll - home) * f;
+        return;
+      }
+      const target = this.cameraTarget();
+      cam.scrollX += (target - cam.scrollX) * (1 - Math.exp(-CAM_RATE * dt));
+      if (Math.abs(target - cam.scrollX) < 0.05) cam.scrollX = target;
     }
 
     // Forces on the plane for one step. Shared by the real flight and the aim
@@ -443,7 +502,7 @@
         this.pos.y += this.vel.y * subDt;
 
         // Sheet edges (sides, bottom and top)
-        if (this.pos.x < 10 || this.pos.x > W - 10 || this.pos.y < -10 || this.pos.y > H + 10) {
+        if (this.pos.x < 10 || this.pos.x > this.worldW - 10 || this.pos.y < -10 || this.pos.y > H + 10) {
           this.playSound('crumple', 120);
           this.spawnFx('scrap', this.pos.x, this.pos.y, 9);
           this.resetToSafeSpot();
@@ -535,7 +594,7 @@
     // What the plane would touch at pos (same tests as stepFlight): null, or
     // { kind: 'edge' | 'hazard' | 'goal' | 'solid' | 'spring', rect?, side? }.
     contactAt(pos, vel, lvl) {
-      if (pos.x < 10 || pos.x > W - 10 || pos.y < -10 || pos.y > H + 10) return { kind: 'edge' };
+      if (pos.x < 10 || pos.x > this.worldW - 10 || pos.y < -10 || pos.y > H + 10) return { kind: 'edge' };
       for (const haz of lvl.hazards) if (this.pointInRect(pos.x, pos.y, haz)) return { kind: 'hazard' };
       if (this.pointInRect(pos.x, pos.y, lvl.goal)) return { kind: 'goal' };
       for (const r of lvl.solids) {
@@ -707,7 +766,7 @@
     // wind and particles are redrawn each frame.
 
     drawPaper(g) {
-      drawPaperBackground(g);
+      drawPaperBackground(g, { width: this.worldW });
     }
 
     drawDesk(g, s) {
@@ -847,11 +906,12 @@
       this.labelTexts = [];
 
       this.drawPaper(this.bgGraphics);
+      const worldW = this.worldW;
       // Desk doodles in the free areas of the page (never over gameplay objects).
       const avoid = [...lvl.solids, ...lvl.fans, ...lvl.hazards, { x: lvl.goal.x - 10, y: lvl.goal.y - 40, w: lvl.goal.w + 20, h: lvl.goal.h + 40 }, { x: lvl.start.x - 50, y: lvl.start.y - 50, w: 100, h: 100 }];
       for (const b of lvl.bumpers || []) avoid.push({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 });
       for (const t of lvl.tubes || []) for (const m of [t.a, t.b]) avoid.push({ x: m.x - 44, y: m.y - 44, w: 88, h: 88 });
-      const decor = D.placeDecor(D.hash(this.levelIndex, 7), avoid, W, H, 5);
+      const decor = D.placeDecor(D.hash(this.levelIndex, 7), avoid, worldW, H, Math.round(5 * worldW / W));
       D.drawDecor(this.bgGraphics, decor, { ink: PALETTE.ink, alpha: 0.2, coffee: PALETTE.coffee });
 
       for (const s of lvl.solids) {
@@ -887,7 +947,22 @@
         const offset = (time * 0.12) % 30;
         const seed = D.hash(fan.x, fan.y, fi);
         let k = 0;
-        if (Math.abs(fan.forceY) >= Math.abs(fan.forceX)) {
+        const lo = Math.min(Math.abs(fan.forceX), Math.abs(fan.forceY)), hi = Math.max(Math.abs(fan.forceX), Math.abs(fan.forceY));
+        if (lo > 0.15 * hi) {
+          // Tilted wind (thermals): short streaks along the push direction, drifting with it.
+          const len = Math.hypot(fan.forceX, fan.forceY), dx = fan.forceX / len, dy = fan.forceY / len;
+          const SX = 26, SY = 34; // lattice spacing (the lattice slides along the wind)
+          const slide = offset % SY;
+          for (let gx = fan.x + 10; gx < fan.x + fan.w; gx += SX) {
+            for (let gy = fan.y - SY; gy < fan.y + fan.h + SY; gy += SY) {
+              const t = dy < 0 ? -slide : slide; // upwind-to-downwind drift
+              const x1 = gx + (t * dx) / Math.abs(dy || 1), y1 = gy + t;
+              const x2 = x1 + dx * 16, y2 = y1 + dy * 16;
+              if (x1 < fan.x || x2 > fan.x + fan.w || y1 < fan.y || y1 > fan.y + fan.h || y2 < fan.y || y2 > fan.y + fan.h) continue;
+              D.polyline(g, D.wobble(x1, y1, x2, y2, seed + k++ * 5, 1.4), 1.6, PALETTE.pencil, 0.5);
+            }
+          }
+        } else if (Math.abs(fan.forceY) >= Math.abs(fan.forceX)) {
           const dir = fan.forceY < 0 ? -1 : 1; // -1 = up
           for (let x = fan.x + 15; x < fan.x + fan.w; x += 25) {
             for (let y = dir < 0 ? fan.y + fan.h - offset : fan.y + offset; dir < 0 ? y > fan.y : y < fan.y + fan.h; y += dir * 30) {
@@ -1034,8 +1109,26 @@
       if (this.currentTrail.length > 1) this.dashPath(this.uiGraphics, this.currentTrail, 2, 0.6);
 
       if (this.isDragging) this.drawPullIndicator(this.uiGraphics);
+      if (this.worldW > W) this.drawProgressRuler(this.uiGraphics);
       this.drawPlane(this.planeGraphics, time);
       this.drawFx(this.fxGraphics);
+    }
+
+    // Scrolling levels: a pencil ruler under the HUD (screen-fixed) showing the whole
+    // strip, the part on screen, the plane and the bin.
+    drawProgressRuler(g) {
+      const sx = this.cameras.main.scrollX, y = 88, x0 = 16, x1 = W - 16, span = x1 - x0;
+      const at = (wx) => sx + x0 + (Math.max(0, Math.min(this.worldW, wx)) / this.worldW) * span;
+      const lvl = this.levels[this.levelIndex];
+      g.fillStyle(PALETTE.pullHi, 0.22);
+      g.fillRect(at(sx), y - 6, (W / this.worldW) * span, 12); // what is on screen now
+      D.line(g, at(0), y, at(this.worldW), y, { seed: 61, width: 1.6, color: PALETTE.pencil, alpha: 0.9, amp: 0.5, double: false });
+      for (let k = 0; k <= this.worldW; k += W) D.line(g, at(k), y - 4, at(k), y + 4, { seed: 62 + k, width: 1.2, color: PALETTE.pencil, alpha: 0.8, amp: 0.2, double: false });
+      const bx = at(lvl.goal.x + lvl.goal.w / 2); // bin flag
+      D.line(g, bx, y, bx, y - 11, { seed: 70, width: 1.6, color: PALETTE.ink, alpha: 0.9, amp: 0.2, double: false });
+      D.polygon(g, [{ x: bx, y: y - 11 }, { x: bx + 8, y: y - 8 }, { x: bx, y: y - 5 }], { seed: 71, fill: PALETTE.pullLo, color: PALETTE.ink, width: 1, amp: 0.2, double: false });
+      g.fillStyle(PALETTE.ink, 0.9);
+      g.fillCircle(at(this.pos.x), y, 3.4); // the plane
     }
 
     updateHUD() {

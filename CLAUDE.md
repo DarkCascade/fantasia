@@ -1233,6 +1233,24 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   6 Paper Stairs (two one-way shelves; min 2 throws by design), 7 Mail Room (tube past a wall),
   8 Draft Day (updraft -> crosswind -> downdraft funnel), 9 Switchboard (two chained tubes),
   10 The Boss's Desk (spring -> shelf -> tube).
+  **Scrolling levels (level 11, Thermal Express — the experiment).** A level may set `width`
+  (> 450, here 1800 = four taped-together sheets): `worldW` replaces `W` for the edge-reset tests
+  (`stepFlight`, `contactAt`) and the paper/decor draw across the whole strip (tape seams every
+  450 px). The main camera scrolls in x only (`updateCamera`/`cameraTarget`): resting, the plane sits
+  `CAM_LEAD` (150) from the left edge so the pull-back keeps its finger room; in flight and after a
+  win the camera leads it (`CAM_AHEAD` 0.36 of the screen, eased at `CAM_RATE`); a reset eases it back
+  to the safe spot. All HUD objects and the grain overlay are `setScrollFactor(0)`; the pull indicator
+  needs no change because the drag is a screen-space *vector*. Planning aids, since a scrolled shot is
+  hard to plan: a fly-over to the bin and back when the level loads (`introT`, cut short by any
+  touch) and a pencil **progress ruler** under the HUD (`drawProgressRuler`: strip, on-screen window,
+  plane dot, bin flag). **Lesson: a vertical updraft just stacks the plane in a column** (drag kills
+  its forward speed at ~0.66x per second), so "thermals that keep it aloft across the level" must be
+  *tilted* fans (`forceX` 170, `forceY` -640, 120 wide, 330 apart, tops at y=200) — `drawWind` draws
+  tilted streaks for them. Measured: ~0.3-1.3% single-throw success, winning flights 6-9 s (the 10 s
+  cap leaves little slack: don't lengthen it without raising `MAX_FLIGHT_SECONDS`), no stalls. Floor
+  rests still checkpoint (`safePos`), so a short throw is not wasted. `check-levels.js` lints against
+  `lvl.width`. Tuning a long level: sweep fan params through the real physics (see git history of
+  this entry for the loop: vary `forceX/forceY/gap/width/top`, count wins, `timeout`, max duration).
   **Designing levels (lessons):** windows are narrow in this physics (~0.1-2% of a fine grid; level 2's
   0.4% "feels good" with the arc) — aim for >= 0.15% single-throw success, or a multi-throw design.
   A mechanic is only worth a level if removing it leaves ZERO wins (otherwise lobs skip it): a spring
@@ -1493,6 +1511,6 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 - `node --check src/game.js` (syntax) and, for workflow edits,
   validate the YAML.
-- `node --test test/` (unit tests; currently Tiny Haulers' simulation).
+- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation; the bare `node --test test/` form fails on Node 22).
 - Prefer a quick headless render to confirm no runtime errors when you touch
   `src/game.js`.

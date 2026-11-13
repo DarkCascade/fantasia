@@ -15,6 +15,8 @@
  *            "shelf"  ONE-WAY: passes through from below/the side, catches a falling plane on top
  *   fans   wind rects {x, y, w, h, forceX, forceY}  (any direction: updrafts, downdrafts, crosswinds)
  *   hazards rects {x, y, w, h, label}
+ *   width  (optional) world width in px for a SCROLLING level (default W): the camera follows the
+ *          plane across it. Everything is still in sheet coordinates (x grows right up to `width`).
  *   bumpers (optional) circles {x, y, r}: pinball rebounders
  *   tubes   (optional) pairs {a: {x, y, dir}, b: {x, y, dir}}: enter one mouth, leave the other
  *           heading along its `dir` (degrees, 0 = right, 90 = down, -90 = up)
@@ -189,6 +191,26 @@
       tubes: [{ a: { x: 262, y: 290, dir: -90 }, b: { x: 395, y: 300, dir: 90 } }],
       fans: [],
       hazards: [{ x: 225, y: 576, w: 56, h: 24, label: "COFFEE" }],
+    },
+    {
+      // First scrolling level (4 sheets wide): thermals keep the plane aloft all the way across.
+      name: "Thermal Express",
+      par: 3,
+      width: 1800,
+      start: { x: 115, y: 560 },
+      goal: { x: 1650, y: 544, w: 84, h: 56 },
+      solids: [{ x: 0, y: 600, w: 1800, h: 200, type: "desk" }],
+      fans: [
+        // Tilted thermals: lift AND a push downrange (a straight updraft just stacks the plane in a column).
+        { x: 300, y: 200, w: 120, h: 400, forceX: 170, forceY: -640 },
+        { x: 630, y: 200, w: 120, h: 400, forceX: 170, forceY: -640 },
+        { x: 960, y: 200, w: 120, h: 400, forceX: 170, forceY: -640 },
+        { x: 1290, y: 200, w: 120, h: 400, forceX: 170, forceY: -640 },
+      ],
+      hazards: [
+        { x: 470, y: 576, w: 60, h: 24, label: "COFFEE" },
+        { x: 1100, y: 576, w: 60, h: 24, label: "SPILL" },
+      ],
     },
   ];
 

@@ -54,7 +54,7 @@ function lint(lvl, i) {
   if (lvl.start.y > LIMITS.maxStartY) out.push(["FAIL", `start.y ${lvl.start.y} > ${LIMITS.maxStartY}: finger runs off the bottom when pulling down`]);
   for (const [kind, r] of rects) {
     if (r.y < LIMITS.hudBand && !(kind === "solid" && r.y + r.h < 0)) out.push(["WARN", `${kind} at y=${r.y} intrudes into the HUD band (y<${LIMITS.hudBand})`]);
-    if (r.x < 0 || r.y < 0 || r.x + r.w > W + 0.5 || r.y + r.h > H + 0.5) out.push(["WARN", `${kind} {${r.x},${r.y},${r.w},${r.h}} extends past the ${W}x${H} sheet`]);
+    if (r.x < 0 || r.y < 0 || r.x + r.w > (lvl.width || W) + 0.5 || r.y + r.h > H + 0.5) out.push(["WARN", `${kind} {${r.x},${r.y},${r.w},${r.h}} extends past the ${lvl.width || W}x${H} sheet`]);
   }
   for (const b of lvl.bumpers || []) {
     if (b.y - b.r < LIMITS.hudBand) out.push(["WARN", `bumper at y=${b.y} intrudes into the HUD band`]);
