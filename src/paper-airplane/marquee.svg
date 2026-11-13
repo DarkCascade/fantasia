@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 100" width="150" height="100">
+  <!-- Paper Airplane marquee art: the in-game plane in ink on a notebook-paper card, with its aim-preview arc. -->
+  <rect x="6" y="6" width="138" height="88" rx="8" fill="#fbf7ee" stroke="#2b2f3a" stroke-width="3"/>
+  <g stroke="#d3e3ec" stroke-width="1.5">
+    <line x1="9" y1="30" x2="141" y2="30"/><line x1="9" y1="50" x2="141" y2="50"/><line x1="9" y1="70" x2="141" y2="70"/>
+  </g>
+  <line x1="26" y1="8" x2="26" y2="92" stroke="#efb3b3" stroke-width="2"/>
+  <!-- dotted preview arc -->
+  <g fill="#2b2f3a">
+    <circle cx="34" cy="78" r="3.2"/><circle cx="46" cy="68" r="3" opacity=".85"/><circle cx="58" cy="59" r="2.8" opacity=".7"/>
+    <circle cx="70" cy="51" r="2.6" opacity=".55"/>
+  </g>
+  <!-- plane, nose up-right -->
+  <g transform="translate(104 34) rotate(-22) scale(1.9)" stroke="#2b2f3a" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M16 0 L-12 -9 L-8 0 Z" fill="#ffffff"/>
+    <path d="M16 0 L-8 0 L-11 6 Z" fill="#d7dce6"/>
+  </g>
+</svg>

@@ -48,6 +48,32 @@
   const PREVIEW_DOT_EVERY = 4; // one dot per N physics steps
   const UI_FONT = "ui-monospace, Menlo, Consolas, monospace";
   const css = (n) => "#" + n.toString(16).padStart(6, "0");
+  const BEST_KEY = "paper-airplane-best"; // localStorage: { [levelIndex]: fewest throws }
+  function loadBest() {
+    try {
+      return JSON.parse(localStorage.getItem(BEST_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function saveBest(best) {
+    try {
+      localStorage.setItem(BEST_KEY, JSON.stringify(best));
+    } catch (e) {
+      /* private mode / blocked storage: bests just don't persist */
+    }
+  }
+  // Golf-style label for a score against par.
+  function scoreLabel(throws, par) {
+    if (throws === 1) return "Hole in one!";
+    const d = throws - par;
+    if (d <= -2) return "Eagle!";
+    if (d === -1) return "Birdie!";
+    if (d === 0) return "Par";
+    if (d === 1) return "Bogey";
+    if (d === 2) return "Double bogey";
+    return "+" + d;
+  }
   // Portrait sheet (9:16-ish): phone-first. FIT-scales onto iPads / desktops.
   const W = 450;
   const H = 800;
@@ -68,6 +94,8 @@
       this.currentTrail = [];
       this.trailTimer = 0;
       this.accum = 0; // fixed-step time accumulator
+      this.best = loadBest(); // fewest throws per level, persisted
+      this.runScores = []; // throws per completed level in this run of the course
 
       // Aerodynamic constants (tuned for tactile "Kinda Hard Golf" feel)
       this.GRAVITY = 480;
@@ -120,6 +148,7 @@
       this.levels = [
         {
           name: "1. The Cubicle Hop",
+          par: 2,
           start: { x: 115, y: 560 },
           goal: { x: 345, y: 524, w: 84, h: 56 },
           solids: [
@@ -132,6 +161,7 @@
         },
         {
           name: "2. Updraft Atrium",
+          par: 3,
           start: { x: 115, y: 560 },
           goal: { x: 355, y: 268, w: 84, h: 52 },
           solids: [
@@ -147,6 +177,7 @@
         },
         {
           name: "3. Corner Office Bank Shot",
+          par: 3,
           start: { x: 60, y: 200 },
           goal: { x: 30, y: 664, w: 84, h: 56 },
           solids: [
@@ -448,12 +479,37 @@
       this.planeState = 'WIN';
       this.vel.set(0, 0);
       this.playSound('win', 520);
+
+      const idx = this.levelIndex;
+      const lvl = this.levels[idx];
+      const throws = this.strokes;
+      const isBest = this.best[idx] === undefined || throws < this.best[idx];
+      if (isBest) {
+        this.best[idx] = throws;
+        saveBest(this.best);
+      }
+      this.runScores[idx] = throws;
       this.hudText.setText(
-        `${this.levels[this.levelIndex].name}\nSunk in ${this.strokes} throws!`
+        `${lvl.name}\n${throws} ${throws === 1 ? "throw" : "throws"}: ${scoreLabel(throws, lvl.par)}${isBest ? "  ★ best" : ""}`
       );
-      this.time.delayedCall(1400, () => {
-        this.loadLevel(this.levelIndex + 1);
-      });
+
+      if (idx < this.levels.length - 1) {
+        this.time.delayedCall(1700, () => this.loadLevel(idx + 1));
+      } else {
+        // Last level: show the whole-course card, then start over.
+        this.time.delayedCall(1700, () => {
+          const total = this.runScores.reduce((a, b) => a + b, 0);
+          const par = this.levels.reduce((a, l) => a + l.par, 0);
+          const d = total - par;
+          this.hudText.setText(
+            `Course complete!\n${total} throws, par ${par} (${d === 0 ? "even" : d > 0 ? "+" + d : d})`
+          );
+          this.time.delayedCall(3000, () => {
+            this.runScores = [];
+            this.loadLevel(0);
+          });
+        });
+      }
     }
 
     // --- PROCEDURAL RENDERING ---
@@ -683,7 +739,10 @@
 
     updateHUD() {
       const lvl = this.levels[this.levelIndex];
-      this.hudText.setText(`${lvl.name}\nThrows: ${this.strokes}`);
+      const best = this.best[this.levelIndex];
+      this.hudText.setText(
+        `${lvl.name}\nThrows: ${this.strokes}  Par: ${lvl.par}${best !== undefined ? "  Best: " + best : ""}`
+      );
     }
 
     pointInRect(px, py, r) {

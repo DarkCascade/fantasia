@@ -1020,8 +1020,8 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     drag, targeting), loot/gear, more heroes/foes, proper boss intro, a
     colour-blind-safe damage palette.
 - **Tiny Haulers** (`src/tiny-haulers.js` + `src/tiny-haulers/sim.js`) — a
-  cosy logistics sim on three.js, and the **Featured marquee on menu page 1**
-  (plus a plain button on page 5). An experiment in whether *managing* a fleet
+  cosy logistics sim on three.js, formerly the **Featured marquee on menu page 1**
+  (now Paper Airplane's; its plain button is on page 5). An experiment in whether *managing* a fleet
   is more fun than driving: you never steer. Two small towns joined by a country
   highway — **Maplewood** (3x3 grid, brick cottages, autumn maples, **all-way
   stop signs**) and **Seabright** (back street + curved shore road, pastel beach
@@ -1142,7 +1142,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   games it ships large binary assets (`.wasm` / `.pck`), so it is the one
   exception to the "all art generated at runtime / no external assets" rule.
 - **Paper Airplane** (`src/paper-airplane.js`) — a "Kinda Hard Golf"-style
-  flick game on Phaser, last button on menu page 5. **Portrait 450×800 sheet** (`W`/`H`), FIT-scaled: phone is the priority target (sheet fills the width, desk-brown bars top/bottom), iPad second (fills the height, desk margins at the sides). Drag
+  flick game on Phaser, the **Featured marquee on menu page 1** (and a plain button on page 5). **Portrait 450×800 sheet** (`W`/`H`), FIT-scaled: phone is the priority target (sheet fills the width, desk-brown bars top/bottom), iPad second (fills the height, desk margins at the sides). Drag
   anywhere to pull back, release to launch a paper plane (slingshot, `LAUNCH_POWER`
   × pull up to `MAX_PULL`); clicking mid-flight resets to the last safe spot. Three
   office levels defined in `this.levels` (start, goal bin, `solids`, `fans`,
@@ -1179,8 +1179,16 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   outside the window never arrive and the throw silently doesn't fire). Levels 1–2
   therefore use a thick raised floor desk and a start at x≈115. Test with real
   pointer events (press on the plane, pull to full) and check the finger's end point.
+  **Par scores:** each level has a `par` (2 / 3 / 3 — starting guesses; every level has a
+  1-throw solution, so par is set at what a player using the arc should manage, not the
+  minimum). The HUD shows `Throws · Par · Best`; a win shows a golf label (Hole in one /
+  Eagle / Birdie / Par / Bogey / Double bogey / +n) and "★ best" for a new personal best
+  (`localStorage` `paper-airplane-best`, `{levelIndex: fewest throws}`); after the last
+  level a "Course complete! N throws, par P" card shows, then it restarts at level 1.
+  No level-select screen yet.
   **Planned / ideas:** (1) **done:** aim preview arc + linear lift/slower launch (more legibility ideas:
-  a lift tick on the plane, faster wind marks where the push is stronger); (2) a par (best throws) per level;
+  a lift tick on the plane, faster wind marks where the push is stronger); (2) **done:** par per
+  level (tune the numbers after real play; maybe a level-select screen);
   (3) try tall **scrolling** levels (camera follows the plane) later.
 
 ```
@@ -1337,8 +1345,9 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   (dim set + two lit sets blinking in antiphase, all CSS gradients with
   `background-repeat: round` so bulbs never clip), neon title, Sir Fish from
   Chibi Crawl's map art, and a Play Now pill; `prefers-reduced-motion` freezes
-  it. It currently features **Tiny Haulers** (image: `src/tiny-haulers/marquee.webp`;
-  Chibi Crawl held the spot before it); to feature another game, change the
+  it. It currently features **Paper Airplane** (image: `src/paper-airplane/marquee.svg`,
+  a vector card drawn in the game's ink style; Tiny Haulers and, before it, Chibi
+  Crawl held the spot); to feature another game, change the
   button's copy, image and click handler (the game's regular button stays on its
   list page too). Pages 2–5 are the game lists. Every page sits in one grid
   cell (so the carousel is as tall as its tallest page) and slides by

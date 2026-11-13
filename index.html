@@ -534,16 +534,16 @@
           <!-- Featured: the headliner gets the whole front page. To feature a
                different game, change this button's label/copy and its click
                handler below. -->
-          <button id="btn-featured" class="marquee" type="button" aria-label="Featured: Tiny Haulers. Play now">
+          <button id="btn-featured" class="marquee" type="button" aria-label="Featured: Paper Airplane. Play now">
             <span class="marquee-awning" aria-hidden="true"></span>
             <span class="marquee-board">
               <span class="marquee-bulbs marquee-bulbs--off" aria-hidden="true"></span>
               <span class="marquee-bulbs marquee-bulbs--a" aria-hidden="true"></span>
               <span class="marquee-bulbs marquee-bulbs--b" aria-hidden="true"></span>
               <span class="marquee-kicker">&#9733; Now Showing &#9733;</span>
-              <img class="marquee-fish" src="src/tiny-haulers/marquee.webp" alt="" draggable="false" />
-              <span class="marquee-title">Tiny<br />Haulers</span>
-              <span class="marquee-sub">Run a cosy delivery company across two little towns</span>
+              <img class="marquee-fish" src="src/paper-airplane/marquee.svg" alt="" draggable="false" style="width: clamp(104px, 30vw, 140px)" />
+              <span class="marquee-title">Paper<br />Airplane</span>
+              <span class="marquee-sub">Flick a paper plane through the office and beat par</span>
               <span class="marquee-cta">&#9654; Play Now</span>
             </span>
           </button>
@@ -750,24 +750,27 @@
         if (typeof window.launchChibiCrawl === "function") window.launchChibiCrawl();
       });
 
-      // Tiny Haulers is launched from both its own button (last page) and the
-      // Featured marquee on page 1.
+      // Tiny Haulers (own button, last page).
       function playTinyHaulers() {
         hideMenu();
         if (typeof window.launchTinyHaulers === "function") window.launchTinyHaulers();
       }
       document.getElementById("btn-tinyhaulers").addEventListener("click", playTinyHaulers);
-      document.getElementById("btn-featured").addEventListener("click", playTinyHaulers);
+
+      // Paper Airplane is launched from both its own button (last page) and the
+      // Featured marquee on page 1.
+      function playPaperAirplane() {
+        hideMenu();
+        if (typeof window.launchPaperAirplane === "function") window.launchPaperAirplane();
+      }
+      document.getElementById("btn-featured").addEventListener("click", playPaperAirplane);
 
       document.getElementById("btn-hollowmoon").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchHollowMoon === "function") window.launchHollowMoon();
       });
 
-      document.getElementById("btn-paperairplane").addEventListener("click", function () {
-        hideMenu();
-        if (typeof window.launchPaperAirplane === "function") window.launchPaperAirplane();
-      });
+      document.getElementById("btn-paperairplane").addEventListener("click", playPaperAirplane);
 
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying
