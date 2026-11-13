@@ -1179,6 +1179,14 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   outside the window never arrive and the throw silently doesn't fire). Levels 1–2
   therefore use a thick raised floor desk and a start at x≈115. Test with real
   pointer events (press on the plane, pull to full) and check the finger's end point.
+  **Flights can't run forever:** `stepFlight` resets a throw (crumple sound + a brief
+  "ran out of puff" note in the hint slot) if the plane stays within `STALL_RADIUS` (40 px)
+  for `STALL_SECONDS` (2 s) or any flight passes `MAX_FLIGHT_SECONDS` (10 s). Found because
+  a throw into level 2's updraft could hover at the vent's top edge indefinitely (6% of a
+  throw sweep never ended). These are generic, so new levels get them for free; real
+  flights last <= ~5 s, so they never cut off a legitimate throw. When tuning a level,
+  also sweep flight durations (same headless sweep; check max duration and that
+  "never ended" is 0).
   **Par scores:** each level has a `par` (2 / 3 / 3 — starting guesses; every level has a
   1-throw solution, so par is set at what a player using the arc should manage, not the
   minimum). The HUD shows `Throws · Par · Best`; a win shows a golf label (Hole in one /

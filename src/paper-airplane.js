@@ -46,6 +46,13 @@
   const STEP = 1 / 60;
   const PREVIEW_SECONDS = 1.0; // how much of the flight the dotted arc shows
   const PREVIEW_DOT_EVERY = 4; // one dot per N physics steps
+  // Safety nets so a flight can never run forever (e.g. hovering at the top edge
+  // of an updraft): a plane that stays within STALL_RADIUS for STALL_SECONDS, or
+  // any flight past MAX_FLIGHT_SECONDS, is reset like a crash. Real flights last
+  // ~5s at most, so these never cut off a legitimate throw.
+  const STALL_RADIUS = 40;
+  const STALL_SECONDS = 2;
+  const MAX_FLIGHT_SECONDS = 10;
   const UI_FONT = "ui-monospace, Menlo, Consolas, monospace";
   const css = (n) => "#" + n.toString(16).padStart(6, "0");
   const BEST_KEY = "paper-airplane-best"; // localStorage: { [levelIndex]: fewest throws }
@@ -273,6 +280,9 @@
       this.updateHUD();
       this.planeState = 'FLYING';
       this.accum = 0;
+      this.flightTime = 0;
+      this.stallTime = 0;
+      this.stallAnchor = this.pos.clone();
       this.vel.copy(pullVector).scale(this.LAUNCH_POWER);
       this.angle = this.vel.angle();
       this.currentTrail = [{ x: this.pos.x, y: this.pos.y }];
@@ -363,12 +373,38 @@
         if (this.planeState !== 'FLYING') break;
       }
 
+      // Safety nets: never let a flight run forever (see constants above).
+      if (this.planeState === 'FLYING') {
+        this.flightTime += dt;
+        if (this.pos.distance(this.stallAnchor) > STALL_RADIUS) {
+          this.stallAnchor.copy(this.pos);
+          this.stallTime = 0;
+        } else {
+          this.stallTime += dt;
+        }
+        if (this.stallTime >= STALL_SECONDS || this.flightTime >= MAX_FLIGHT_SECONDS) {
+          this.lastEnd = this.stallTime >= STALL_SECONDS ? 'stall' : 'timeout';
+          this.playSound('crumple', 120);
+          this.noteToPlayer('That one ran out of puff. Try again.');
+          this.resetToSafeSpot();
+          return;
+        }
+      }
+
       // Record breadcrumb trail
       this.trailTimer += dt;
       if (this.trailTimer >= 0.04) {
         this.trailTimer = 0;
         this.currentTrail.push({ x: this.pos.x, y: this.pos.y });
       }
+    }
+
+    // Brief message in the hint slot (the opening hint has already faded by then).
+    noteToPlayer(text) {
+      this.hintText.setText(text);
+      this.tweens.killTweensOf(this.hintText);
+      this.hintText.setAlpha(1);
+      this.tweens.add({ targets: this.hintText, alpha: 0, delay: 1500, duration: 600 });
     }
 
     // What the plane would touch at pos (same tests as stepFlight), or null.
