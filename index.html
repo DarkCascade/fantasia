@@ -609,6 +609,9 @@
           <button id="btn-hollowmoon" class="menu-btn menu-btn--secondary" type="button">
             Hollow Moon
           </button>
+          <button id="btn-paperairplane" class="menu-btn menu-btn--secondary" type="button">
+            Paper Airplane
+          </button>
         </div>
       </div>
     </div>
@@ -644,6 +647,7 @@
   <script src="src/tiny-haulers/sim.js"></script>
   <script src="src/tiny-haulers.js"></script>
   <script src="src/hollow-moon.js"></script>
+  <script src="src/paper-airplane.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -760,6 +764,11 @@
         if (typeof window.launchHollowMoon === "function") window.launchHollowMoon();
       });
 
+      document.getElementById("btn-paperairplane").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchPaperAirplane === "function") window.launchPaperAirplane();
+      });
+
       // Return to the Fantasia menu from within a game: show the menu and tear
       // down whichever Phaser game is running (next tick, to avoid destroying
       // mid-callback).
@@ -786,6 +795,7 @@
           if (window.greenlitGame) { try { window.greenlitGame.destroy(); } catch (e) {} window.greenlitGame = null; }
           if (window.tinyHaulersGame) { try { window.tinyHaulersGame.destroy(); } catch (e) {} window.tinyHaulersGame = null; }
           if (window.hollowMoonGame) { try { window.hollowMoonGame.destroy(); } catch (e) {} window.hollowMoonGame = null; }
+          if (window.paperAirplaneGame) { try { window.paperAirplaneGame.destroy(true); } catch (e) {} window.paperAirplaneGame = null; }
         }, 0);
       };
     })();

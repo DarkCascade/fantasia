@@ -1141,6 +1141,17 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
   games it ships large binary assets (`.wasm` / `.pck`), so it is the one
   exception to the "all art generated at runtime / no external assets" rule.
+- **Paper Airplane** (`src/paper-airplane.js`) — a "Kinda Hard Golf"-style
+  flick game on Phaser (800×600, FIT-scaled), last button on menu page 5. Drag
+  anywhere to pull back, release to launch a paper plane (slingshot, `LAUNCH_POWER`
+  × pull up to `MAX_PULL`); clicking mid-flight resets to the last safe spot. Three
+  office levels defined in `this.levels` (start, goal bin, `solids`, `fans`,
+  `hazards`): **cork** sticks and resets, **glass** bounces (0.78), **desk**
+  slides/settles (0.35), coffee/spill **hazards** reset, **fans** add force in a
+  rect. Physics is hand-rolled (gravity, drag, wing lift ∝ forward speed², nose
+  weathervane, 3 sub-steps for collisions) — no Matter. Ghost trails show past
+  throws; sound is a Web Audio synth (`playSound`). Handle:
+  `window.paperAirplaneGame`; the in-game **≡ Menu** chip calls `returnToMenu()`.
 
 ```
 index.html             Fantasia selector menu, page shell, mobile styles
@@ -1167,6 +1178,7 @@ src/tiny-haulers.js    Tiny Haulers logistics sim view/HUD/title/saves (three.js
 src/tiny-haulers/sim.js  Tiny Haulers simulation core (no rendering; also require()-able from Node)
 src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
 src/hollow-moon.js      Hollow Moon one-fight artistic ARPG (three.js, DOM HUD); window.launchHollowMoon()
+src/paper-airplane.js  Paper Airplane flick game (Phaser); window.launchPaperAirplane()
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
