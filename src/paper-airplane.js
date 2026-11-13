@@ -1128,10 +1128,7 @@
     // The sound effects load here once; both scenes use them (any that fail to load fall back to the synth).
     preload() {
       if (!USE_SAMPLES) return;
-      // TEMP: ?win=A..F auditions a candidate win sound (src/paper-airplane/sfx/candidates/)
-      const pick = /[?&]win=([A-F])\b/.exec(location.search || '');
-      SFX_FILES.forEach((n) => this.load.audio('sfx-' + n,
-        'src/paper-airplane/sfx/' + (n === 'win' && pick ? 'candidates/win' + pick[1] : n) + '.mp3'));
+      SFX_FILES.forEach((n) => this.load.audio('sfx-' + n, 'src/paper-airplane/sfx/' + n + '.mp3'));
     }
 
     create() {
