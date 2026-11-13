@@ -12,6 +12,12 @@ The site is deployed automatically by GitHub Actions; the latest push to the
 
 ![Gameplay](docs/gameplay.png)
 
+## Games
+
+The site root is a launcher with two games: **Flappy Bird** (`flappy.html`) and
+**Paper Airplane** (`paper-airplane.html`, drag-and-release to fly the plane into
+the bin).
+
 ## Play
 
 No build step and no internet connection required — Phaser is vendored locally.

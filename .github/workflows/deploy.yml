@@ -40,7 +40,7 @@ jobs:
         # Copy only the files the game needs into the publish directory.
         run: |
           mkdir -p _site
-          cp index.html _site/
+          cp index.html flappy.html paper-airplane.html _site/
           cp -r src _site/
           cp -r vendor _site/
 
@@ -64,7 +64,10 @@ jobs:
       - name: Verify required files exist
         run: |
           test -f _site/index.html
+          test -f _site/flappy.html
+          test -f _site/paper-airplane.html
           test -f _site/src/game.js
+          test -f _site/src/paper-airplane.js
           test -f _site/vendor/phaser.min.js
           test -f _site/version.json
           echo "Site assembled:"

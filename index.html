@@ -2,50 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-  />
-  <meta name="theme-color" content="#4ec0ca" />
-  <title>Flappy Bird — Phaser Clone</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1d232a" />
+  <title>Fantasia — Games</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    html,
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
+      min-height: 100vh;
       background: #1d232a;
+      color: #f4f6f8;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      touch-action: manipulation;
+      padding: 32px 16px;
     }
-
-    #game-container {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* Phaser injects its canvas here; keep it crisp and centered. */
-    #game-container canvas {
+    main { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 28px; margin-bottom: 6px; }
+    p.sub { color: #9aa7b3; margin-bottom: 24px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    a.card {
       display: block;
-      touch-action: none;
+      padding: 20px;
+      border-radius: 14px;
+      text-decoration: none;
+      color: #1d232a;
+      transition: transform 0.12s ease;
     }
+    a.card:hover, a.card:focus-visible { transform: translateY(-3px); }
+    a.card h2 { font-size: 20px; margin-bottom: 6px; }
+    a.card span { font-size: 14px; opacity: 0.8; }
+    .flappy { background: #4ec0ca; }
+    .airplane { background: #f6f7f2; }
   </style>
 </head>
 <body>
-  <div id="game-container"></div>
-
-  <!-- Phaser 3, vendored locally so the game is fully self-contained and works offline. -->
-  <script src="vendor/phaser.min.js"></script>
-  <script src="src/game.js"></script>
+  <main>
+    <h1>Fantasia</h1>
+    <p class="sub">Pick a game.</p>
+    <div class="grid">
+      <a class="card flappy" href="flappy.html">
+        <h2>🐤 Flappy Bird</h2>
+        <span>Tap to flap through the pipes.</span>
+      </a>
+      <a class="card airplane" href="paper-airplane.html">
+        <h2>✈️ Paper Airplane</h2>
+        <span>Drag, release, and fly it into the bin.</span>
+      </a>
+    </div>
+  </main>
 </body>
 </html>

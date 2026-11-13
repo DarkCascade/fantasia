@@ -19,8 +19,11 @@ no external image assets, and Phaser is vendored locally, so the site is fully
 static and works offline.
 
 ```
-index.html            Page shell + mobile viewport/styles
-src/game.js           All game logic + procedural texture generation
+index.html            Games launcher (picker page, no Phaser)
+flappy.html           Flappy Bird page shell + mobile viewport/styles
+paper-airplane.html   Paper Airplane page shell
+src/game.js           Flappy Bird logic + procedural texture generation
+src/paper-airplane.js Paper Airplane scene (classic script, global Phaser)
 vendor/phaser.min.js  Phaser 3.80.1 (vendored)
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
@@ -31,7 +34,7 @@ vendor/phaser.min.js  Phaser 3.80.1 (vendored)
   only on `push` to `main` (plus manual `workflow_dispatch`). Feature branches
   do **not** auto-publish — merge into `main` to ship.
 - The "build" just assembles `index.html`, `src/`, and `vendor/` into `_site/`;
-  no bundler/compiler. If you add a new top-level asset the game needs, add it
+  no bundler/compiler. If you add a new game page or top-level asset, add it
   to the "Assemble site" copy step **and** the "Verify required files" check.
 - **Verifying a deploy is live:** every deploy stamps
   [`/version.json`](https://darkcascade.github.io/fantasia/version.json) with
