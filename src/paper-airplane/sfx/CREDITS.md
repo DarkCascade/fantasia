@@ -23,6 +23,15 @@ has synthesised fallbacks for every sound (see `playSound` in `src/paper-airplan
 | splash3.mp3 | splash_10.ogg | 40 CC0 water / splash / slime SFX | https://opengameart.org/content/40-cc0-water-splash-slime-sfx |
 | boing.mp3 | boing.flac | BOING! | https://opengameart.org/content/boing |
 | whoop.mp3 | phaseJump1.mp3 | 63 Digital sound effects (Kenney) | https://opengameart.org/content/63-digital-sound-effects-lasers-phasers-space-etc |
-| win.mp3 | powerUp1.mp3 | 63 Digital sound effects (Kenney) | https://opengameart.org/content/63-digital-sound-effects-lasers-phasers-space-etc |
+| win.mp3 | complete_0.wav (= candidates/winA) | Cute Mission Complete | https://opengameart.org/content/cute-mission-complete |
 | click.mp3 | click_001.ogg | Interface Sounds (Kenney) | https://opengameart.org/content/interface-sounds |
 | back.mp3 | back_001.ogg | Interface Sounds (Kenney) | https://opengameart.org/content/interface-sounds |
+
+## Win-sound candidates (temporary, audition with `?win=A`..`F`)
+
+| A | Cute chime | complete_0.wav | Cute Mission Complete | https://opengameart.org/content/cute-mission-complete |
+| B | Task done (short) | completetask_0.mp3 | Completion sound. | https://opengameart.org/content/completion-sound |
+| C | Soft bell | bell_ding2.wav | Bell dings/chimes | https://opengameart.org/content/bell-dingschimes |
+| D | Positive | positive_0.ogg | Positive Sound | https://opengameart.org/content/positive-sound |
+| E | Coin ping | coin.flac | Gold Coin | https://opengameart.org/content/gold-coin-6 |
+| F | Kenney confirm (subtle) | confirmation_002.ogg | Interface Sounds (Kenney) | https://opengameart.org/content/interface-sounds |
