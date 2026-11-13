@@ -58,6 +58,13 @@ function lint(lvl, i) {
   }
   for (const b of lvl.bumpers || []) {
     if (b.y - b.r < LIMITS.hudBand) out.push(["WARN", `bumper at y=${b.y} intrudes into the HUD band`]);
+    if (b.x - b.r < 0 || b.x + b.r > W || b.y + b.r > H) out.push(["WARN", `bumper at (${b.x},${b.y}) extends past the sheet`]);
+  }
+  for (const t of lvl.tubes || []) {
+    for (const [name, m] of [["a", t.a], ["b", t.b]]) {
+      if (m.y - 26 < LIMITS.hudBand) out.push(["WARN", `tube mouth ${name} at y=${m.y} (with its arrow) intrudes into the HUD band`]);
+      if (m.x - 26 < 0 || m.x + 26 > W || m.y + 26 > H) out.push(["WARN", `tube mouth ${name} at (${m.x},${m.y}) is too close to the sheet edge`]);
+    }
   }
   return out;
 }
@@ -107,9 +114,9 @@ async function sweep(page, levelCount) {
         const q = (p) => (durs.length ? durs[Math.floor(p * (durs.length - 1))] : 0);
 
         // fewest throws: BFS over resting spots, coarse grid, depth <= 3
-        let minThrows = null; const seen = new Set([Math.round(start.x / 15) + "," + Math.round(start.y / 15)]);
+        let minThrows = wins > 0 ? 1 : null; const seen = new Set([Math.round(start.x / 15) + "," + Math.round(start.y / 15)]);
         let frontier = [start];
-        for (let depth = 1; depth <= 3 && minThrows === null; depth++) {
+        for (let depth = 1; depth <= 3 && minThrows === null; depth++) { // (skipped when the fine sweep above already won)
           const next = [];
           for (const st of frontier) {
             for (let ang = 0; ang < 360; ang += 4) for (const pw of [40, 70, 90, 110]) {
@@ -169,7 +176,7 @@ async function sweep(page, levelCount) {
     if (r.minThrows === null) report(r.index, "FAIL", "no winning sequence found within 3 throws (unsolvable, or the search grid is too coarse)");
     if (r.neverEnded > 0) report(r.index, "FAIL", `${r.neverEnded} flights never ended (guards missing/broken)`);
     if (r.max > LIMITS.maxFlight + 0.2) report(r.index, "FAIL", `a flight lasted ${r.max.toFixed(1)}s (> ${LIMITS.maxFlight}s cap)`);
-    if (r.ratePct < LIMITS.minRate) report(r.index, "WARN", `single-throw success ${r.ratePct.toFixed(2)}% is very low (< ${LIMITS.minRate}%): maybe too fiddly`);
+    if (r.minThrows === 1 && r.ratePct < LIMITS.minRate) report(r.index, "WARN", `single-throw success ${r.ratePct.toFixed(2)}% is very low (< ${LIMITS.minRate}%): maybe too fiddly (a 1-throw solution exists but the window is tiny)`);
     if (r.ratePct > LIMITS.maxRate) report(r.index, "WARN", `single-throw success ${r.ratePct.toFixed(2)}% is high (> ${LIMITS.maxRate}%): maybe too easy`);
     if (r.minThrows !== null && r.par < r.minThrows) report(r.index, "WARN", `par ${r.par} is below the minimum ${r.minThrows}`);
     if (r.minThrows !== null && r.par > r.minThrows + 3) report(r.index, "WARN", `par ${r.par} is generous (minimum ${r.minThrows})`);

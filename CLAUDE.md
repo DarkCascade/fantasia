@@ -1209,6 +1209,35 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   complete" card only if every level was played in one sitting). `launchPaperAirplane({ level })`
   skips the select screen (used by tests/tools). Adding a level = append to `LEVELS`, then run
   the checker below. All levels are open from the start (no unlock gating).
+  **Mechanics (levels 4-10)**, all in the shared force/contact code so the preview stays exact
+  (`springKick`, `bumperBounce`, `tubeStep`, `solidOverlap`/`minSide`, `contactAt`): **spring**
+  (`type: "spring"` solid; landing on top kicks the plane up at `SPRING_SPEED` 700 px/s, more than any
+  throw — it reaches heights you can't; other sides act like a desk; it never absorbs energy, so a
+  plane dropped straight on it bounces in place until the stall guard resets it); **one-way shelf**
+  (`type: "shelf"`; passes through from below/the side, catches a *falling* plane within
+  `SHELF_DEPTH` 12 px of its top — so the bin can sit on it and a spring/updraft rise passes up
+  through); **bumpers** (`bumpers: [{x,y,r}]`; pinball rebounders that KICK: restitution
+  `BUMPER_BOUNCE` 1.35, speed clamped 300-820); **mail tubes** (`tubes: [{a:{x,y,dir}, b:{x,y,dir}}]`;
+  enter one mouth, leave the other along its `dir` degrees at >= `TUBE_MIN_SPEED` 380 px/s; a
+  `tubeLock` stops instant re-entry; trails skip the hop via `jump` points); winds are any-direction
+  `fans` (downdrafts and crosswinds work). The preview follows springs, bumpers and tubes exactly and
+  stops at the first other contact. Levels: 1 Cubicle Hop, 2 Updraft Atrium, 3 Corner Office Bank
+  Shot, 4 Spring Break (spring -> one-way shelf), 5 Pinball Desk (bumpers; par 4, the fiddliest),
+  6 Paper Stairs (two one-way shelves; min 2 throws by design), 7 Mail Room (tube past a wall),
+  8 Draft Day (updraft -> crosswind -> downdraft funnel), 9 Switchboard (two chained tubes),
+  10 The Boss's Desk (spring -> shelf -> tube).
+  **Designing levels (lessons):** windows are narrow in this physics (~0.1-2% of a fine grid; level 2's
+  0.4% "feels good" with the arc) — aim for >= 0.15% single-throw success, or a multi-throw design.
+  A mechanic is only worth a level if removing it leaves ZERO wins (otherwise lobs skip it): a spring
+  must out-reach a lob (apex ~330 above start), a ledge must be one-way or the rising plane hits its
+  underside, bumpers must kick, and winds need a funnel (a crosswind must stop above the downdraft or
+  the plane flies off the edge; a too-strong updraft carries it out the top). Two tools help:
+  `explore-level.js --level N` (closest misses + which mechanics each throw touched) and
+  `search-level.js --level N` (randomly samples layouts from per-level generators, keeps those with
+  moderate wins, the mechanic required, and few stuck flights; use `--angstep 2 --pws 20,...,110` for
+  a fine grid, and sample AROUND a layout that already works — wide random sampling mostly finds
+  nothing). `check-preview.js` re-verifies the preview/flight invariant (max error ~1e-13 px) and
+  counts how many flights used each mechanic; run it after touching physics or adding a mechanic.
   **Level checker:** `node experiments/paper-airplane/check-levels.js [--url http://localhost:8130]
   [--level N] [--quick]` (serve the repo first). It lints the data (phone finger-room rule,
   HUD band, sheet bounds) and runs the real physics headless to report each level's fewest
@@ -1252,8 +1281,8 @@ src/tiny-haulers/sim.js  Tiny Haulers simulation core (no rendering; also requir
 src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
 src/hollow-moon.js      Hollow Moon one-fight artistic ARPG (three.js, DOM HUD); window.launchHollowMoon()
 src/paper-airplane.js  Paper Airplane flick game (Phaser); window.launchPaperAirplane({level?})
-src/paper-airplane/    levels.js (level data, UMD), doodle.js (hand-drawn line/shape/paper helpers), marquee.svg (Featured card art)
-experiments/paper-airplane/  check-levels.js: level lint + headless physics sweep (see Paper Airplane entry)
+src/paper-airplane/    levels.js (10 levels' data, UMD), doodle.js (hand-drawn line/shape/paper helpers), marquee.svg (Featured card art)
+experiments/paper-airplane/  check-levels.js / check-preview.js / explore-level.js / search-level.js: level lint, physics sweeps, preview exactness, design aids (see Paper Airplane entry)
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/

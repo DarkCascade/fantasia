@@ -50,6 +50,15 @@
   // of an updraft): a plane that stays within STALL_RADIUS for STALL_SECONDS, or
   // any flight past MAX_FLIGHT_SECONDS, is reset like a crash. Real flights last
   // ~5s at most, so these never cut off a legitimate throw.
+  // Mechanics shared by the real flight and the aim preview (so the preview stays exact).
+  const PAD = 8; // the plane's collision radius
+  const SPRING_SPEED = 700; // upward kick off a spring pad, px/s (more than any throw: a spring reaches heights you can't)
+  const BUMPER_BOUNCE = 1.35; // bumper restitution (> 1: pinball bumpers KICK, adding energy)
+  const BUMPER_MIN_SPEED = 300; // a bumper never leaves the plane slower than this
+  const BUMPER_MAX_SPEED = 820; // ...nor faster than this (keeps collision sub-steps honest)
+  const TUBE_R = 20; // mail-tube mouth radius
+  const TUBE_MIN_SPEED = 380; // a tube never lets the plane out slower than this
+  const SHELF_DEPTH = 12; // a one-way shelf only catches a falling plane within this many px of its top
   const STALL_RADIUS = 40;
   const STALL_SECONDS = 2;
   const MAX_FLIGHT_SECONDS = 10;
@@ -81,6 +90,79 @@
     if (d === 2) return "Double bogey";
     return "+" + d;
   }
+  // ---- mechanics: pure helpers on {x, y} position / velocity objects ----
+  function springKick(vel) {
+    vel.y = -SPRING_SPEED;
+    vel.x *= 0.95;
+  }
+  // Circle bumper: push the plane out and reflect it. Returns true on contact.
+  function bumperBounce(pos, vel, b) {
+    const dx = pos.x - b.x, dy = pos.y - b.y;
+    const d = Math.hypot(dx, dy), rr = b.r + PAD;
+    if (d >= rr || d === 0) return false;
+    const nx = dx / d, ny = dy / d;
+    pos.x = b.x + nx * rr;
+    pos.y = b.y + ny * rr;
+    const vn = vel.x * nx + vel.y * ny;
+    if (vn < 0) {
+      vel.x -= (1 + BUMPER_BOUNCE) * vn * nx;
+      vel.y -= (1 + BUMPER_BOUNCE) * vn * ny;
+    }
+    const sp = Math.hypot(vel.x, vel.y);
+    if (sp < BUMPER_MIN_SPEED) {
+      if (sp === 0) { vel.x = nx * BUMPER_MIN_SPEED; vel.y = ny * BUMPER_MIN_SPEED; }
+      else { vel.x *= BUMPER_MIN_SPEED / sp; vel.y *= BUMPER_MIN_SPEED / sp; }
+    } else if (sp > BUMPER_MAX_SPEED) {
+      vel.x *= BUMPER_MAX_SPEED / sp;
+      vel.y *= BUMPER_MAX_SPEED / sp;
+    }
+    return true;
+  }
+  // Mail tubes: a pair of mouths; enter one, leave the other along its `dir`
+  // (degrees) at no less than TUBE_MIN_SPEED. `lock` is the mouth just exited
+  // (tubeIndex * 2 + 0/1) and stops the plane re-entering until it moves clear.
+  function tubeMouth(lvl, lock) {
+    const t = lvl.tubes[lock >> 1];
+    return lock & 1 ? t.b : t.a;
+  }
+  function tubeStep(pos, vel, lvl, lock) {
+    const tubes = lvl.tubes || [];
+    if (lock >= 0) {
+      const m = tubeMouth(lvl, lock);
+      if (Math.hypot(pos.x - m.x, pos.y - m.y) > TUBE_R + 6) lock = -1;
+    }
+    if (lock < 0) {
+      for (let i = 0; i < tubes.length; i++) {
+        for (let k = 0; k < 2; k++) {
+          const m = k ? tubes[i].b : tubes[i].a;
+          if (Math.hypot(pos.x - m.x, pos.y - m.y) < TUBE_R) {
+            const o = k ? tubes[i].a : tubes[i].b;
+            const rad = (o.dir * Math.PI) / 180;
+            const sp = Math.max(Math.hypot(vel.x, vel.y), TUBE_MIN_SPEED);
+            pos.x = o.x + Math.cos(rad) * (TUBE_R + 4);
+            pos.y = o.y + Math.sin(rad) * (TUBE_R + 4);
+            vel.x = Math.cos(rad) * sp;
+            vel.y = Math.sin(rad) * sp;
+            return { lock: i * 2 + (k ? 0 : 1), teleported: true, from: m, to: o };
+          }
+        }
+      }
+    }
+    return { lock, teleported: false };
+  }
+  // Overlap depths of the plane against a rect, or null when not touching.
+  function solidOverlap(pos, r) {
+    if (pos.x + PAD < r.x || pos.x - PAD > r.x + r.w || pos.y + PAD < r.y || pos.y - PAD > r.y + r.h) return null;
+    return { l: pos.x + PAD - r.x, r: r.x + r.w - (pos.x - PAD), t: pos.y + PAD - r.y, b: r.y + r.h - (pos.y - PAD) };
+  }
+  // The shallowest penetration side ('l' | 'r' | 't' | 'b'); ties resolve in `order`.
+  function minSide(o, order) {
+    const m = Math.min(o.l, o.r, o.t, o.b);
+    for (const k of order) if (o[k] === m) return k;
+    return 't';
+  }
+  const SIDE_ORDER = { cork: ['l', 'r', 't', 'b'], other: ['t', 'b', 'l', 'r'] };
+
   // Portrait sheet (9:16-ish): phone-first. FIT-scales onto iPads / desktops.
   // Level data lives in src/paper-airplane/levels.js (loaded first by index.html).
   const { W, H, LEVELS } = window.PaperAirplaneLevels;
@@ -271,6 +353,7 @@
       this.flightTime = 0;
       this.stallTime = 0;
       this.stallAnchor = this.pos.clone();
+      this.tubeLock = -1;
       this.vel.copy(pullVector).scale(this.LAUNCH_POWER);
       this.angle = this.vel.angle();
       this.currentTrail = [{ x: this.pos.x, y: this.pos.y }];
@@ -363,6 +446,28 @@
           if (this.resolveWallCollision(wall)) break;
         }
         if (this.planeState !== 'FLYING') break;
+
+        // Bumpers (pinball-style round rebounders)
+        for (const b of lvl.bumpers || []) {
+          if (bumperBounce(this.pos, this.vel, b)) {
+            this.playSound('ting', 760);
+            this.spawnFx('poof', this.pos.x, this.pos.y, 3);
+            this.angle = this.vel.angle();
+          }
+        }
+
+        // Mail tubes
+        if (lvl.tubes) {
+          const t = tubeStep(this.pos, this.vel, lvl, this.tubeLock);
+          this.tubeLock = t.lock;
+          if (t.teleported) {
+            this.playSound('whoop', 300);
+            this.spawnFx('poof', t.from.x, t.from.y, 3);
+            this.spawnFx('poof', t.to.x, t.to.y, 3);
+            this.angle = this.vel.angle();
+            this.currentTrail.push({ x: this.pos.x, y: this.pos.y, jump: true });
+          }
+        }
       }
 
       // Safety nets: never let a flight run forever (see constants above).
@@ -400,27 +505,34 @@
       this.tweens.add({ targets: this.hintText, alpha: 0, delay: 1500, duration: 600 });
     }
 
-    // What the plane would touch at pos (same tests as stepFlight), or null.
-    contactAt(pos, lvl) {
-      if (pos.x < 10 || pos.x > W - 10 || pos.y < -10 || pos.y > H + 10) return 'edge';
-      for (const haz of lvl.hazards) if (this.pointInRect(pos.x, pos.y, haz)) return 'hazard';
-      if (this.pointInRect(pos.x, pos.y, lvl.goal)) return 'goal';
-      const pad = 8;
+    // What the plane would touch at pos (same tests as stepFlight): null, or
+    // { kind: 'edge' | 'hazard' | 'goal' | 'solid' | 'spring', rect?, side? }.
+    contactAt(pos, vel, lvl) {
+      if (pos.x < 10 || pos.x > W - 10 || pos.y < -10 || pos.y > H + 10) return { kind: 'edge' };
+      for (const haz of lvl.hazards) if (this.pointInRect(pos.x, pos.y, haz)) return { kind: 'hazard' };
+      if (this.pointInRect(pos.x, pos.y, lvl.goal)) return { kind: 'goal' };
       for (const r of lvl.solids) {
-        if (pos.x + pad >= r.x && pos.x - pad <= r.x + r.w && pos.y + pad >= r.y && pos.y - pad <= r.y + r.h) {
-          return 'solid';
+        const o = solidOverlap(pos, r);
+        if (!o) continue;
+        if (r.type === 'shelf') {
+          if (!(vel.y > 0 && o.t <= SHELF_DEPTH)) continue; // one-way: passes through from below / the side
+          return { kind: 'solid', rect: r, side: 't' };
         }
+        const side = minSide(o, r.type === 'cork' ? SIDE_ORDER.cork : SIDE_ORDER.other);
+        return { kind: r.type === 'spring' ? 'spring' : 'solid', rect: r, side };
       }
       return null;
     }
 
     // The first PREVIEW_SECONDS of a launch with this pull, using the real force
-    // code and fixed step; stops at the first contact. Returns dots + how it ended.
+    // code and fixed step. Springs, bumpers and tubes are followed exactly (same
+    // helpers as the real flight); it stops at the first other contact.
     predictPath(pull) {
       const lvl = this.levels[this.levelIndex];
       const pos = this.pos.clone();
       const vel = pull.clone().scale(this.LAUNCH_POWER);
       let angle = vel.angle();
+      let lock = -1;
       const dots = [];
       const total = Math.round(PREVIEW_SECONDS / STEP);
       for (let i = 0; i < total; i++) {
@@ -428,8 +540,22 @@
         for (let k = 0; k < 3; k++) {
           pos.x += (vel.x * STEP) / 3;
           pos.y += (vel.y * STEP) / 3;
-          const hit = this.contactAt(pos, lvl);
-          if (hit) return { dots, end: { x: pos.x, y: pos.y }, hit };
+          const hit = this.contactAt(pos, vel, lvl);
+          if (hit) {
+            if (hit.kind === 'spring' && hit.side === 't') {
+              pos.y = hit.rect.y - PAD;
+              springKick(vel);
+              angle = vel.angle();
+              continue;
+            }
+            return { dots, end: { x: pos.x, y: pos.y }, hit: hit.kind };
+          }
+          for (const b of lvl.bumpers || []) if (bumperBounce(pos, vel, b)) angle = vel.angle();
+          if (lvl.tubes) {
+            const t = tubeStep(pos, vel, lvl, lock);
+            lock = t.lock;
+            if (t.teleported) angle = vel.angle();
+          }
         }
         if (i % PREVIEW_DOT_EVERY === PREVIEW_DOT_EVERY - 1) dots.push({ x: pos.x, y: pos.y });
       }
@@ -437,28 +563,16 @@
     }
 
     resolveWallCollision(rect) {
-      const pad = 8;
-      if (
-        this.pos.x + pad < rect.x ||
-        this.pos.x - pad > rect.x + rect.w ||
-        this.pos.y + pad < rect.y ||
-        this.pos.y - pad > rect.y + rect.h
-      ) {
-        return false;
-      }
-
-      // Determine shallowest penetration axis
-      const overlapLeft = this.pos.x + pad - rect.x;
-      const overlapRight = rect.x + rect.w - (this.pos.x - pad);
-      const overlapTop = this.pos.y + pad - rect.y;
-      const overlapBottom = rect.y + rect.h - (this.pos.y - pad);
-      const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+      const o = solidOverlap(this.pos, rect);
+      if (!o) return false;
+      const pad = PAD;
 
       // Corkboard = nose sticks immediately on impact
       if (rect.type === 'cork') {
-        if (minOverlap === overlapLeft) this.pos.x = rect.x - pad - 2;
-        else if (minOverlap === overlapRight) this.pos.x = rect.x + rect.w + pad + 2;
-        else if (minOverlap === overlapTop) this.pos.y = rect.y - pad - 2;
+        const cs = minSide(o, SIDE_ORDER.cork);
+        if (cs === 'l') this.pos.x = rect.x - pad - 2;
+        else if (cs === 'r') this.pos.x = rect.x + rect.w + pad + 2;
+        else if (cs === 't') this.pos.y = rect.y - pad - 2;
         else this.pos.y = rect.y + rect.h + pad + 2;
 
         this.safePos.copy(this.pos);
@@ -468,11 +582,27 @@
         return true;
       }
 
-      // Glass = high restitution deflection; Desk = medium slide/settle
+      let side = minSide(o, SIDE_ORDER.other);
+      // One-way shelf: catches only a falling plane that is just reaching its top.
+      if (rect.type === 'shelf') {
+        if (!(this.vel.y > 0 && o.t <= SHELF_DEPTH)) return false;
+        side = 't';
+      }
+      // Spring pad: landing on top kicks the plane back up (other sides act like a desk).
+      if (rect.type === 'spring' && side === 't') {
+        this.pos.y = rect.y - pad;
+        springKick(this.vel);
+        this.playSound('boing', 320);
+        this.spawnFx('poof', this.pos.x, rect.y, 3);
+        this.angle = this.vel.angle();
+        return true;
+      }
+
+      // Glass = high restitution deflection; Desk/shelf/spring-side = medium slide/settle
       const bounce = rect.type === 'glass' ? 0.78 : 0.35;
       const friction = rect.type === 'glass' ? 0.94 : 0.72;
 
-      if (minOverlap === overlapTop) {
+      if (side === 't') {
         this.pos.y = rect.y - pad;
         this.vel.y = -Math.abs(this.vel.y) * bounce;
         this.vel.x *= friction;
@@ -487,15 +617,15 @@
           this.resetToSafeSpot();
           return true;
         }
-      } else if (minOverlap === overlapBottom) {
+      } else if (side === 'b') {
         this.pos.y = rect.y + rect.h + pad;
         this.vel.y = Math.abs(this.vel.y) * bounce;
         this.playSound('ting', 540);
-      } else if (minOverlap === overlapLeft) {
+      } else if (side === 'l') {
         this.pos.x = rect.x - pad;
         this.vel.x = -Math.abs(this.vel.x) * bounce;
         this.playSound('ting', 600);
-      } else if (minOverlap === overlapRight) {
+      } else {
         this.pos.x = rect.x + rect.w + pad;
         this.vel.x = Math.abs(this.vel.x) * bounce;
         this.playSound('ting', 600);
@@ -599,6 +729,51 @@
       }
     }
 
+    drawSpring(g, s) {
+      const seed = D.hash(s.x, s.y, s.w, s.h);
+      D.rect(g, s.x, s.y + s.h - 5, s.w, 5, { seed, fill: PALETTE.woodLight, color: PALETTE.ink, width: 2, amp: 0.5 });
+      D.coil(g, s.x + 8, s.y + 4, s.w - 16, s.h - 9, 4, { color: PALETTE.ink, width: 2.2 });
+      D.rect(g, s.x + 2, s.y, s.w - 4, 5, { seed: seed + 1, fill: PALETTE.pullHi, color: PALETTE.ink, width: 2, amp: 0.4 });
+    }
+
+    // One-way shelf: a thin plank with pencil ticks and up-chevrons below it ("pass through from underneath").
+    drawShelf(g, s) {
+      const seed = D.hash(s.x, s.y, s.w, s.h);
+      D.rect(g, s.x, s.y, s.w, s.h, { seed, fill: PALETTE.woodLight, color: PALETTE.ink, width: 2, amp: 0.7 });
+      for (let x = s.x + 8; x < s.x + s.w - 14; x += 16) {
+        D.line(g, x, s.y + s.h + 5, x + 8, s.y + s.h + 5, { seed: seed + x, width: 1.5, color: PALETTE.pencil, alpha: 0.7, amp: 0.4, double: false });
+      }
+      for (let k = 0; k < 3; k++) {
+        const cx = s.x + s.w * (0.2 + 0.3 * k);
+        D.polyline(g, [{ x: cx - 4, y: s.y + s.h + 17 }, { x: cx, y: s.y + s.h + 11 }, { x: cx + 4, y: s.y + s.h + 17 }], 1.6, PALETTE.pencil, 0.7);
+      }
+    }
+
+    drawBumper(g, b) {
+      const seed = D.hash(b.x, b.y, b.r);
+      D.circle(g, b.x, b.y, b.r, { seed, fill: PALETTE.pullHi, fillAlpha: 0.28, color: PALETTE.ink, width: INK_W, amp: 1.2 });
+      D.circle(g, b.x, b.y, b.r * 0.62, { seed: seed + 1, color: PALETTE.pullHi, width: 2, alpha: 0.9, amp: 0.8, double: false });
+      D.star(g, b.x, b.y, b.r * 0.3, { seed: seed + 2, fill: PALETTE.pullHi, color: PALETTE.ink, width: 1.2, double: false });
+    }
+
+    drawTubes(g, tubes) {
+      tubes.forEach((t, i) => {
+        const col = i % 2 ? PALETTE.pencil : PALETTE.pullLo;
+        // faint dashed hose between the two mouths
+        const hose = D.wobble(t.a.x, t.a.y, t.b.x, t.b.y, 500 + i, 7);
+        for (let k = 1; k < hose.length; k += 2) D.polyline(g, [hose[k - 1], hose[k]], 2, col, 0.28);
+        [t.a, t.b].forEach((m, j) => {
+          D.circle(g, m.x, m.y, TUBE_R, { seed: 600 + i * 2 + j, fill: col, fillAlpha: 0.25, color: PALETTE.ink, width: INK_W, amp: 0.9 });
+          D.circle(g, m.x, m.y, TUBE_R * 0.58, { seed: 700 + i * 2 + j, fill: PALETTE.ink, fillAlpha: 0.32, outline: false });
+          // arrow showing the exit direction
+          const rad = (m.dir * Math.PI) / 180, c = Math.cos(rad), sn = Math.sin(rad);
+          const x1 = m.x + c * (TUBE_R + 6), y1 = m.y + sn * (TUBE_R + 6), x2 = m.x + c * (TUBE_R + 22), y2 = m.y + sn * (TUBE_R + 22);
+          D.line(g, x1, y1, x2, y2, { seed: 800 + i * 2 + j, width: 2.2, color: col, alpha: 0.95, amp: 0.6 });
+          [0.5, -0.5].forEach((da, q) => D.line(g, x2, y2, x2 - Math.cos(rad + da) * 7, y2 - Math.sin(rad + da) * 7, { seed: 900 + q, width: 2.2, color: col, alpha: 0.95, amp: 0.3, double: false }));
+        });
+      });
+    }
+
     drawHazard(g, h) {
       const seed = D.hash(h.x, h.y, h.w, h.h);
       D.blob(g, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, h.h / 2, { seed, fill: PALETTE.coffee, color: PALETTE.ink, width: 2, amp: 1.6 });
@@ -647,6 +822,8 @@
       this.drawPaper(this.bgGraphics);
       // Desk doodles in the free areas of the page (never over gameplay objects).
       const avoid = [...lvl.solids, ...lvl.fans, ...lvl.hazards, { x: lvl.goal.x - 10, y: lvl.goal.y - 40, w: lvl.goal.w + 20, h: lvl.goal.h + 40 }, { x: lvl.start.x - 50, y: lvl.start.y - 50, w: 100, h: 100 }];
+      for (const b of lvl.bumpers || []) avoid.push({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 });
+      for (const t of lvl.tubes || []) for (const m of [t.a, t.b]) avoid.push({ x: m.x - 44, y: m.y - 44, w: 88, h: 88 });
       const decor = D.placeDecor(D.hash(this.levelIndex, 7), avoid, W, H, 5);
       D.drawDecor(this.bgGraphics, decor, { ink: PALETTE.ink, alpha: 0.2, coffee: PALETTE.coffee });
 
@@ -654,7 +831,11 @@
         if (s.type === 'desk') this.drawDesk(this.envGraphics, s);
         else if (s.type === 'cork') this.drawCork(this.envGraphics, s);
         else if (s.type === 'glass') this.drawGlass(this.envGraphics, s);
+        else if (s.type === 'spring') this.drawSpring(this.envGraphics, s);
+        else if (s.type === 'shelf') this.drawShelf(this.envGraphics, s);
       }
+      for (const b of lvl.bumpers || []) this.drawBumper(this.envGraphics, b);
+      if (lvl.tubes) this.drawTubes(this.envGraphics, lvl.tubes);
       for (const h of lvl.hazards) this.drawHazard(this.envGraphics, h);
       this.drawGoal(this.envGraphics, lvl.goal);
     }
@@ -662,6 +843,7 @@
     // Pencil-dash a path (every other segment).
     dashPath(g, pts, width, alpha) {
       for (let i = 1; i < pts.length; i += 2) {
+        if (pts[i].jump || pts[i - 1].jump) continue; // don't draw a dash across a tube hop
         D.line(g, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, { seed: i * 31, width, color: PALETTE.pencil, alpha, amp: 0.5, double: false });
       }
     }
@@ -725,7 +907,7 @@
         });
         if (path.hit) {
           // End marker: where this throw would first touch something.
-          const mc = path.hit === 'goal' ? PALETTE.pullLo : path.hit === 'solid' ? PALETTE.ink : PALETTE.pullHi;
+          const mc = path.hit === 'goal' ? PALETTE.pullLo : path.hit === 'solid' || path.hit === 'spring' ? PALETTE.ink : PALETTE.pullHi;
           D.circle(g, path.end.x, path.end.y, 7, { seed: 8, outline: true, color: mc, width: 2.5, alpha: 0.95, amp: 0.6 });
         }
       }
@@ -868,6 +1050,18 @@
         osc.frequency.exponentialRampToValueAtTime(45, now + 0.12);
         gain.gain.setValueAtTime(0.14, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+      } else if (type === 'boing') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq * 0.7, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.9, now + 0.16);
+        gain.gain.setValueAtTime(0.13, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      } else if (type === 'whoop') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq * 1.8, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.6, now + 0.16);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
       } else if (type === 'win') {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(440, now);
@@ -940,8 +1134,9 @@
         this.add.text(x + 12, y + 8, String(i + 1), {
           fontFamily: UI_FONT, fontSize: "30px", fontStyle: "bold", color: css(PALETTE.ink),
         });
-        this.add.text(x + 52, y + 12, lvl.name, {
-          fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.ink), wordWrap: { width: cw - 62 },
+        const nameX = x + (i >= 9 ? 70 : 52); // leave room for a two-digit number
+        this.add.text(nameX, y + 14, lvl.name, {
+          fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.ink), wordWrap: { width: cw - (nameX - x) - 10 },
         });
         this.add.text(x + 12, y + ch - 24, `Par ${lvl.par}` + (b !== undefined ? `  Best ${b}` : ""), {
           fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.pencil),
