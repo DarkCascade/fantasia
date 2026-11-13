@@ -15,6 +15,7 @@
  *            "shelf"  ONE-WAY: passes through from below/the side, catches a falling plane on top
  *   fans   wind rects {x, y, w, h, forceX, forceY}  (any direction: updrafts, downdrafts, crosswinds)
  *   hazards rects {x, y, w, h, label}
+ *   preview (optional) seconds of flight the aim dots show (default 1); long chaotic chains (bumpers) need more
  *   width  (optional) world width in px for a SCROLLING level (default W): the camera follows the
  *          plane across it. Everything is still in sheet coordinates (x grows right up to `width`).
  *   bumpers (optional) circles {x, y, r}: pinball rebounders
@@ -100,15 +101,18 @@
       // Bumpers: pinball up to the bin ledge.
       name: "Pinball Desk",
       par: 4,
+      preview: 3.5, // winning flights last 1-3 s; the 1 s default hid every bounce after the first
       start: { x: 115, y: 580 },
-      goal: { x: 326, y: 243, w: 118, h: 56 }, // a wide bin: pinball is fiddly, so the target is generous
+      goal: { x: 308, y: 243, w: 118, h: 56 }, // a wide bin: pinball is fiddly, so the target is generous
       solids: [
         { x: 0, y: 600, w: W, h: 200, type: "desk" },
-        { x: 320, y: 299, w: 130, h: 14, type: "shelf" }, // one-way bin shelf
+        { x: 302, y: 299, w: 148, h: 14, type: "shelf" }, // one-way bin shelf
       ],
       bumpers: [
-        { x: 288, y: 432, r: 37 },
-        { x: 358, y: 368, r: 28 },
+        // Hill-climbed with experiments/paper-airplane (fine grid, bumpers required): both bumpers
+        // large and close together, so more aims funnel into the bin (0.58% -> ~0.9% of throws).
+        { x: 312, y: 426, r: 30 },
+        { x: 376, y: 375, r: 30 },
       ],
       fans: [],
       hazards: [{ x: 150, y: 576, w: 70, h: 24, label: "COFFEE" }],

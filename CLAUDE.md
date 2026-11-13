@@ -1251,6 +1251,14 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   rests still checkpoint (`safePos`), so a short throw is not wasted. `check-levels.js` lints against
   `lvl.width`. Tuning a long level: sweep fan params through the real physics (see git history of
   this entry for the loop: vary `forceX/forceY/gap/width/top`, count wins, `timeout`, max duration).
+  **Pinball Desk tuning + per-level `preview`.** A level may set `preview` (seconds the aim dots
+  show, default `PREVIEW_SECONDS` 1; `predictPath` reads `lvl.preview`; `check-preview.js` compares
+  that many seconds, max error ~1e-12 px at 3.5 s). Pinball Desk's winning flights last 1.1-3.2 s
+  (high power, -48..-61 deg), so the 1 s preview hid every bounce after the first: it now shows 3.5 s
+  and ends at the bin. Its bumpers were hill-climbed (mutate bumper x/y/r, shelf/goal; keep bumpers
+  required = zero wins with them removed; fine grid -90..0 deg step 1, pw 20-110 step 5): 10 -> 15
+  winning throws, two big bumpers (r 30) close together. NOTE the `check-levels.js` grid (2 deg x 5 pw
+  over 360) is too coarse to see this (still 0.23%); judge bumper layouts on the fine grid.
   **Designing levels (lessons):** windows are narrow in this physics (~0.1-2% of a fine grid; level 2's
   0.4% "feels good" with the arc) — aim for >= 0.15% single-throw success, or a multi-throw design.
   A mechanic is only worth a level if removing it leaves ZERO wins (otherwise lobs skip it): a spring

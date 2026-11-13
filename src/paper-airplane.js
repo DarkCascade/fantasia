@@ -376,7 +376,7 @@
       this.strokes = 0;
       this.ghostTrails = [];
       this.currentTrail = [];
-      this.hintText.setText(this.worldW > W ? 'Long level: the ruler shows where the bin is. Ride the thermals.' : 'Drag back to aim: the dots show your first second of flight.');
+      this.hintText.setText(this.worldW > W ? 'Long level: the ruler shows where the bin is. Ride the thermals.' : (lvl.preview > 1 ? 'Drag back to aim: the dots follow the bounces.' : 'Drag back to aim: the dots show your first second of flight.'));
       this.safePos.set(lvl.start.x, lvl.start.y);
       this.resetToSafeSpot();
       this.drawStaticEnvironment();
@@ -610,7 +610,7 @@
       return null;
     }
 
-    // The first PREVIEW_SECONDS of a launch with this pull, using the real force
+    // The first PREVIEW_SECONDS (or the level's `preview`) of a launch with this pull, using the real force
     // code and fixed step. Springs, bumpers and tubes are followed exactly (same
     // helpers as the real flight); it stops at the first other contact.
     predictPath(pull) {
@@ -620,7 +620,7 @@
       let angle = vel.angle();
       let lock = -1;
       const dots = [];
-      const total = Math.round(PREVIEW_SECONDS / STEP);
+      const total = Math.round((lvl.preview || PREVIEW_SECONDS) / STEP); // levels with long chaotic flights (bumpers) show more
       for (let i = 0; i < total; i++) {
         angle = this.applyForces(vel, angle, pos, STEP, lvl);
         for (let k = 0; k < 3; k++) {

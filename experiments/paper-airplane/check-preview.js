@@ -40,7 +40,7 @@ const URL = arg("url", "http://localhost:8130");
         const pred = sc.predictPath(pull);
         ev = []; sc.launchPlane(pull); throws++;
         const real = [];
-        for (let t = 0; t < 60 && sc.planeState === "FLYING"; t++) {
+        for (let t = 0; t < Math.round((sc.levels[li].preview || 1) * 60) && sc.planeState === "FLYING"; t++) {
           sc.update(t * 16.667, 16.667);
           if (t % 4 === 3 && sc.planeState === "FLYING") real.push({ x: sc.pos.x, y: sc.pos.y });
         }
