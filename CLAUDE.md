@@ -1148,8 +1148,16 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   office levels defined in `this.levels` (start, goal bin, `solids`, `fans`,
   `hazards`): **cork** sticks and resets, **glass** bounces (0.78), **desk**
   slides/settles (0.35), coffee/spill **hazards** reset, **fans** add force in a
-  rect. Physics is hand-rolled (gravity, drag, wing lift ∝ forward speed², nose
-  weathervane, 3 sub-steps for collisions) — no Matter. Ghost trails show past
+  rect. Physics is hand-rolled — no Matter — on a **fixed 1/60 s step** (`STEP`,
+  accumulated in `update`, so it is identical on 60/120 Hz displays): gravity, drag,
+  wing lift **linear** in forward speed (`LIFT_COEFF`; it used to be speed², which
+  looped fast throws), nose weathervane, 3 sub-steps for collisions. The forces live
+  in ONE method, `applyForces()`, shared by the real flight (`stepFlight`) and the
+  **aim preview** (`predictPath`): while dragging, a dotted arc shows the first
+  `PREVIEW_SECONDS` (1s) of the throw and stops with a ring at the first contact
+  (ink = solid/edge, red = hazard, green = bin). It matches the real flight to
+  ~1e-13 px — keep it that way: any new force goes in `applyForces`, and anything
+  `stepFlight` collides with must be mirrored in `contactAt`. Ghost trails show past
   throws; sound is a Web Audio synth (`playSound`). Handle:
   `window.paperAirplaneGame`; the in-game **≡ Menu** chip calls `returnToMenu()`.
   **Art direction: "ink on notebook paper"** — all colours live in `PALETTE`, one
@@ -1162,9 +1170,9 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   **Level tuning is measured, not eyeballed:** a headless sweep of launches (angle
   × power through the real `update()`, with `playSound`/`drawDynamicFrame`/
   `handleWin` stubbed) gives each level's single-throw success rate — currently
-  ~1.6% / ~0.4% / ~2.2% for levels 1–3. Re-run it after moving anything.
-  **Planned / ideas:** (1) make the plane physics easier for the player to read
-  (the first priority — before par scores); (2) a par (best throws) per level;
+  ~1.2% / ~0.2% / ~1.9% for levels 1–3 (grid up to full pull). Re-run it after moving anything.
+  **Planned / ideas:** (1) **done:** aim preview arc + linear lift/slower launch (more legibility ideas:
+  a lift tick on the plane, faster wind marks where the push is stronger); (2) a par (best throws) per level;
   (3) try tall **scrolling** levels (camera follows the plane) later.
 
 ```

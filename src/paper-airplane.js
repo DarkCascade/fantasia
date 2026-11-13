@@ -41,6 +41,11 @@
     pullHi: 0xe76f51,
   };
   const INK_W = 2.5; // the one outline weight
+  // Physics runs on a FIXED step so the aim preview matches the real flight
+  // exactly, whatever the display refresh rate (iPads run at 120 Hz).
+  const STEP = 1 / 60;
+  const PREVIEW_SECONDS = 1.0; // how much of the flight the dotted arc shows
+  const PREVIEW_DOT_EVERY = 4; // one dot per N physics steps
   const UI_FONT = "ui-monospace, Menlo, Consolas, monospace";
   const css = (n) => "#" + n.toString(16).padStart(6, "0");
   // Portrait sheet (9:16-ish): phone-first. FIT-scales onto iPads / desktops.
@@ -62,13 +67,16 @@
       this.ghostTrails = []; // Stores past flight paths
       this.currentTrail = [];
       this.trailTimer = 0;
+      this.accum = 0; // fixed-step time accumulator
 
       // Aerodynamic constants (tuned for tactile "Kinda Hard Golf" feel)
       this.GRAVITY = 480;
-      this.LIFT_COEFF = 0.0019;
+      // Lift is LINEAR in forward speed (a steady glide), not speed-squared:
+      // fast throws no longer loop, slow ones still sink. Accel = LIFT * speed.
+      this.LIFT_COEFF = 0.6;
       this.DRAG = 0.993;
       this.MAX_PULL = 180;
-      this.LAUNCH_POWER = 5.4;
+      this.LAUNCH_POWER = 3.4; // max launch speed = MAX_PULL * this (~610 px/s)
 
       // Plane kinematic state
       this.planeState = 'IDLE'; // 'IDLE' | 'FLYING' | 'WIN'
@@ -97,7 +105,7 @@
       this.hintText = this.add.text(
         16,
         62,
-        "Drag back, release to launch. Tap mid-flight to reset.",
+        "Drag back to aim: the dots show your first second of flight.",
         {
           fontFamily: UI_FONT,
           fontSize: "11px",
@@ -233,6 +241,7 @@
       if (this.hintText.alpha === 1) this.tweens.add({ targets: this.hintText, alpha: 0, duration: 600 });
       this.updateHUD();
       this.planeState = 'FLYING';
+      this.accum = 0;
       this.vel.copy(pullVector).scale(this.LAUNCH_POWER);
       this.angle = this.vel.angle();
       this.currentTrail = [{ x: this.pos.x, y: this.pos.y }];
@@ -240,84 +249,131 @@
     }
 
     update(time, delta) {
-      const dt = Math.min(delta / 1000, 0.033);
-      const lvl = this.levels[this.levelIndex];
-
       if (this.planeState === 'FLYING') {
-        // 1. Gravity & Air Drag
-        this.vel.y += this.GRAVITY * dt;
-        this.vel.scale(Math.pow(this.DRAG, dt * 60));
-
-        // 2. Environmental Wind / Fan Zones
-        for (const fan of lvl.fans) {
-          if (this.pointInRect(this.pos.x, this.pos.y, fan)) {
-            this.vel.x += fan.forceX * dt;
-            this.vel.y += fan.forceY * dt;
-          }
+        // Fixed-step physics: same dt every step, so flights are repeatable and
+        // predictPath() below can reproduce them exactly.
+        this.accum = Math.min(this.accum + delta / 1000, 0.1);
+        while (this.accum >= STEP && this.planeState === 'FLYING') {
+          this.stepFlight(STEP);
+          this.accum -= STEP;
         }
+      }
+      this.drawDynamicFrame(time);
+    }
 
-        // 3. Aerodynamic Wing Lift (perpendicular to nose, scales with forward speed)
-        const forward = new Phaser.Math.Vector2(Math.cos(this.angle), Math.sin(this.angle));
-        const forwardSpeed = Math.max(0, this.vel.dot(forward));
-        const upWing = new Phaser.Math.Vector2(-Math.sin(this.angle), Math.cos(this.angle));
-        // Ensure lift opposes gravity regardless of left/right orientation
-        if (upWing.y > 0) upWing.negate();
+    // Forces on the plane for one step. Shared by the real flight and the aim
+    // preview, so the two can never disagree. Mutates vel; returns the new angle.
+    applyForces(vel, angle, pos, dt, lvl) {
+      // 1. Gravity & air drag
+      vel.y += this.GRAVITY * dt;
+      vel.scale(Math.pow(this.DRAG, dt * 60));
 
-        const liftMag = forwardSpeed * forwardSpeed * this.LIFT_COEFF;
-        this.vel.add(upWing.scale(liftMag * dt));
-
-        // 4. Weathervane Nose Alignment (stalls downward if too slow)
-        if (this.vel.length() > 25) {
-          const targetAngle = this.vel.angle();
-          this.angle = Phaser.Math.Angle.RotateTo(this.angle, targetAngle, 3.8 * dt);
-        }
-
-        // 5. Sub-stepped movement & collision
-        const steps = 3;
-        const subDt = dt / steps;
-        for (let i = 0; i < steps; i++) {
-          this.pos.x += this.vel.x * subDt;
-          this.pos.y += this.vel.y * subDt;
-
-          // Screen bounds
-          if (this.pos.x < 10 || this.pos.x > W - 10 || this.pos.y < -10 || this.pos.y > H + 10) {
-            this.playSound('crumple', 120);
-            this.resetToSafeSpot();
-            break;
-          }
-
-          // Check Hazards (Coffee spills soak the plane)
-          for (const haz of lvl.hazards) {
-            if (this.pointInRect(this.pos.x, this.pos.y, haz)) {
-              this.playSound('splash', 160);
-              this.resetToSafeSpot();
-              break;
-            }
-          }
-          if (this.planeState !== 'FLYING') break;
-
-          // Check Goal (Inbox / Trash Bin)
-          if (this.pointInRect(this.pos.x, this.pos.y, lvl.goal)) {
-            this.handleWin();
-            break;
-          }
-
-          // Check Solid Surfaces
-          for (const wall of lvl.solids) {
-            if (this.resolveWallCollision(wall)) break;
-          }
-          if (this.planeState !== 'FLYING') break;
-        }
-
-        // Record breadcrumb trail
-        this.trailTimer += dt;
-        if (this.trailTimer >= 0.04) {
-          this.trailTimer = 0;
-          this.currentTrail.push({ x: this.pos.x, y: this.pos.y });
+      // 2. Environmental wind / fan zones
+      for (const fan of lvl.fans) {
+        if (this.pointInRect(pos.x, pos.y, fan)) {
+          vel.x += fan.forceX * dt;
+          vel.y += fan.forceY * dt;
         }
       }
 
-      this.drawDynamicFrame(time);
+      // 3. Wing lift: perpendicular to the nose, proportional to forward speed
+      const forward = new Phaser.Math.Vector2(Math.cos(angle), Math.sin(angle));
+      const forwardSpeed = Math.max(0, vel.dot(forward));
+      const upWing = new Phaser.Math.Vector2(-Math.sin(angle), Math.cos(angle));
+      // Ensure lift opposes gravity regardless of left/right orientation
+      if (upWing.y > 0) upWing.negate();
+      vel.add(upWing.scale(forwardSpeed * this.LIFT_COEFF * dt));
+
+      // 4. Weathervane: the nose turns toward the direction of travel
+      if (vel.length() > 25) {
+        angle = Phaser.Math.Angle.RotateTo(angle, vel.angle(), 3.8 * dt);
+      }
+      return angle;
+    }
+
+    stepFlight(dt) {
+      const lvl = this.levels[this.levelIndex];
+      this.angle = this.applyForces(this.vel, this.angle, this.pos, dt, lvl);
+
+      // Sub-stepped movement & collision
+      const steps = 3;
+      const subDt = dt / steps;
+      for (let i = 0; i < steps; i++) {
+        this.pos.x += this.vel.x * subDt;
+        this.pos.y += this.vel.y * subDt;
+
+        // Sheet edges (sides, bottom and top)
+        if (this.pos.x < 10 || this.pos.x > W - 10 || this.pos.y < -10 || this.pos.y > H + 10) {
+          this.playSound('crumple', 120);
+          this.resetToSafeSpot();
+          break;
+        }
+
+        // Hazards (coffee spills soak the plane)
+        for (const haz of lvl.hazards) {
+          if (this.pointInRect(this.pos.x, this.pos.y, haz)) {
+            this.playSound('splash', 160);
+            this.resetToSafeSpot();
+            break;
+          }
+        }
+        if (this.planeState !== 'FLYING') break;
+
+        // Goal (inbox / bin)
+        if (this.pointInRect(this.pos.x, this.pos.y, lvl.goal)) {
+          this.handleWin();
+          break;
+        }
+
+        // Solid surfaces
+        for (const wall of lvl.solids) {
+          if (this.resolveWallCollision(wall)) break;
+        }
+        if (this.planeState !== 'FLYING') break;
+      }
+
+      // Record breadcrumb trail
+      this.trailTimer += dt;
+      if (this.trailTimer >= 0.04) {
+        this.trailTimer = 0;
+        this.currentTrail.push({ x: this.pos.x, y: this.pos.y });
+      }
+    }
+
+    // What the plane would touch at pos (same tests as stepFlight), or null.
+    contactAt(pos, lvl) {
+      if (pos.x < 10 || pos.x > W - 10 || pos.y < -10 || pos.y > H + 10) return 'edge';
+      for (const haz of lvl.hazards) if (this.pointInRect(pos.x, pos.y, haz)) return 'hazard';
+      if (this.pointInRect(pos.x, pos.y, lvl.goal)) return 'goal';
+      const pad = 8;
+      for (const r of lvl.solids) {
+        if (pos.x + pad >= r.x && pos.x - pad <= r.x + r.w && pos.y + pad >= r.y && pos.y - pad <= r.y + r.h) {
+          return 'solid';
+        }
+      }
+      return null;
+    }
+
+    // The first PREVIEW_SECONDS of a launch with this pull, using the real force
+    // code and fixed step; stops at the first contact. Returns dots + how it ended.
+    predictPath(pull) {
+      const lvl = this.levels[this.levelIndex];
+      const pos = this.pos.clone();
+      const vel = pull.clone().scale(this.LAUNCH_POWER);
+      let angle = vel.angle();
+      const dots = [];
+      const total = Math.round(PREVIEW_SECONDS / STEP);
+      for (let i = 0; i < total; i++) {
+        angle = this.applyForces(vel, angle, pos, STEP, lvl);
+        for (let k = 0; k < 3; k++) {
+          pos.x += (vel.x * STEP) / 3;
+          pos.y += (vel.y * STEP) / 3;
+          const hit = this.contactAt(pos, lvl);
+          if (hit) return { dots, end: { x: pos.x, y: pos.y }, hit };
+        }
+        if (i % PREVIEW_DOT_EVERY === PREVIEW_DOT_EVERY - 1) dots.push({ x: pos.x, y: pos.y });
+      }
+      return { dots, end: null, hit: null };
     }
 
     resolveWallCollision(rect) {
@@ -557,6 +613,21 @@
       const tip = pull.clone().normalize().scale(36 + ratio * 28);
       g.lineStyle(2, PALETTE.ink, 0.6);
       g.lineBetween(this.pos.x, this.pos.y, this.pos.x + tip.x, this.pos.y + tip.y);
+
+      // Dotted preview of the first second of flight (exact, same physics).
+      if (pull.length() >= 14) {
+        const path = this.predictPath(pull);
+        path.dots.forEach((d, i) => {
+          g.fillStyle(PALETTE.ink, 0.8 - 0.5 * (i / Math.max(1, path.dots.length)));
+          g.fillCircle(d.x, d.y, 2.4);
+        });
+        if (path.hit) {
+          // End marker: where this throw would first touch something.
+          const c = path.hit === 'goal' ? PALETTE.pullLo : path.hit === 'solid' ? PALETTE.ink : PALETTE.pullHi;
+          g.lineStyle(2.5, c, 0.95);
+          g.strokeCircle(path.end.x, path.end.y, 7);
+        }
+      }
 
       this.angle = pull.angle();
     }
