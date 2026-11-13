@@ -1160,9 +1160,23 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   `stepFlight` collides with must be mirrored in `contactAt`. Ghost trails show past
   throws; sound is a Web Audio synth (`playSound`). Handle:
   `window.paperAirplaneGame`; the in-game **≡ Menu** chip calls `returnToMenu()`.
-  **Art direction: "ink on notebook paper"** — all colours live in `PALETTE`, one
-  `INK_W` outline weight, one `draw*()` helper per object type (desk/cork/glass/
-  hazard/goal/plane/wind/pull indicator), so an art pass should only touch those.
+  **Art direction: "ink on notebook paper", hand-doodled.** Colours live in `PALETTE`, one
+  `INK_W` outline weight, one `draw*()` method per object type (desk/cork/glass/hazard/goal/
+  plane/wind/pull indicator) in `PaperAirplaneScene`. All strokes go through
+  `src/paper-airplane/doodle.js` (`window.PaperAirplaneDoodle`): wobbly double-stroked lines,
+  jittered fills, blobs, stars, 45° hatch shading — all **seeded** (deterministic), so static art
+  never shimmers and a level always looks the same (use `D.hash(...)` of an object's rect as
+  the seed). Static art is drawn once per level (`drawStaticEnvironment`); only the plane,
+  pencil-dash trails, wind streaks and particles redraw each frame. Extras: a canvas
+  **paper-grain** texture (speckle, fibres, vignette, stains; one `pa-grain` texture, overlaid at
+  depth 100), punched holes + ruled page (`drawPaperBackground`), **desk-doodle props**
+  (`D.placeDecor`: mug, plant, clip, pencil, sticky note, lamp, stapler, coffee ring — placed
+  only in free areas, never over gameplay objects, no repeats per level), a fluttering plane
+  with a centre fold, and **particles** (`spawnFx`/`stepFx`/`drawFx`: crash scraps, coffee
+  drops, puffs, win confetti). Hazard labels use `DOODLE_FONT` (a handwriting font stack that
+  falls back to a generic cursive). **No image assets**: CC0 packs weren't reachable from the
+  build sandbox (kenney.nl 403, OpenGameArt blocked), so everything is code-drawn; owned/CC0
+  images can be dropped under `src/paper-airplane/` and loaded in a `preload()`.
   The launcher also paints `#game-container` desk-brown and adds a canvas shadow
   (reverted on `destroy`) so the sheet doesn't sit in a harsh letterbox. Keep the
   top ~90px (HUD band: name, throws, hint, Menu chip) free of level geometry.
@@ -1238,7 +1252,7 @@ src/tiny-haulers/sim.js  Tiny Haulers simulation core (no rendering; also requir
 src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
 src/hollow-moon.js      Hollow Moon one-fight artistic ARPG (three.js, DOM HUD); window.launchHollowMoon()
 src/paper-airplane.js  Paper Airplane flick game (Phaser); window.launchPaperAirplane({level?})
-src/paper-airplane/    levels.js (level data, UMD) + marquee.svg (Featured card art)
+src/paper-airplane/    levels.js (level data, UMD), doodle.js (hand-drawn line/shape/paper helpers), marquee.svg (Featured card art)
 experiments/paper-airplane/  check-levels.js: level lint + headless physics sweep (see Paper Airplane entry)
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 test/                  Node unit tests (node --test test/); not deployed

@@ -84,16 +84,27 @@
   // Portrait sheet (9:16-ish): phone-first. FIT-scales onto iPads / desktops.
   // Level data lives in src/paper-airplane/levels.js (loaded first by index.html).
   const { W, H, LEVELS } = window.PaperAirplaneLevels;
+  const D = window.PaperAirplaneDoodle; // seeded hand-drawn line helpers (src/paper-airplane/doodle.js)
+  const DOODLE_FONT = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Marker Felt", cursive';
   let pendingStartLevel = null; // set by launchPaperAirplane({ level }) to skip the select screen
 
-  // Ruled notebook page, shared by the level-select and game scenes.
-  function drawPaperBackground(g) {
+  // Ruled notebook page, shared by the level-select and game scenes. The ruling
+  // and margin are hand-drawn (seeded wobble), and the page has punched holes
+  // unless opts.holes === false.
+  function drawPaperBackground(g, opts) {
     g.fillStyle(PALETTE.paper, 1);
     g.fillRect(0, 0, W, H);
-    g.lineStyle(1, PALETTE.rule, 1);
-    for (let y = 96; y < H; y += 32) g.lineBetween(0, y, W, y);
-    g.lineStyle(2, PALETTE.margin, 1);
-    g.lineBetween(40, 0, 40, H);
+    for (let y = 96, i = 0; y < H; y += 32, i++) {
+      D.line(g, -4, y, W + 4, y, { seed: 1000 + i, amp: 0.9, width: 1.3, color: PALETTE.rule, alpha: 0.95, double: false });
+    }
+    D.line(g, 40, -4, 40, H + 4, { seed: 77, amp: 1.1, width: 2, color: PALETTE.margin, alpha: 0.95 });
+    if (!opts || opts.holes !== false) {
+      [150, 400, 650].forEach((hy, i) => {
+        g.fillStyle(0x6b5a4c, 1);
+        g.fillCircle(16, hy, 6);
+        D.circle(g, 16, hy, 6, { seed: 90 + i, color: PALETTE.ink, width: 1, alpha: 0.3, amp: 0.4, double: false });
+      });
+    }
   }
 
   class PaperAirplaneScene extends Phaser.Scene {
@@ -136,11 +147,16 @@
       this.safePos = new Phaser.Math.Vector2();
 
       // Graphics layers
+      this.fx = []; // particles: crash scraps, coffee drops, puffs, win confetti
       this.bgGraphics = this.add.graphics();
       this.trailGraphics = this.add.graphics();
       this.envGraphics = this.add.graphics();
       this.uiGraphics = this.add.graphics();
       this.planeGraphics = this.add.graphics();
+      this.fxGraphics = this.add.graphics();
+      // paper grain over everything (below the HUD chips' hit areas, which don't use depth)
+      D.makePaperGrain(this, 'pa-grain', W, H);
+      this.add.image(0, 0, 'pa-grain').setOrigin(0).setDepth(100);
 
       // HUD (top band, y < ~90, kept clear of level geometry): level name and
       // throw count on two lines, plus a hint that fades after the first throw.
@@ -271,6 +287,7 @@
           this.accum -= STEP;
         }
       }
+      this.stepFx(delta / 1000);
       this.drawDynamicFrame(time);
     }
 
@@ -318,6 +335,7 @@
         // Sheet edges (sides, bottom and top)
         if (this.pos.x < 10 || this.pos.x > W - 10 || this.pos.y < -10 || this.pos.y > H + 10) {
           this.playSound('crumple', 120);
+          this.spawnFx('scrap', this.pos.x, this.pos.y, 9);
           this.resetToSafeSpot();
           break;
         }
@@ -326,6 +344,8 @@
         for (const haz of lvl.hazards) {
           if (this.pointInRect(this.pos.x, this.pos.y, haz)) {
             this.playSound('splash', 160);
+            this.spawnFx('drop', this.pos.x, haz.y, 16);
+            this.spawnFx('scrap', this.pos.x, this.pos.y, 4);
             this.resetToSafeSpot();
             break;
           }
@@ -358,6 +378,7 @@
           this.lastEnd = this.stallTime >= STALL_SECONDS ? 'stall' : 'timeout';
           this.playSound('crumple', 120);
           this.noteToPlayer('That one ran out of puff. Try again.');
+          this.spawnFx('poof', this.pos.x, this.pos.y, 5);
           this.resetToSafeSpot();
           return;
         }
@@ -442,6 +463,7 @@
 
         this.safePos.copy(this.pos);
         this.playSound('thud', 140);
+        this.spawnFx('poof', this.pos.x, this.pos.y, 4);
         this.resetToSafeSpot();
         return true;
       }
@@ -487,6 +509,7 @@
       this.planeState = 'WIN';
       this.vel.set(0, 0);
       this.playSound('win', 520);
+      this.spawnFx('confetti', this.levels[this.levelIndex].goal.x + this.levels[this.levelIndex].goal.w / 2, this.levels[this.levelIndex].goal.y, 34);
 
       const idx = this.levelIndex;
       const lvl = this.levels[idx];
@@ -521,85 +544,97 @@
     }
 
     // --- PROCEDURAL RENDERING ---
-    // Shared look: flat PALETTE fill + INK outline. One helper per object type.
-
-    inkRect(g, x, y, w, h, fill, alpha = 1) {
-      g.fillStyle(fill, alpha);
-      g.fillRect(x, y, w, h);
-      g.lineStyle(INK_W, PALETTE.ink, 1);
-      g.strokeRect(x, y, w, h);
-    }
+    // "Ink pen on notebook paper": everything goes through PaperAirplaneDoodle, so
+    // lines wobble (seeded, so they never shimmer), fills are jittered and shading
+    // is hatching. Static art is drawn once per level; only the plane, trails,
+    // wind and particles are redrawn each frame.
 
     drawPaper(g) {
       drawPaperBackground(g);
     }
 
     drawDesk(g, s) {
-      this.inkRect(g, s.x, s.y, s.w, s.h, PALETTE.wood);
+      const seed = D.hash(s.x, s.y, s.w, s.h);
+      const topH = Math.min(16, s.h * 0.4);
+      D.rect(g, s.x, s.y, s.w, s.h, { seed, fill: PALETTE.wood, color: PALETTE.ink, width: INK_W });
       g.fillStyle(PALETTE.woodLight, 1);
-      g.fillRect(s.x + INK_W / 2, s.y + INK_W / 2, s.w - INK_W, 6);
-      // wood grain: a few short strokes, deterministic so it never shimmers
-      g.lineStyle(1.5, PALETTE.woodGrain, 1);
-      for (let gx = s.x + 40; gx < s.x + s.w - 30; gx += 110) {
-        const gy = s.y + 16 + ((gx * 7) % Math.max(8, s.h - 24));
-        g.lineBetween(gx, gy, gx + 34, gy);
+      g.fillRect(s.x + 2, s.y + 2, s.w - 4, topH - 2); // lit top surface
+      D.line(g, s.x + 3, s.y + topH, s.x + s.w - 3, s.y + topH, { seed: seed + 3, width: 1.5, color: PALETTE.ink, alpha: 0.7, amp: 1 });
+      const r = D.rng(seed + 5); // wood grain
+      const grains = Math.max(3, Math.min(24, Math.round((s.w * s.h) / 2500)));
+      for (let i = 0; i < grains; i++) {
+        const len = 20 + r() * 50;
+        const gx = s.x + 8 + r() * Math.max(1, s.w - len - 16);
+        const gy = s.y + topH + 6 + r() * Math.max(1, s.h - topH - 12);
+        D.line(g, gx, gy, gx + len, gy + (r() - 0.5) * 3, { seed: seed + 9 + i, width: 1.4, color: PALETTE.woodGrain, alpha: 0.85, amp: 0.8, double: false });
       }
+      if (s.h > 60) D.hatch(g, s.x + 4, s.y + s.h - 26, s.w - 8, 22, { gap: 8, color: PALETTE.ink, alpha: 0.22 });
     }
 
     drawCork(g, s) {
-      this.inkRect(g, s.x, s.y, s.w, s.h, PALETTE.cork);
+      const seed = D.hash(s.x, s.y, s.w, s.h);
+      D.rect(g, s.x, s.y, s.w, s.h, { seed, fill: PALETTE.cork, color: PALETTE.ink, width: INK_W });
+      const r = D.rng(seed + 2);
       g.fillStyle(PALETTE.corkDot, 1);
-      for (let cy = s.y + 14; cy < s.y + s.h - 6; cy += 22) {
-        g.fillCircle(s.x + s.w / 2 + ((cy * 5) % 9) - 4, cy, 2);
+      const dots = Math.max(4, Math.min(34, Math.round((s.w * s.h) / 260)));
+      for (let i = 0; i < dots; i++) g.fillCircle(s.x + 4 + r() * (s.w - 8), s.y + 4 + r() * (s.h - 8), 1.2 + r() * 1.2);
+      // a few pushpins
+      const pins = [PALETTE.pullHi, PALETTE.pullLo, PALETTE.pencil];
+      const count = Math.max(1, Math.min(3, Math.round(s.h / 70)));
+      for (let i = 0; i < count; i++) {
+        const px = s.x + s.w / 2 + (r() - 0.5) * Math.min(8, s.w * 0.3);
+        const py = s.y + 14 + ((s.h - 28) * (i + r() * 0.5)) / count;
+        D.circle(g, px, py, 3.4, { seed: seed + 20 + i, fill: pins[i % 3], color: PALETTE.ink, width: 1.3, amp: 0.3, double: false });
       }
     }
 
     drawGlass(g, s) {
-      this.inkRect(g, s.x, s.y, s.w, s.h, PALETTE.glass, 0.6);
-      // diagonal shine strokes
-      g.lineStyle(2, PALETTE.glassShine, 0.9);
+      const seed = D.hash(s.x, s.y, s.w, s.h);
+      D.rect(g, s.x, s.y, s.w, s.h, { seed, fill: PALETTE.glass, fillAlpha: 0.6, color: PALETTE.ink, width: INK_W });
       const long = s.w > s.h;
       const n = Math.max(1, Math.floor((long ? s.w : s.h) / 70));
       for (let i = 0; i < n; i++) {
-        if (long) g.lineBetween(s.x + 14 + i * 70, s.y + s.h - 4, s.x + 26 + i * 70, s.y + 4);
-        else g.lineBetween(s.x + 4, s.y + 16 + i * 70, s.x + s.w - 4, s.y + 4 + i * 70);
+        if (long) D.line(g, s.x + 14 + i * 70, s.y + s.h - 4, s.x + 28 + i * 70, s.y + 4, { seed: seed + i, width: 2, color: PALETTE.glassShine, alpha: 0.95, amp: 0.5, double: false });
+        else D.line(g, s.x + 4, s.y + 18 + i * 70, s.x + s.w - 4, s.y + 4 + i * 70, { seed: seed + i, width: 2, color: PALETTE.glassShine, alpha: 0.95, amp: 0.5, double: false });
       }
     }
 
     drawHazard(g, h) {
-      g.fillStyle(PALETTE.coffee, 1);
-      g.fillRoundedRect(h.x, h.y, h.w, h.h, 8);
-      g.lineStyle(INK_W, PALETTE.ink, 1);
-      g.strokeRoundedRect(h.x, h.y, h.w, h.h, 8);
-      g.fillStyle(PALETTE.coffeeLight, 1);
-      g.fillRoundedRect(h.x + 6, h.y + 4, Math.max(8, h.w * 0.35), 5, 2);
+      const seed = D.hash(h.x, h.y, h.w, h.h);
+      D.blob(g, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, h.h / 2, { seed, fill: PALETTE.coffee, color: PALETTE.ink, width: 2, amp: 1.6 });
+      D.blob(g, h.x + h.w * 0.35, h.y + h.h * 0.38, h.w * 0.16, h.h * 0.12, { seed: seed + 1, fill: PALETTE.coffeeLight, outline: false, amp: 0.8 });
+      if (h.label === 'COFFEE') {
+        for (let k = 0; k < 2; k++) {
+          const steam = [];
+          for (let i = 0; i <= 8; i++) steam.push({ x: h.x + h.w * (k ? 0.62 : 0.34) + Math.sin(i * 0.9 + k) * 3, y: h.y - 2 - i * 2.4 });
+          D.polyline(g, steam, 1.6, PALETTE.ink, 0.45);
+        }
+      }
       if (h.label) {
         this.labelTexts.push(
-          this.add
-            .text(h.x + h.w / 2, h.y - 4, h.label, {
-              fontFamily: UI_FONT,
-              fontSize: "10px",
-              color: css(PALETTE.ink),
-            })
-            .setOrigin(0.5, 1)
+          this.add.text(h.x + h.w / 2, h.y - (h.label === 'COFFEE' ? 24 : 4), h.label.toLowerCase(), {
+            fontFamily: DOODLE_FONT, fontSize: '12px', color: css(PALETTE.ink),
+          }).setOrigin(0.5, 1).setAlpha(0.8)
         );
       }
     }
 
     drawGoal(g, r) {
-      g.fillStyle(PALETTE.bin, 1);
-      g.fillRect(r.x + 4, r.y, r.w - 8, r.h);
-      // wire-mesh crosshatch
-      g.lineStyle(1, PALETTE.ink, 0.35);
-      for (let x = r.x + 12; x < r.x + r.w - 6; x += 12) g.lineBetween(x, r.y + 4, x - 2, r.y + r.h - 3);
-      for (let y = r.y + 12; y < r.y + r.h - 4; y += 12) g.lineBetween(r.x + 6, y, r.x + r.w - 6, y);
-      g.lineStyle(INK_W, PALETTE.ink, 1);
-      g.beginPath();
-      g.moveTo(r.x, r.y);
-      g.lineTo(r.x + 6, r.y + r.h);
-      g.lineTo(r.x + r.w - 6, r.y + r.h);
-      g.lineTo(r.x + r.w, r.y);
-      g.strokePath();
+      const seed = D.hash(r.x, r.y, r.w, r.h);
+      // bin: filled trapezoid, open top, wire-mesh scribble, a few crumpled balls
+      D.polygon(g, [{ x: r.x, y: r.y }, { x: r.x + 6, y: r.y + r.h }, { x: r.x + r.w - 6, y: r.y + r.h }, { x: r.x + r.w, y: r.y }], {
+        seed, fill: PALETTE.bin, color: PALETTE.ink, width: INK_W, amp: 1.2, closed: false,
+      });
+      const rr = D.rng(seed + 3);
+      for (let i = 0; i < 3; i++) {
+        D.circle(g, r.x + 14 + rr() * (r.w - 28), r.y + r.h - 9 - rr() * 6, 6 + rr() * 2, { seed: seed + 10 + i, fill: PALETTE.paper, color: PALETTE.ink, width: 1.3, amp: 0.8, double: false });
+      }
+      D.hatch(g, r.x + 6, r.y + 4, r.w - 12, r.h - 8, { gap: 11, color: PALETTE.ink, alpha: 0.3, width: 1 });
+      // arrow pointing into the bin
+      const ax = r.x + r.w / 2, ay = r.y - 24;
+      D.line(g, ax, ay, ax, ay + 16, { seed: seed + 30, width: 2, color: PALETTE.pullLo, alpha: 0.9, amp: 0.8 });
+      D.line(g, ax - 6, ay + 10, ax, ay + 17, { seed: seed + 31, width: 2, color: PALETTE.pullLo, alpha: 0.9, amp: 0.4, double: false });
+      D.line(g, ax + 6, ay + 10, ax, ay + 17, { seed: seed + 32, width: 2, color: PALETTE.pullLo, alpha: 0.9, amp: 0.4, double: false });
     }
 
     drawStaticEnvironment() {
@@ -610,47 +645,57 @@
       this.labelTexts = [];
 
       this.drawPaper(this.bgGraphics);
+      // Desk doodles in the free areas of the page (never over gameplay objects).
+      const avoid = [...lvl.solids, ...lvl.fans, ...lvl.hazards, { x: lvl.goal.x - 10, y: lvl.goal.y - 40, w: lvl.goal.w + 20, h: lvl.goal.h + 40 }, { x: lvl.start.x - 50, y: lvl.start.y - 50, w: 100, h: 100 }];
+      const decor = D.placeDecor(D.hash(this.levelIndex, 7), avoid, W, H, 5);
+      D.drawDecor(this.bgGraphics, decor, { ink: PALETTE.ink, alpha: 0.2, coffee: PALETTE.coffee });
+
       for (const s of lvl.solids) {
-        if (s.type === "desk") this.drawDesk(this.envGraphics, s);
-        else if (s.type === "cork") this.drawCork(this.envGraphics, s);
-        else if (s.type === "glass") this.drawGlass(this.envGraphics, s);
+        if (s.type === 'desk') this.drawDesk(this.envGraphics, s);
+        else if (s.type === 'cork') this.drawCork(this.envGraphics, s);
+        else if (s.type === 'glass') this.drawGlass(this.envGraphics, s);
       }
       for (const h of lvl.hazards) this.drawHazard(this.envGraphics, h);
       this.drawGoal(this.envGraphics, lvl.goal);
     }
 
+    // Pencil-dash a path (every other segment).
+    dashPath(g, pts, width, alpha) {
+      for (let i = 1; i < pts.length; i += 2) {
+        D.line(g, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, { seed: i * 31, width, color: PALETTE.pencil, alpha, amp: 0.5, double: false });
+      }
+    }
+
     drawGhostTrails() {
       this.trailGraphics.clear();
       this.ghostTrails.forEach((trail, idx) => {
-        const alpha = 0.12 + (idx / this.ghostTrails.length) * 0.18;
-        this.trailGraphics.lineStyle(2, PALETTE.pencil, alpha);
-        this.trailGraphics.beginPath();
-        trail.forEach((pt, i) => {
-          if (i === 0) this.trailGraphics.moveTo(pt.x, pt.y);
-          else this.trailGraphics.lineTo(pt.x, pt.y);
-        });
-        this.trailGraphics.strokePath();
+        this.dashPath(this.trailGraphics, trail, 1.8, 0.12 + (idx / this.ghostTrails.length) * 0.2);
       });
     }
 
     drawWind(g, time, fans) {
-      g.lineStyle(1.5, PALETTE.pencil, 0.45);
-      for (const fan of fans) {
+      fans.forEach((fan, fi) => {
         const offset = (time * 0.12) % 30;
-        if (fan.forceY < 0) {
+        const seed = D.hash(fan.x, fan.y, fi);
+        let k = 0;
+        if (Math.abs(fan.forceY) >= Math.abs(fan.forceX)) {
+          const dir = fan.forceY < 0 ? -1 : 1; // -1 = up
           for (let x = fan.x + 15; x < fan.x + fan.w; x += 25) {
-            for (let y = fan.y + fan.h - offset; y > fan.y; y -= 30) {
-              g.lineBetween(x, y, x, Math.max(fan.y, y - 14));
+            for (let y = dir < 0 ? fan.y + fan.h - offset : fan.y + offset; dir < 0 ? y > fan.y : y < fan.y + fan.h; y += dir * 30) {
+              const y2 = Math.max(fan.y, Math.min(fan.y + fan.h, y + dir * 14));
+              D.polyline(g, D.wobble(x, y, x, y2, seed + k++ * 5, 1.8), 1.6, PALETTE.pencil, 0.5);
             }
           }
         } else {
+          const dir = fan.forceX < 0 ? -1 : 1;
           for (let y = fan.y + 15; y < fan.y + fan.h; y += 22) {
-            for (let x = fan.x + fan.w - offset; x > fan.x; x -= 30) {
-              g.lineBetween(x, y, Math.max(fan.x, x - 14), y);
+            for (let x = dir < 0 ? fan.x + fan.w - offset : fan.x + offset; dir < 0 ? x > fan.x : x < fan.x + fan.w; x += dir * 30) {
+              const x2 = Math.max(fan.x, Math.min(fan.x + fan.w, x + dir * 14));
+              D.polyline(g, D.wobble(x, y, x2, y, seed + k++ * 5, 1.8), 1.6, PALETTE.pencil, 0.5);
             }
           }
         }
-      }
+      });
     }
 
     drawPullIndicator(g) {
@@ -664,14 +709,12 @@
       );
       const hex = Phaser.Display.Color.GetColor(c.r, c.g, c.b);
 
-      // Pull-back band
-      g.lineStyle(3, hex, 0.9);
-      g.lineBetween(this.pos.x, this.pos.y, this.pos.x - pull.x * 0.55, this.pos.y - pull.y * 0.55);
+      // Pull-back band (rubber band, drawn with a pen)
+      D.line(g, this.pos.x, this.pos.y, this.pos.x - pull.x * 0.55, this.pos.y - pull.y * 0.55, { seed: 5, width: 3.2, color: hex, alpha: 0.9, amp: 0.8 });
 
       // Short aim stub in front of the nose
       const tip = pull.clone().normalize().scale(36 + ratio * 28);
-      g.lineStyle(2, PALETTE.ink, 0.6);
-      g.lineBetween(this.pos.x, this.pos.y, this.pos.x + tip.x, this.pos.y + tip.y);
+      D.line(g, this.pos.x, this.pos.y, this.pos.x + tip.x, this.pos.y + tip.y, { seed: 6, width: 2, color: PALETTE.ink, alpha: 0.6, amp: 0.6, double: false });
 
       // Dotted preview of the first second of flight (exact, same physics).
       if (pull.length() >= 14) {
@@ -682,62 +725,108 @@
         });
         if (path.hit) {
           // End marker: where this throw would first touch something.
-          const c = path.hit === 'goal' ? PALETTE.pullLo : path.hit === 'solid' ? PALETTE.ink : PALETTE.pullHi;
-          g.lineStyle(2.5, c, 0.95);
-          g.strokeCircle(path.end.x, path.end.y, 7);
+          const mc = path.hit === 'goal' ? PALETTE.pullLo : path.hit === 'solid' ? PALETTE.ink : PALETTE.pullHi;
+          D.circle(g, path.end.x, path.end.y, 7, { seed: 8, outline: true, color: mc, width: 2.5, alpha: 0.95, amp: 0.6 });
         }
       }
 
       this.angle = pull.angle();
     }
 
-    drawPlane(g) {
+    // The paper plane: two wing panels, a centre fold, and a flutter when flying.
+    drawPlane(g, time) {
+      const flying = this.planeState === 'FLYING';
+      const flap = flying
+        ? Math.sin(time * 0.03) * 1.6 + Phaser.Math.Clamp(this.vel.y / 220, -1, 1) * 1.8
+        : Math.sin(time * 0.004) * 0.7;
+      const bob = flying ? 0 : Math.sin(time * 0.004) * 1.2;
       const cos = Math.cos(this.angle);
       const sin = Math.sin(this.angle);
       const rot = (lx, ly) => ({
         x: this.pos.x + lx * cos - ly * sin,
-        y: this.pos.y + lx * sin + ly * cos,
+        y: this.pos.y + bob + lx * sin + ly * cos,
       });
       const nose = rot(16, 0);
-      const topWing = rot(-12, -9);
+      const topWing = rot(-12, -9 - flap);
       const crease = rot(-8, 0);
-      const keel = rot(-11, 6);
+      const keel = rot(-11, 6 + flap * 0.5);
+      const ink = { color: PALETTE.ink, width: INK_W * 0.6, amp: 0.3, seed: 5, double: false };
+      D.polygon(g, [nose, topWing, crease], Object.assign({ fill: PALETTE.plane }, ink)); // upper wing
+      D.polygon(g, [nose, crease, keel], Object.assign({ fill: PALETTE.planeShade }, ink, { seed: 6 })); // shaded under-fold
+      D.line(g, nose.x, nose.y, crease.x, crease.y, { seed: 7, width: 1.2, color: PALETTE.ink, alpha: 0.7, amp: 0.2, double: false }); // centre fold
+      const t1 = rot(-3, 2), t2 = rot(-9, 4);
+      D.line(g, t1.x, t1.y, t2.x, t2.y, { seed: 8, width: 1, color: PALETTE.ink, alpha: 0.4, amp: 0.2, double: false }); // under-fold shading
+    }
 
-      const tri = (a, b, c, fill) => {
-        g.fillStyle(fill, 1);
-        g.lineStyle(INK_W * 0.6, PALETTE.ink, 1);
-        g.beginPath();
-        g.moveTo(a.x, a.y);
-        g.lineTo(b.x, b.y);
-        g.lineTo(c.x, c.y);
-        g.closePath();
-        g.fillPath();
-        g.strokePath();
-      };
-      tri(nose, topWing, crease, PALETTE.plane); // upper wing
-      tri(nose, crease, keel, PALETTE.planeShade); // shaded under-fold
+    // --- particles ---
+    spawnFx(kind, x, y, n) {
+      const r = D.rng(Math.floor(x * 7 + y * 13 + this.fx.length * 31 + n));
+      const colors = [PALETTE.pullLo, PALETTE.pullHi, PALETTE.pencil, PALETTE.wood, PALETTE.coffeeLight, PALETTE.paper];
+      for (let i = 0; i < n; i++) {
+        const a = r() * Math.PI * 2;
+        if (kind === 'scrap') {
+          const sp = 60 + r() * 130;
+          this.fx.push({ kind, x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, rot: r() * 6, vr: (r() - 0.5) * 14, life: 0.7 + r() * 0.5, max: 1.2, size: 3 + r() * 3, grav: 420 });
+        } else if (kind === 'drop') {
+          const sp = 70 + r() * 150;
+          this.fx.push({ kind, x, y, vx: Math.cos(a) * sp * 0.6, vy: -Math.abs(Math.sin(a)) * sp - 40, life: 0.5 + r() * 0.4, max: 0.9, size: 1.6 + r() * 2.2, grav: 520 });
+        } else if (kind === 'poof') {
+          this.fx.push({ kind, x: x + (r() - 0.5) * 14, y: y + (r() - 0.5) * 14, vx: Math.cos(a) * 18, vy: Math.sin(a) * 18 - 10, life: 0.45 + r() * 0.2, max: 0.65, size: 4, grav: 0 });
+        } else if (kind === 'confetti') {
+          const ca = -Math.PI / 2 + (r() - 0.5) * 1.9;
+          const sp = 140 + r() * 220;
+          this.fx.push({ kind, x, y, vx: Math.cos(ca) * sp, vy: Math.sin(ca) * sp, rot: r() * 6, vr: (r() - 0.5) * 16, life: 1.0 + r() * 0.8, max: 1.8, size: 3 + r() * 2, grav: 420, color: colors[Math.floor(r() * colors.length)] });
+        }
+      }
+    }
+
+    stepFx(dt) {
+      for (let i = this.fx.length - 1; i >= 0; i--) {
+        const p = this.fx[i];
+        p.life -= dt;
+        if (p.life <= 0) { this.fx.splice(i, 1); continue; }
+        p.vy += (p.grav || 0) * dt;
+        if (p.kind === 'confetti') { p.vx *= 1 - 1.4 * dt; p.vy *= 1 - 0.6 * dt; }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (p.rot !== undefined) p.rot += p.vr * dt;
+      }
+    }
+
+    drawFx(g) {
+      for (const p of this.fx) {
+        const t = Math.max(0, p.life / p.max);
+        if (p.kind === 'drop') {
+          g.fillStyle(PALETTE.coffee, Math.min(1, t * 2));
+          g.fillCircle(p.x, p.y, p.size);
+        } else if (p.kind === 'poof') {
+          g.lineStyle(1.6, PALETTE.ink, t * 0.5);
+          g.strokeCircle(p.x, p.y, p.size + (1 - t) * 11);
+        } else {
+          const c = Math.cos(p.rot), sn = Math.sin(p.rot);
+          const w = p.size * 1.4, h = p.size;
+          const pts = [[-w, -h], [w, -h], [w, h], [-w, h]].map(([lx, ly]) => ({ x: p.x + lx * c - ly * sn, y: p.y + lx * sn + ly * c }));
+          g.fillStyle(p.kind === 'scrap' ? PALETTE.plane : p.color, Math.min(1, t * 2.2));
+          g.fillPoints(pts, true);
+          if (p.kind === 'scrap') D.polyline(g, pts.concat([pts[0]]), 1, PALETTE.ink, Math.min(1, t * 2.2));
+        }
+      }
     }
 
     drawDynamicFrame(time) {
       const lvl = this.levels[this.levelIndex];
       this.uiGraphics.clear();
       this.planeGraphics.clear();
+      this.fxGraphics.clear();
 
       this.drawWind(this.uiGraphics, time, lvl.fans);
 
-      // Active flight trail
-      if (this.currentTrail.length > 1) {
-        this.uiGraphics.lineStyle(2, PALETTE.pencil, 0.6);
-        this.uiGraphics.beginPath();
-        this.currentTrail.forEach((pt, i) => {
-          if (i === 0) this.uiGraphics.moveTo(pt.x, pt.y);
-          else this.uiGraphics.lineTo(pt.x, pt.y);
-        });
-        this.uiGraphics.strokePath();
-      }
+      // Active flight trail (pencil dashes)
+      if (this.currentTrail.length > 1) this.dashPath(this.uiGraphics, this.currentTrail, 2, 0.6);
 
       if (this.isDragging) this.drawPullIndicator(this.uiGraphics);
-      this.drawPlane(this.planeGraphics);
+      this.drawPlane(this.planeGraphics, time);
+      this.drawFx(this.fxGraphics);
     }
 
     updateHUD() {
@@ -810,14 +899,17 @@
       }
 
       const bg = this.add.graphics();
-      drawPaperBackground(bg);
+      drawPaperBackground(bg, { holes: false });
+      D.makePaperGrain(this, 'pa-grain', W, H);
+      this.add.image(0, 0, 'pa-grain').setOrigin(0).setDepth(100);
       const best = loadBest();
 
       this.add.text(W / 2, 30, "Paper Airplane", {
         fontFamily: UI_FONT, fontSize: "28px", fontStyle: "bold", color: css(PALETTE.ink),
       }).setOrigin(0.5, 0);
-      this.add.text(W / 2, 68, "Pick a level. Beat par for a ★.", {
-        fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.pencil),
+      D.line(bg, W / 2 - 108, 62, W / 2 + 108, 62, { seed: 5, width: 2, color: PALETTE.pullHi, alpha: 0.85, amp: 1.4 }); // pen underline
+      this.add.text(W / 2, 70, "Pick a level. Beat par for a star.", {
+        fontFamily: DOODLE_FONT, fontSize: "13px", color: css(PALETTE.pencil),
       }).setOrigin(0.5, 0);
 
       // 2-column grid that fits however many levels there are.
@@ -833,10 +925,18 @@
         const b = best[i];
         const beatPar = b !== undefined && b <= lvl.par;
         if (beatPar) stars++;
-        g.fillStyle(PALETTE.paper, 1);
-        g.fillRect(x, y, cw, ch);
-        g.lineStyle(INK_W, PALETTE.ink, 1);
-        g.strokeRect(x, y, cw, ch);
+        // a taped-on note card
+        D.rect(g, x, y, cw, ch, { seed: 300 + i, fill: 0xfffdf6, color: PALETTE.ink, width: INK_W, amp: 1.5 });
+        D.hatch(g, x + 4, y + ch - 14, cw - 8, 10, { gap: 8, color: PALETTE.ink, alpha: 0.12 });
+        const tapeAngle = ((i * 37) % 7 - 3) * 0.05;
+        const tcx = x + cw - 40, tcy = y + 1, tw = 26, th = 8;
+        const tape = [[-tw, -th], [tw, -th], [tw, th], [-tw, th]].map(([lx, ly]) => ({
+          x: tcx + lx * Math.cos(tapeAngle) - ly * Math.sin(tapeAngle),
+          y: tcy + lx * Math.sin(tapeAngle) + ly * Math.cos(tapeAngle),
+        }));
+        g.fillStyle(0xf2dc8a, 0.78);
+        g.fillPoints(tape, true);
+        D.polyline(g, tape.concat([tape[0]]), 1, PALETTE.ink, 0.35);
         this.add.text(x + 12, y + 8, String(i + 1), {
           fontFamily: UI_FONT, fontSize: "30px", fontStyle: "bold", color: css(PALETTE.ink),
         });
@@ -846,11 +946,7 @@
         this.add.text(x + 12, y + ch - 24, `Par ${lvl.par}` + (b !== undefined ? `  Best ${b}` : ""), {
           fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.pencil),
         });
-        if (beatPar) {
-          this.add.text(x + cw - 12, y + ch - 28, "★", {
-            fontFamily: UI_FONT, fontSize: "20px", color: css(PALETTE.pullHi),
-          }).setOrigin(1, 0);
-        }
+        if (beatPar) D.star(g, x + cw - 24, y + ch - 24, 12, { seed: 400 + i, fill: PALETTE.pullHi, color: PALETTE.ink, width: 1.5, double: false });
         const hit = this.add.zone(x, y, cw, ch).setOrigin(0).setInteractive({ useHandCursor: true });
         hit.on("pointerup", () => this.scene.start("PaperAirplaneScene", { level: i }));
       });
