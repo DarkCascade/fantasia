@@ -82,12 +82,27 @@
     return "+" + d;
   }
   // Portrait sheet (9:16-ish): phone-first. FIT-scales onto iPads / desktops.
-  const W = 450;
-  const H = 800;
+  // Level data lives in src/paper-airplane/levels.js (loaded first by index.html).
+  const { W, H, LEVELS } = window.PaperAirplaneLevels;
+  let pendingStartLevel = null; // set by launchPaperAirplane({ level }) to skip the select screen
+
+  // Ruled notebook page, shared by the level-select and game scenes.
+  function drawPaperBackground(g) {
+    g.fillStyle(PALETTE.paper, 1);
+    g.fillRect(0, 0, W, H);
+    g.lineStyle(1, PALETTE.rule, 1);
+    for (let y = 96; y < H; y += 32) g.lineBetween(0, y, W, y);
+    g.lineStyle(2, PALETTE.margin, 1);
+    g.lineBetween(40, 0, 40, H);
+  }
 
   class PaperAirplaneScene extends Phaser.Scene {
     constructor() {
       super({ key: 'PaperAirplaneScene' });
+    }
+
+    init(data) {
+      this.startLevel = data && Number.isInteger(data.level) ? data.level : 0;
     }
 
     create() {
@@ -151,55 +166,7 @@
       this.hintText.setStroke(css(PALETTE.paper), 4);
       this.labelTexts = []; // per-level doodle labels (hazards), rebuilt on load
 
-      // Level Definitions (450x800 portrait reference space)
-      this.levels = [
-        {
-          name: "1. The Cubicle Hop",
-          par: 2,
-          start: { x: 115, y: 560 },
-          goal: { x: 345, y: 524, w: 84, h: 56 },
-          solids: [
-            { x: 0, y: 580, w: W, h: 220, type: "desk" }, // Floor desk (raised: room to pull down)
-            { x: 245, y: 450, w: 24, h: 130, type: "cork" }, // Cubicle divider
-            { x: 275, y: 190, w: 150, h: 18, type: "glass" }, // Overhead shelf
-          ],
-          fans: [],
-          hazards: [{ x: 175, y: 556, w: 34, h: 24, label: "COFFEE" }],
-        },
-        {
-          name: "2. Updraft Atrium",
-          par: 3,
-          start: { x: 115, y: 560 },
-          goal: { x: 355, y: 268, w: 84, h: 52 },
-          solids: [
-            { x: 0, y: 600, w: W, h: 200, type: "desk" },
-            { x: 305, y: 320, w: 145, h: 22, type: "desk" }, // High ledge
-            { x: 315, y: 420, w: 24, h: 180, type: "glass" }, // Glass barrier
-          ],
-          fans: [
-            // Floor vent updraft
-            { x: 175, y: 190, w: 110, h: 410, forceX: 0, forceY: -760 },
-          ],
-          hazards: [{ x: 350, y: 576, w: 70, h: 24, label: "SPILL" }],
-        },
-        {
-          name: "3. Corner Office Bank Shot",
-          par: 3,
-          start: { x: 60, y: 200 },
-          goal: { x: 30, y: 664, w: 84, h: 56 },
-          solids: [
-            { x: 0, y: 720, w: W, h: 80, type: "desk" },
-            { x: 0, y: 250, w: 280, h: 24, type: "desk" }, // Mezzanine floor
-            { x: 418, y: 100, w: 22, h: 620, type: "glass" }, // Bouncy glass back wall
-            { x: 160, y: 610, w: 24, h: 110, type: "cork" }, // Guard wall before bin
-          ],
-          fans: [
-            // AC crosswind pushing left
-            { x: 250, y: 440, w: 160, h: 100, forceX: -480, forceY: 0 },
-          ],
-          hazards: [{ x: 190, y: 226, w: 45, h: 24, label: "COFFEE" }],
-        },
-      ];
+      this.levels = LEVELS; // data: src/paper-airplane/levels.js
 
       // Input handlers (Zero-delay pull-back even mid-flight)
       this.input.on('pointerdown', (pointer) => {
@@ -229,9 +196,9 @@
         this.launchPlane(pull);
       });
 
-      // "Menu" chip (top-right) back to the Fantasia selector.
-      const menuBtn = this.add
-        .text(W - 14, 14, "≡ Menu", {
+      // "Levels" chip (top-right) back to the level-select screen.
+      const levelsBtn = this.add
+        .text(W - 14, 14, "≡ Levels", {
           fontFamily: UI_FONT,
           fontSize: "14px",
           color: css(PALETTE.paper),
@@ -240,13 +207,18 @@
         })
         .setOrigin(1, 0)
         .setInteractive({ useHandCursor: true });
-      menuBtn.on("pointerdown", (pointer, lx, ly, event) => {
+      levelsBtn.on("pointerdown", (pointer, lx, ly, event) => {
         if (event && event.stopPropagation) event.stopPropagation();
         this.exiting = true;
-        if (typeof window.returnToMenu === "function") window.returnToMenu();
+        this.scene.start("LevelSelectScene");
       });
 
-      this.loadLevel(0);
+      this.loadLevel(this.startLevel);
+    }
+
+    // "3. Corner Office Bank Shot"
+    title(idx) {
+      return `${idx + 1}. ${LEVELS[idx].name}`;
     }
 
     loadLevel(idx) {
@@ -526,24 +498,24 @@
       }
       this.runScores[idx] = throws;
       this.hudText.setText(
-        `${lvl.name}\n${throws} ${throws === 1 ? "throw" : "throws"}: ${scoreLabel(throws, lvl.par)}${isBest ? "  ★ best" : ""}`
+        `${this.title(idx)}\n${throws} ${throws === 1 ? "throw" : "throws"}: ${scoreLabel(throws, lvl.par)}${isBest ? "  ★ best" : ""}`
       );
 
-      if (idx < this.levels.length - 1) {
+      const toSelect = () => this.scene.start("LevelSelectScene");
+      if (idx < LEVELS.length - 1) {
         this.time.delayedCall(1700, () => this.loadLevel(idx + 1));
       } else {
-        // Last level: show the whole-course card, then start over.
+        // Last level: if the whole course was played in one sitting show the
+        // course card, then return to the level-select screen.
         this.time.delayedCall(1700, () => {
+          if (!LEVELS.every((_, i) => this.runScores[i] !== undefined)) return toSelect();
           const total = this.runScores.reduce((a, b) => a + b, 0);
-          const par = this.levels.reduce((a, l) => a + l.par, 0);
+          const par = LEVELS.reduce((a, l) => a + l.par, 0);
           const d = total - par;
           this.hudText.setText(
             `Course complete!\n${total} throws, par ${par} (${d === 0 ? "even" : d > 0 ? "+" + d : d})`
           );
-          this.time.delayedCall(3000, () => {
-            this.runScores = [];
-            this.loadLevel(0);
-          });
+          this.time.delayedCall(3000, toSelect);
         });
       }
     }
@@ -559,12 +531,7 @@
     }
 
     drawPaper(g) {
-      g.fillStyle(PALETTE.paper, 1);
-      g.fillRect(0, 0, W, H);
-      g.lineStyle(1, PALETTE.rule, 1);
-      for (let y = 96; y < H; y += 32) g.lineBetween(0, y, W, y);
-      g.lineStyle(2, PALETTE.margin, 1);
-      g.lineBetween(40, 0, 40, H);
+      drawPaperBackground(g);
     }
 
     drawDesk(g, s) {
@@ -777,7 +744,7 @@
       const lvl = this.levels[this.levelIndex];
       const best = this.best[this.levelIndex];
       this.hudText.setText(
-        `${lvl.name}\nThrows: ${this.strokes}  Par: ${lvl.par}${best !== undefined ? "  Best: " + best : ""}`
+        `${this.title(this.levelIndex)}\nThrows: ${this.strokes}  Par: ${lvl.par}${best !== undefined ? "  Best: " + best : ""}`
       );
     }
 
@@ -827,8 +794,83 @@
     }
   }
 
-  function launchPaperAirplane() {
+  // Level-select: a notebook page with one card per level (par, personal best).
+  class LevelSelectScene extends Phaser.Scene {
+    constructor() {
+      super({ key: "LevelSelectScene" });
+    }
+
+    create() {
+      // Dev/test hook: launchPaperAirplane({ level }) skips this screen.
+      if (pendingStartLevel !== null) {
+        const level = pendingStartLevel;
+        pendingStartLevel = null;
+        this.scene.start("PaperAirplaneScene", { level });
+        return;
+      }
+
+      const bg = this.add.graphics();
+      drawPaperBackground(bg);
+      const best = loadBest();
+
+      this.add.text(W / 2, 30, "Paper Airplane", {
+        fontFamily: UI_FONT, fontSize: "28px", fontStyle: "bold", color: css(PALETTE.ink),
+      }).setOrigin(0.5, 0);
+      this.add.text(W / 2, 68, "Pick a level. Beat par for a ★.", {
+        fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.pencil),
+      }).setOrigin(0.5, 0);
+
+      // 2-column grid that fits however many levels there are.
+      const cols = 2, gapX = 16, gapY = 12, left = 20, top = 104, bottom = H - 64;
+      const rows = Math.ceil(LEVELS.length / cols);
+      const cw = (W - left * 2 - gapX * (cols - 1)) / cols;
+      const ch = Math.min(112, (bottom - top - gapY * (rows - 1)) / rows);
+      const g = this.add.graphics();
+      let stars = 0;
+      LEVELS.forEach((lvl, i) => {
+        const x = left + (i % cols) * (cw + gapX);
+        const y = top + Math.floor(i / cols) * (ch + gapY);
+        const b = best[i];
+        const beatPar = b !== undefined && b <= lvl.par;
+        if (beatPar) stars++;
+        g.fillStyle(PALETTE.paper, 1);
+        g.fillRect(x, y, cw, ch);
+        g.lineStyle(INK_W, PALETTE.ink, 1);
+        g.strokeRect(x, y, cw, ch);
+        this.add.text(x + 12, y + 8, String(i + 1), {
+          fontFamily: UI_FONT, fontSize: "30px", fontStyle: "bold", color: css(PALETTE.ink),
+        });
+        this.add.text(x + 52, y + 12, lvl.name, {
+          fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.ink), wordWrap: { width: cw - 62 },
+        });
+        this.add.text(x + 12, y + ch - 24, `Par ${lvl.par}` + (b !== undefined ? `  Best ${b}` : ""), {
+          fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.pencil),
+        });
+        if (beatPar) {
+          this.add.text(x + cw - 12, y + ch - 28, "★", {
+            fontFamily: UI_FONT, fontSize: "20px", color: css(PALETTE.pullHi),
+          }).setOrigin(1, 0);
+        }
+        const hit = this.add.zone(x, y, cw, ch).setOrigin(0).setInteractive({ useHandCursor: true });
+        hit.on("pointerup", () => this.scene.start("PaperAirplaneScene", { level: i }));
+      });
+
+      const back = this.add.text(16, H - 16, "◂ Fantasia Menu", {
+        fontFamily: UI_FONT, fontSize: "14px", color: css(PALETTE.paper),
+        backgroundColor: css(PALETTE.ink), padding: { x: 10, y: 6 },
+      }).setOrigin(0, 1).setInteractive({ useHandCursor: true });
+      back.on("pointerup", () => {
+        if (typeof window.returnToMenu === "function") window.returnToMenu();
+      });
+      this.add.text(W - 16, H - 22, `${stars}/${LEVELS.length} ★`, {
+        fontFamily: UI_FONT, fontSize: "14px", fontStyle: "bold", color: css(PALETTE.ink),
+      }).setOrigin(1, 1);
+    }
+  }
+
+  function launchPaperAirplane(opts) {
     if (window.paperAirplaneGame) return window.paperAirplaneGame;
+    pendingStartLevel = opts && Number.isInteger(opts.level) ? opts.level : null;
     // Window: the sheet of paper sits on a desk-coloured page (no stark
     // letterbox bars), with a soft shadow. Both are undone on exit.
     const host = document.getElementById("game-container");
@@ -843,7 +885,7 @@
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
-      scene: [PaperAirplaneScene],
+      scene: [LevelSelectScene, PaperAirplaneScene],
     });
     if (game.canvas) game.canvas.style.boxShadow = "0 10px 40px rgba(0, 0, 0, 0.55)";
     game.events.once("destroy", () => {

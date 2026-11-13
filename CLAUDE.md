@@ -1187,6 +1187,19 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   flights last <= ~5 s, so they never cut off a legitimate throw. When tuning a level,
   also sweep flight durations (same headless sweep; check max duration and that
   "never ended" is 0).
+  **Level data and screens:** levels are pure data in `src/paper-airplane/levels.js` (UMD, so
+  Node can `require` it; loaded before `paper-airplane.js`). The game has two scenes:
+  `LevelSelectScene` (a card per level: number, name, par, best, ★ when best <= par; "◂ Fantasia
+  Menu" returns to the site menu) and `PaperAirplaneScene` (a `≡ Levels` chip returns to the
+  select; a win auto-advances to the next level, and winning the last one shows the "Course
+  complete" card only if every level was played in one sitting). `launchPaperAirplane({ level })`
+  skips the select screen (used by tests/tools). Adding a level = append to `LEVELS`, then run
+  the checker below. All levels are open from the start (no unlock gating).
+  **Level checker:** `node experiments/paper-airplane/check-levels.js [--url http://localhost:8130]
+  [--level N] [--quick]` (serve the repo first). It lints the data (phone finger-room rule,
+  HUD band, sheet bounds) and runs the real physics headless to report each level's fewest
+  throws, single-throw success %, flight durations and stall/timeout counts, then prints
+  FAIL/WARN lines and exits 1 on FAIL. Run it after touching any level or the physics.
   **Par scores:** each level has a `par` (2 / 3 / 3 — starting guesses; every level has a
   1-throw solution, so par is set at what a player using the arc should manage, not the
   minimum). The HUD shows `Throws · Par · Best`; a win shows a golf label (Hole in one /
@@ -1224,7 +1237,9 @@ src/tiny-haulers.js    Tiny Haulers logistics sim view/HUD/title/saves (three.js
 src/tiny-haulers/sim.js  Tiny Haulers simulation core (no rendering; also require()-able from Node)
 src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
 src/hollow-moon.js      Hollow Moon one-fight artistic ARPG (three.js, DOM HUD); window.launchHollowMoon()
-src/paper-airplane.js  Paper Airplane flick game (Phaser); window.launchPaperAirplane()
+src/paper-airplane.js  Paper Airplane flick game (Phaser); window.launchPaperAirplane({level?})
+src/paper-airplane/    levels.js (level data, UMD) + marquee.svg (Featured card art)
+experiments/paper-airplane/  check-levels.js: level lint + headless physics sweep (see Paper Airplane entry)
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
