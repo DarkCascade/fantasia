@@ -1158,7 +1158,14 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   (ink = solid/edge, red = hazard, green = bin). It matches the real flight to
   ~1e-13 px — keep it that way: any new force goes in `applyForces`, and anything
   `stepFlight` collides with must be mirrored in `contactAt`. Ghost trails show past
-  throws; sound is a Web Audio synth (`playSound`). Handle:
+  throws; **sound**: 20 small CC0 sample files in `src/paper-airplane/sfx/` (OpenGameArt; sources and
+  licences in `sfx/CREDITS.md`; total ~72 KB) loaded once in `LevelSelectScene.preload`. `playSound(type, freq)`
+  tries `playSample` first (random variant from `SFX_VARIANTS`, ±4% pitch jitter, whoosh pitch follows pull
+  strength, loudness per sound in `SFX_VOLUME`), and falls back to the original Web Audio synth for any sound
+  whose file is missing; `?sfx=0` forces the synth. `ting` at freq 760 means a bumper (plays `bump`). UI taps use
+  `playUi` (`click` on level cards, `back` on the Levels chip / Fantasia Menu). To swap a sound, replace the
+  mp3 (mono, ~64 kbps, peak ~-3 dB) and update CREDITS.md; to add a variant, add the file and its name to
+  `SFX_VARIANTS`. Handle:
   `window.paperAirplaneGame`; the in-game **≡ Menu** chip calls `returnToMenu()`.
   **Art direction: "ink on notebook paper", hand-doodled.** Colours live in `PALETTE`, one
   `INK_W` outline weight, one `draw*()` method per object type (desk/cork/glass/hazard/goal/
@@ -1281,7 +1288,7 @@ src/tiny-haulers/sim.js  Tiny Haulers simulation core (no rendering; also requir
 src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
 src/hollow-moon.js      Hollow Moon one-fight artistic ARPG (three.js, DOM HUD); window.launchHollowMoon()
 src/paper-airplane.js  Paper Airplane flick game (Phaser); window.launchPaperAirplane({level?})
-src/paper-airplane/    levels.js (10 levels' data, UMD), doodle.js (hand-drawn line/shape/paper helpers), marquee.svg (Featured card art)
+src/paper-airplane/    levels.js (10 levels' data, UMD), doodle.js (hand-drawn line/shape/paper helpers), marquee.svg (Featured card art), sfx/ (20 CC0 mp3s + CREDITS.md)
 experiments/paper-airplane/  check-levels.js / check-preview.js / explore-level.js / search-level.js: level lint, physics sweeps, preview exactness, design aids (see Paper Airplane entry)
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 test/                  Node unit tests (node --test test/); not deployed
@@ -1352,9 +1359,15 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `window.gloom3DGame.game` is the live `DungeonDive`; `g.findPath`,
   `g.buildFloor(n)`, `g.gen` (the generator output) and `g.stand`/`g.solid`
   (collision) are all reachable for assertions.
-- **kenney.nl is reachable only if the environment's network policy allows
-  it** (it was added for the Dungeon Dive work). The kit zip lives at a
-  `kenney.nl/media/pages/assets/<name>/…zip` URL scraped from the asset page.
+- **Asset hosts and the sandbox allowlist.** The environment's allowed hosts are set in
+  the cloud environment settings and must list the *exact* hostnames: `opengameart.org`
+  (not `.io`!) works and is how the Paper Airplane sounds were fetched; `kenney.nl` and
+  `www.kenney.nl` are separate entries (www 301-redirects to the apex, so both are needed),
+  and as of Nov 2026 Kenney's own server answered **403 Forbidden** to the sandbox even with the
+  tunnel open (site-side refusal, not fixable here — don't spoof a browser to get around it).
+  OpenGameArt mirrors several Kenney packs (e.g. *Interface Sounds*, *63 Digital sound effects*), so
+  prefer that. Check licences by looking for `publicdomain/zero` in a content page's licence block.
+  (The Dungeon Dive kit was fetched earlier from `kenney.nl/media/pages/assets/<name>/…zip`.)
 - **The live `*.github.io` site is NOT reachable from the sandbox** (network
   policy blocks it). Do **not** verify deploys by curling the live URL — it will
   hang/000. Instead check the **GitHub Actions run** (status/conclusion) via the

@@ -166,6 +166,32 @@
   // Portrait sheet (9:16-ish): phone-first. FIT-scales onto iPads / desktops.
   // Level data lives in src/paper-airplane/levels.js (loaded first by index.html).
   const { W, H, LEVELS } = window.PaperAirplaneLevels;
+  // ---- sound effects: CC0 samples (src/paper-airplane/sfx/, see CREDITS.md) with the synth as fallback ----
+  // Each game sound maps to a few variants; one is picked at random with a touch of pitch variation.
+  const SFX_VARIANTS = {
+    whoosh: ['whoosh1', 'whoosh2', 'whoosh3'],
+    thud: ['thud1', 'thud2', 'thud3'],
+    ting: ['ting1', 'ting2'], // glass / sides / bottoms
+    bump: ['bump1', 'bump2'], // bumpers (playSound('ting', 760))
+    crumple: ['crumple1', 'crumple2'],
+    splash: ['splash1', 'splash2', 'splash3'],
+    boing: ['boing'],
+    whoop: ['whoop'],
+    win: ['win'],
+    click: ['click'],
+    back: ['back'],
+  };
+  // Per-sound loudness (the files are peak-normalised, so balance them here).
+  const SFX_VOLUME = { whoosh: 0.5, thud: 0.75, ting: 0.55, bump: 0.6, crumple: 0.65, splash: 0.6, boing: 0.55, whoop: 0.4, win: 0.35, click: 0.5, back: 0.5 };
+  const SFX_FILES = [].concat(...Object.values(SFX_VARIANTS));
+  // ?sfx=0 forces the built-in synth (handy for comparing, or if a file is ever missing).
+  const USE_SAMPLES = !/[?&]sfx=0\b/.test((typeof location !== 'undefined' && location.search) || '');
+  // Play a UI sample from any scene (no-op until the files are loaded).
+  function playUi(scene, name) {
+    const key = 'sfx-' + name;
+    if (USE_SAMPLES && scene.cache.audio.exists(key)) scene.sound.play(key, { volume: SFX_VOLUME[name] || 0.5 });
+  }
+
   const D = window.PaperAirplaneDoodle; // seeded hand-drawn line helpers (src/paper-airplane/doodle.js)
   const DOODLE_FONT = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Marker Felt", cursive';
   let pendingStartLevel = null; // set by launchPaperAirplane({ level }) to skip the select screen
@@ -308,6 +334,7 @@
       levelsBtn.on("pointerdown", (pointer, lx, ly, event) => {
         if (event && event.stopPropagation) event.stopPropagation();
         this.exiting = true;
+        playUi(this, "back");
         this.scene.start("LevelSelectScene");
       });
 
@@ -1024,7 +1051,22 @@
     }
 
     // Zero-dependency Web Audio synth for crisp tactile feedback
+    // Try a CC0 sample first; the synth below is the fallback.
+    playSample(type, freq) {
+      if (!USE_SAMPLES) return false;
+      const kind = type === 'ting' && freq === 760 ? 'bump' : type;
+      const list = SFX_VARIANTS[kind];
+      if (!list) return false;
+      const key = 'sfx-' + list[Math.floor(Math.random() * list.length)];
+      if (!this.cache.audio.exists(key)) return false;
+      let rate = 1 + (Math.random() - 0.5) * 0.08; // a touch of pitch variation so repeats don't sound identical
+      if (kind === 'whoosh') rate = 0.9 + Math.min(0.3, Math.max(0, (freq - 260) / 200) * 0.3); // harder pull = higher whoosh
+      this.sound.play(key, { volume: SFX_VOLUME[kind] || 0.5, rate });
+      return true;
+    }
+
     playSound(type, freq = 300) {
+      if (this.playSample(type, freq)) return;
       const ctx = this.sound.context;
       if (!ctx) return;
       if (ctx.state === 'suspended') ctx.resume();
@@ -1081,6 +1123,12 @@
   class LevelSelectScene extends Phaser.Scene {
     constructor() {
       super({ key: "LevelSelectScene" });
+    }
+
+    // The sound effects load here once; both scenes use them (any that fail to load fall back to the synth).
+    preload() {
+      if (!USE_SAMPLES) return;
+      SFX_FILES.forEach((n) => this.load.audio('sfx-' + n, 'src/paper-airplane/sfx/' + n + '.mp3'));
     }
 
     create() {
@@ -1143,7 +1191,10 @@
         });
         if (beatPar) D.star(g, x + cw - 24, y + ch - 24, 12, { seed: 400 + i, fill: PALETTE.pullHi, color: PALETTE.ink, width: 1.5, double: false });
         const hit = this.add.zone(x, y, cw, ch).setOrigin(0).setInteractive({ useHandCursor: true });
-        hit.on("pointerup", () => this.scene.start("PaperAirplaneScene", { level: i }));
+        hit.on("pointerup", () => {
+          playUi(this, "click");
+          this.scene.start("PaperAirplaneScene", { level: i });
+        });
       });
 
       const back = this.add.text(16, H - 16, "◂ Fantasia Menu", {
@@ -1151,6 +1202,7 @@
         backgroundColor: css(PALETTE.ink), padding: { x: 10, y: 6 },
       }).setOrigin(0, 1).setInteractive({ useHandCursor: true });
       back.on("pointerup", () => {
+        playUi(this, "back");
         if (typeof window.returnToMenu === "function") window.returnToMenu();
       });
       this.add.text(W - 16, H - 22, `${stars}/${LEVELS.length} ★`, {
