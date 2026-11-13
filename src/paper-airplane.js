@@ -12,6 +12,40 @@
 (function () {
   "use strict";
 
+  // ---------------------------------------------------------------------------
+  // ART DIRECTION: "ink on notebook paper".
+  // Every object is a flat fill from PALETTE with the same INK outline, drawn
+  // on ruled paper that sits on a desk. A future art pass should only need to
+  // touch PALETTE, INK_W and the draw*() helpers in the rendering section.
+  // ---------------------------------------------------------------------------
+  const PALETTE = {
+    desk: 0x2b221d, // the tabletop behind the sheet of paper (page background)
+    paper: 0xfbf7ee,
+    rule: 0xd3e3ec, // blue ruled lines
+    margin: 0xefb3b3, // red margin line
+    ink: 0x2b2f3a, // all outlines, text and the bin
+    pencil: 0x4a6fa5, // flight trails + wind marks
+    wood: 0xc99a6b,
+    woodLight: 0xdcb48a,
+    woodGrain: 0xb4855a,
+    cork: 0xd9a066,
+    corkDot: 0xb97d3f,
+    glass: 0xbfe6f2,
+    glassShine: 0xffffff,
+    coffee: 0x6b4226,
+    coffeeLight: 0x8a5a38,
+    bin: 0xe6e1d3,
+    plane: 0xffffff,
+    planeShade: 0xd7dce6,
+    pullLo: 0x2a9d8f,
+    pullHi: 0xe76f51,
+  };
+  const INK_W = 2.5; // the one outline weight
+  const UI_FONT = "ui-monospace, Menlo, Consolas, monospace";
+  const css = (n) => "#" + n.toString(16).padStart(6, "0");
+  const W = 800;
+  const H = 600;
+
   class PaperAirplaneScene extends Phaser.Scene {
     constructor() {
       super({ key: 'PaperAirplaneScene' });
@@ -49,24 +83,22 @@
       this.uiGraphics = this.add.graphics();
       this.planeGraphics = this.add.graphics();
 
-      // HUD Text
-      this.hudText = this.add.text(20, 18, '', {
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        color: '#2c3e50',
-        fontStyle: 'bold'
+      // HUD: level name + throw count, with a hint that fades after the first throw.
+      this.hudText = this.add.text(20, 16, "", {
+        fontFamily: UI_FONT,
+        fontSize: "16px",
+        color: css(PALETTE.ink),
+        fontStyle: "bold",
       });
-
+      this.hudText.setStroke(css(PALETTE.paper), 5);
       this.hintText = this.add.text(
         20,
-        42,
-        'Drag anywhere to pull & launch • Click while flying to reset early',
-        {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: '#607d8b'
-        }
+        40,
+        "Drag to pull back, release to launch  •  tap while flying to reset",
+        { fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.pencil) }
       );
+      this.hintText.setStroke(css(PALETTE.paper), 4);
+      this.labelTexts = []; // per-level doodle labels (hazards), rebuilt on load
 
       // Level Definitions (800x600 reference space)
       this.levels = [
@@ -146,11 +178,11 @@
 
       // "Menu" chip (top-right) back to the Fantasia selector.
       const menuBtn = this.add
-        .text(780, 16, "≡ Menu", {
-          fontFamily: "monospace",
+        .text(W - 20, 16, "≡ Menu", {
+          fontFamily: UI_FONT,
           fontSize: "14px",
-          color: "#ffffff",
-          backgroundColor: "#2c3e50",
+          color: css(PALETTE.paper),
+          backgroundColor: css(PALETTE.ink),
           padding: { x: 10, y: 6 },
         })
         .setOrigin(1, 0)
@@ -191,6 +223,7 @@
 
     launchPlane(pullVector) {
       this.strokes++;
+      if (this.hintText.alpha === 1) this.tweens.add({ targets: this.hintText, alpha: 0, duration: 600 });
       this.updateHUD();
       this.planeState = 'FLYING';
       this.vel.copy(pullVector).scale(this.LAUNCH_POWER);
@@ -361,62 +394,114 @@
     }
 
     // --- PROCEDURAL RENDERING ---
+    // Shared look: flat PALETTE fill + INK outline. One helper per object type.
+
+    inkRect(g, x, y, w, h, fill, alpha = 1) {
+      g.fillStyle(fill, alpha);
+      g.fillRect(x, y, w, h);
+      g.lineStyle(INK_W, PALETTE.ink, 1);
+      g.strokeRect(x, y, w, h);
+    }
+
+    drawPaper(g) {
+      g.fillStyle(PALETTE.paper, 1);
+      g.fillRect(0, 0, W, H);
+      g.lineStyle(1, PALETTE.rule, 1);
+      for (let y = 96; y < H; y += 32) g.lineBetween(0, y, W, y);
+      g.lineStyle(2, PALETTE.margin, 1);
+      g.lineBetween(64, 0, 64, H);
+    }
+
+    drawDesk(g, s) {
+      this.inkRect(g, s.x, s.y, s.w, s.h, PALETTE.wood);
+      g.fillStyle(PALETTE.woodLight, 1);
+      g.fillRect(s.x + INK_W / 2, s.y + INK_W / 2, s.w - INK_W, 6);
+      // wood grain: a few short strokes, deterministic so it never shimmers
+      g.lineStyle(1.5, PALETTE.woodGrain, 1);
+      for (let gx = s.x + 40; gx < s.x + s.w - 30; gx += 110) {
+        const gy = s.y + 16 + ((gx * 7) % Math.max(8, s.h - 24));
+        g.lineBetween(gx, gy, gx + 34, gy);
+      }
+    }
+
+    drawCork(g, s) {
+      this.inkRect(g, s.x, s.y, s.w, s.h, PALETTE.cork);
+      g.fillStyle(PALETTE.corkDot, 1);
+      for (let cy = s.y + 14; cy < s.y + s.h - 6; cy += 22) {
+        g.fillCircle(s.x + s.w / 2 + ((cy * 5) % 9) - 4, cy, 2);
+      }
+    }
+
+    drawGlass(g, s) {
+      this.inkRect(g, s.x, s.y, s.w, s.h, PALETTE.glass, 0.6);
+      // diagonal shine strokes
+      g.lineStyle(2, PALETTE.glassShine, 0.9);
+      const long = s.w > s.h;
+      const n = Math.max(1, Math.floor((long ? s.w : s.h) / 70));
+      for (let i = 0; i < n; i++) {
+        if (long) g.lineBetween(s.x + 14 + i * 70, s.y + s.h - 4, s.x + 26 + i * 70, s.y + 4);
+        else g.lineBetween(s.x + 4, s.y + 16 + i * 70, s.x + s.w - 4, s.y + 4 + i * 70);
+      }
+    }
+
+    drawHazard(g, h) {
+      g.fillStyle(PALETTE.coffee, 1);
+      g.fillRoundedRect(h.x, h.y, h.w, h.h, 8);
+      g.lineStyle(INK_W, PALETTE.ink, 1);
+      g.strokeRoundedRect(h.x, h.y, h.w, h.h, 8);
+      g.fillStyle(PALETTE.coffeeLight, 1);
+      g.fillRoundedRect(h.x + 6, h.y + 4, Math.max(8, h.w * 0.35), 5, 2);
+      if (h.label) {
+        this.labelTexts.push(
+          this.add
+            .text(h.x + h.w / 2, h.y - 4, h.label, {
+              fontFamily: UI_FONT,
+              fontSize: "10px",
+              color: css(PALETTE.ink),
+            })
+            .setOrigin(0.5, 1)
+        );
+      }
+    }
+
+    drawGoal(g, r) {
+      g.fillStyle(PALETTE.bin, 1);
+      g.fillRect(r.x + 4, r.y, r.w - 8, r.h);
+      // wire-mesh crosshatch
+      g.lineStyle(1, PALETTE.ink, 0.35);
+      for (let x = r.x + 12; x < r.x + r.w - 6; x += 12) g.lineBetween(x, r.y + 4, x - 2, r.y + r.h - 3);
+      for (let y = r.y + 12; y < r.y + r.h - 4; y += 12) g.lineBetween(r.x + 6, y, r.x + r.w - 6, y);
+      g.lineStyle(INK_W, PALETTE.ink, 1);
+      g.beginPath();
+      g.moveTo(r.x, r.y);
+      g.lineTo(r.x + 6, r.y + r.h);
+      g.lineTo(r.x + r.w - 6, r.y + r.h);
+      g.lineTo(r.x + r.w, r.y);
+      g.strokePath();
+    }
+
     drawStaticEnvironment() {
       const lvl = this.levels[this.levelIndex];
       this.bgGraphics.clear();
       this.envGraphics.clear();
+      this.labelTexts.forEach((t) => t.destroy());
+      this.labelTexts = [];
 
-      // Subtle notebook / blueprint grid background
-      this.bgGraphics.fillStyle(0xf6f7f2, 1);
-      this.bgGraphics.fillRect(0, 0, 800, 600);
-      this.bgGraphics.lineStyle(1, 0xe4e8df, 1);
-      for (let x = 0; x < 800; x += 32) this.bgGraphics.lineBetween(x, 0, x, 600);
-      for (let y = 0; y < 600; y += 32) this.bgGraphics.lineBetween(0, y, 800, y);
-
-      // Solids
+      this.drawPaper(this.bgGraphics);
       for (const s of lvl.solids) {
-        if (s.type === 'desk') {
-          this.envGraphics.fillStyle(0x8d6e63, 1);
-          this.envGraphics.fillRect(s.x, s.y, s.w, s.h);
-          this.envGraphics.fillStyle(0xa1887f, 1);
-          this.envGraphics.fillRect(s.x, s.y, s.w, 6);
-        } else if (s.type === 'cork') {
-          this.envGraphics.fillStyle(0xd4a373, 1);
-          this.envGraphics.fillRect(s.x, s.y, s.w, s.h);
-          this.envGraphics.lineStyle(2, 0xbc6c25, 1);
-          this.envGraphics.strokeRect(s.x, s.y, s.w, s.h);
-        } else if (s.type === 'glass') {
-          this.envGraphics.fillStyle(0x90e0ef, 0.45);
-          this.envGraphics.fillRect(s.x, s.y, s.w, s.h);
-          this.envGraphics.lineStyle(2, 0x00b4d8, 0.9);
-          this.envGraphics.strokeRect(s.x, s.y, s.w, s.h);
-        }
+        if (s.type === "desk") this.drawDesk(this.envGraphics, s);
+        else if (s.type === "cork") this.drawCork(this.envGraphics, s);
+        else if (s.type === "glass") this.drawGlass(this.envGraphics, s);
       }
-
-      // Hazards (Coffee spills)
-      for (const h of lvl.hazards) {
-        this.envGraphics.fillStyle(0x4a2c2a, 1);
-        this.envGraphics.fillRoundedRect(h.x, h.y, h.w, h.h, 6);
-      }
-
-      // Goal (Wire Mesh Inbox / Bin)
-      const g = lvl.goal;
-      this.envGraphics.fillStyle(0x2b2d42, 0.15);
-      this.envGraphics.fillRect(g.x, g.y, g.w, g.h);
-      this.envGraphics.lineStyle(3, 0x2b2d42, 1);
-      this.envGraphics.beginPath();
-      this.envGraphics.moveTo(g.x, g.y);
-      this.envGraphics.lineTo(g.x + 6, g.y + g.h);
-      this.envGraphics.lineTo(g.x + g.w - 6, g.y + g.h);
-      this.envGraphics.lineTo(g.x + g.w, g.y);
-      this.envGraphics.strokePath();
+      for (const h of lvl.hazards) this.drawHazard(this.envGraphics, h);
+      this.drawGoal(this.envGraphics, lvl.goal);
     }
 
     drawGhostTrails() {
       this.trailGraphics.clear();
       this.ghostTrails.forEach((trail, idx) => {
         const alpha = 0.12 + (idx / this.ghostTrails.length) * 0.18;
-        this.trailGraphics.lineStyle(2, 0x7f8c8d, alpha);
+        this.trailGraphics.lineStyle(2, PALETTE.pencil, alpha);
         this.trailGraphics.beginPath();
         trail.forEach((pt, i) => {
           if (i === 0) this.trailGraphics.moveTo(pt.x, pt.y);
@@ -426,33 +511,86 @@
       });
     }
 
-    drawDynamicFrame(time) {
-      const lvl = this.levels[this.levelIndex];
-      this.uiGraphics.clear();
-      this.planeGraphics.clear();
-
-      // Animated Wind Lines for Fans
-      this.uiGraphics.lineStyle(1.5, 0x48cae4, 0.5);
-      for (const fan of lvl.fans) {
+    drawWind(g, time, fans) {
+      g.lineStyle(1.5, PALETTE.pencil, 0.45);
+      for (const fan of fans) {
         const offset = (time * 0.12) % 30;
         if (fan.forceY < 0) {
           for (let x = fan.x + 15; x < fan.x + fan.w; x += 25) {
             for (let y = fan.y + fan.h - offset; y > fan.y; y -= 30) {
-              this.uiGraphics.lineBetween(x, y, x, Math.max(fan.y, y - 14));
+              g.lineBetween(x, y, x, Math.max(fan.y, y - 14));
             }
           }
         } else {
           for (let y = fan.y + 15; y < fan.y + fan.h; y += 22) {
             for (let x = fan.x + fan.w - offset; x > fan.x; x -= 30) {
-              this.uiGraphics.lineBetween(x, y, Math.max(fan.x, x - 14), y);
+              g.lineBetween(x, y, Math.max(fan.x, x - 14), y);
             }
           }
         }
       }
+    }
+
+    drawPullIndicator(g) {
+      const pull = this.dragStart.clone().subtract(this.dragCurrent).limit(this.MAX_PULL);
+      const ratio = pull.length() / this.MAX_PULL;
+      const c = Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(PALETTE.pullLo),
+        Phaser.Display.Color.ValueToColor(PALETTE.pullHi),
+        100,
+        Math.floor(ratio * 100)
+      );
+      const hex = Phaser.Display.Color.GetColor(c.r, c.g, c.b);
+
+      // Pull-back band
+      g.lineStyle(3, hex, 0.9);
+      g.lineBetween(this.pos.x, this.pos.y, this.pos.x - pull.x * 0.55, this.pos.y - pull.y * 0.55);
+
+      // Short aim stub in front of the nose
+      const tip = pull.clone().normalize().scale(36 + ratio * 28);
+      g.lineStyle(2, PALETTE.ink, 0.6);
+      g.lineBetween(this.pos.x, this.pos.y, this.pos.x + tip.x, this.pos.y + tip.y);
+
+      this.angle = pull.angle();
+    }
+
+    drawPlane(g) {
+      const cos = Math.cos(this.angle);
+      const sin = Math.sin(this.angle);
+      const rot = (lx, ly) => ({
+        x: this.pos.x + lx * cos - ly * sin,
+        y: this.pos.y + lx * sin + ly * cos,
+      });
+      const nose = rot(16, 0);
+      const topWing = rot(-12, -9);
+      const crease = rot(-8, 0);
+      const keel = rot(-11, 6);
+
+      const tri = (a, b, c, fill) => {
+        g.fillStyle(fill, 1);
+        g.lineStyle(INK_W * 0.6, PALETTE.ink, 1);
+        g.beginPath();
+        g.moveTo(a.x, a.y);
+        g.lineTo(b.x, b.y);
+        g.lineTo(c.x, c.y);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+      };
+      tri(nose, topWing, crease, PALETTE.plane); // upper wing
+      tri(nose, crease, keel, PALETTE.planeShade); // shaded under-fold
+    }
+
+    drawDynamicFrame(time) {
+      const lvl = this.levels[this.levelIndex];
+      this.uiGraphics.clear();
+      this.planeGraphics.clear();
+
+      this.drawWind(this.uiGraphics, time, lvl.fans);
 
       // Active flight trail
       if (this.currentTrail.length > 1) {
-        this.uiGraphics.lineStyle(2, 0x3498db, 0.45);
+        this.uiGraphics.lineStyle(2, PALETTE.pencil, 0.6);
         this.uiGraphics.beginPath();
         this.currentTrail.forEach((pt, i) => {
           if (i === 0) this.uiGraphics.moveTo(pt.x, pt.y);
@@ -461,78 +599,13 @@
         this.uiGraphics.strokePath();
       }
 
-      // Tactile Rubber-Band Slingshot Pull Indicator (Short, no full trajectory)
-      if (this.isDragging) {
-        const pull = this.dragStart.clone().subtract(this.dragCurrent).limit(this.MAX_PULL);
-        const ratio = pull.length() / this.MAX_PULL;
-        const color = Phaser.Display.Color.Interpolate.ColorWithColor(
-          new Phaser.Display.Color(46, 204, 113),
-          new Phaser.Display.Color(231, 76, 60),
-          100,
-          Math.floor(ratio * 100)
-        );
-        const hex = Phaser.Display.Color.GetColor(color.r, color.g, color.b);
-
-        // Pull-back anchor line
-        this.uiGraphics.lineStyle(3, hex, 0.85);
-        this.uiGraphics.lineBetween(
-          this.pos.x,
-          this.pos.y,
-          this.pos.x - pull.x * 0.55,
-          this.pos.y - pull.y * 0.55
-        );
-
-        // Short directional stub in front of nose
-        const aimTip = pull.clone().normalize().scale(36 + ratio * 28);
-        this.uiGraphics.lineStyle(2, 0x2c3e50, 0.6);
-        this.uiGraphics.lineBetween(
-          this.pos.x,
-          this.pos.y,
-          this.pos.x + aimTip.x,
-          this.pos.y + aimTip.y
-        );
-
-        this.angle = pull.angle();
-      }
-
-      // Draw Origami Paper Airplane
-      const cos = Math.cos(this.angle);
-      const sin = Math.sin(this.angle);
-      const rot = (lx, ly) => ({
-        x: this.pos.x + lx * cos - ly * sin,
-        y: this.pos.y + lx * sin + ly * cos
-      });
-
-      const nose = rot(16, 0);
-      const topWing = rot(-12, -9);
-      const foldCrease = rot(-8, 0);
-      const bottomKeel = rot(-11, 6);
-
-      // Upper wing
-      this.planeGraphics.fillStyle(0xffffff, 1);
-      this.planeGraphics.lineStyle(1.5, 0x2c3e50, 1);
-      this.planeGraphics.beginPath();
-      this.planeGraphics.moveTo(nose.x, nose.y);
-      this.planeGraphics.lineTo(topWing.x, topWing.y);
-      this.planeGraphics.lineTo(foldCrease.x, foldCrease.y);
-      this.planeGraphics.closePath();
-      this.planeGraphics.fillPath();
-      this.planeGraphics.strokePath();
-
-      // Shaded under-fold
-      this.planeGraphics.fillStyle(0xdce1e5, 1);
-      this.planeGraphics.beginPath();
-      this.planeGraphics.moveTo(nose.x, nose.y);
-      this.planeGraphics.lineTo(foldCrease.x, foldCrease.y);
-      this.planeGraphics.lineTo(bottomKeel.x, bottomKeel.y);
-      this.planeGraphics.closePath();
-      this.planeGraphics.fillPath();
-      this.planeGraphics.strokePath();
+      if (this.isDragging) this.drawPullIndicator(this.uiGraphics);
+      this.drawPlane(this.planeGraphics);
     }
 
     updateHUD() {
       const lvl = this.levels[this.levelIndex];
-      this.hudText.setText(`${lvl.name}    |   Throws: ${this.strokes}`);
+      this.hudText.setText(`${lvl.name}  ·  Throws: ${this.strokes}`);
     }
 
     pointInRect(px, py, r) {
@@ -583,17 +656,25 @@
 
   function launchPaperAirplane() {
     if (window.paperAirplaneGame) return window.paperAirplaneGame;
+    // Window: the sheet of paper sits on a desk-coloured page (no stark
+    // letterbox bars), with a soft shadow. Both are undone on exit.
+    const host = document.getElementById("game-container");
+    if (host) host.style.background = css(PALETTE.desk);
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: "game-container",
-      backgroundColor: "#f6f7f2",
-      width: 800,
-      height: 600,
+      backgroundColor: css(PALETTE.paper),
+      width: W,
+      height: H,
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       scene: [PaperAirplaneScene],
+    });
+    if (game.canvas) game.canvas.style.boxShadow = "0 10px 40px rgba(0, 0, 0, 0.55)";
+    game.events.once("destroy", () => {
+      if (host) host.style.background = "";
     });
     window.paperAirplaneGame = game;
     return game;

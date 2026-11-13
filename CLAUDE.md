@@ -1152,6 +1152,11 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   weathervane, 3 sub-steps for collisions) — no Matter. Ghost trails show past
   throws; sound is a Web Audio synth (`playSound`). Handle:
   `window.paperAirplaneGame`; the in-game **≡ Menu** chip calls `returnToMenu()`.
+  **Art direction: "ink on notebook paper"** — all colours live in `PALETTE`, one
+  `INK_W` outline weight, one `draw*()` helper per object type (desk/cork/glass/
+  hazard/goal/plane/wind/pull indicator), so an art pass should only touch those.
+  The launcher also paints `#game-container` desk-brown and adds a canvas shadow
+  (reverted on `destroy`) so the 4:3 sheet doesn't sit in a harsh letterbox.
 
 ```
 index.html             Fantasia selector menu, page shell, mobile styles
