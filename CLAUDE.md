@@ -1170,7 +1170,15 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   **Level tuning is measured, not eyeballed:** a headless sweep of launches (angle
   × power through the real `update()`, with `playSound`/`drawDynamicFrame`/
   `handleWin` stubbed) gives each level's single-throw success rate — currently
-  ~1.2% / ~0.2% / ~1.9% for levels 1–3 (grid up to full pull). Re-run it after moving anything.
+  ~1.0% / ~0.4% / ~1.8% for levels 1–3 (grid up to full pull). Re-run it after moving anything.
+  **Thumb ergonomics (phone-first):** you pull BACK, so a full-power throw needs
+  `MAX_PULL` px of finger travel opposite the launch direction — keep it short
+  (110 game px ≈ 95 CSS px on a phone; `LAUNCH_POWER` is raised to keep top speed)
+  and keep each level's start ≥ ~110 px from the left edge and well above the
+  bottom edge, or a finger pressed on the plane runs off-screen (pointer events
+  outside the window never arrive and the throw silently doesn't fire). Levels 1–2
+  therefore use a thick raised floor desk and a start at x≈115. Test with real
+  pointer events (press on the plane, pull to full) and check the finger's end point.
   **Planned / ideas:** (1) **done:** aim preview arc + linear lift/slower launch (more legibility ideas:
   a lift tick on the plane, faster wind marks where the push is stronger); (2) a par (best throws) per level;
   (3) try tall **scrolling** levels (camera follows the plane) later.

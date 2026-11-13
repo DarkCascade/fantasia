@@ -75,8 +75,8 @@
       // fast throws no longer loop, slow ones still sink. Accel = LIFT * speed.
       this.LIFT_COEFF = 0.6;
       this.DRAG = 0.993;
-      this.MAX_PULL = 180;
-      this.LAUNCH_POWER = 3.4; // max launch speed = MAX_PULL * this (~610 px/s)
+      this.MAX_PULL = 110; // finger travel for a full-power throw (kept short: thumbs run out of screen)
+      this.LAUNCH_POWER = 5.55; // max launch speed = MAX_PULL * this (~610 px/s)
 
       // Plane kinematic state
       this.planeState = 'IDLE'; // 'IDLE' | 'FLYING' | 'WIN'
@@ -120,30 +120,30 @@
       this.levels = [
         {
           name: "1. The Cubicle Hop",
-          start: { x: 60, y: 700 },
-          goal: { x: 320, y: 664, w: 84, h: 56 },
+          start: { x: 115, y: 560 },
+          goal: { x: 345, y: 524, w: 84, h: 56 },
           solids: [
-            { x: 0, y: 720, w: W, h: 80, type: "desk" }, // Floor desk
-            { x: 190, y: 590, w: 24, h: 130, type: "cork" }, // Cubicle divider
-            { x: 250, y: 330, w: 160, h: 18, type: "glass" }, // Overhead shelf
+            { x: 0, y: 580, w: W, h: 220, type: "desk" }, // Floor desk (raised: room to pull down)
+            { x: 245, y: 450, w: 24, h: 130, type: "cork" }, // Cubicle divider
+            { x: 275, y: 190, w: 150, h: 18, type: "glass" }, // Overhead shelf
           ],
           fans: [],
-          hazards: [{ x: 110, y: 696, w: 34, h: 24, label: "COFFEE" }],
+          hazards: [{ x: 175, y: 556, w: 34, h: 24, label: "COFFEE" }],
         },
         {
           name: "2. Updraft Atrium",
-          start: { x: 50, y: 700 },
-          goal: { x: 350, y: 408, w: 84, h: 52 },
+          start: { x: 115, y: 560 },
+          goal: { x: 355, y: 268, w: 84, h: 52 },
           solids: [
-            { x: 0, y: 740, w: W, h: 60, type: "desk" },
-            { x: 250, y: 460, w: 200, h: 22, type: "desk" }, // High ledge
-            { x: 290, y: 560, w: 24, h: 180, type: "glass" }, // Glass barrier
+            { x: 0, y: 600, w: W, h: 200, type: "desk" },
+            { x: 305, y: 320, w: 145, h: 22, type: "desk" }, // High ledge
+            { x: 315, y: 420, w: 24, h: 180, type: "glass" }, // Glass barrier
           ],
           fans: [
             // Floor vent updraft
-            { x: 110, y: 330, w: 120, h: 410, forceX: 0, forceY: -760 },
+            { x: 175, y: 190, w: 110, h: 410, forceX: 0, forceY: -760 },
           ],
-          hazards: [{ x: 330, y: 716, w: 70, h: 24, label: "SPILL" }],
+          hazards: [{ x: 350, y: 576, w: 70, h: 24, label: "SPILL" }],
         },
         {
           name: "3. Corner Office Bank Shot",
