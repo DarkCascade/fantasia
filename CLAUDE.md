@@ -1142,7 +1142,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   games it ships large binary assets (`.wasm` / `.pck`), so it is the one
   exception to the "all art generated at runtime / no external assets" rule.
 - **Paper Airplane** (`src/paper-airplane.js`) — a "Kinda Hard Golf"-style
-  flick game on Phaser (800×600, FIT-scaled), last button on menu page 5. Drag
+  flick game on Phaser, last button on menu page 5. **Portrait 450×800 sheet** (`W`/`H`), FIT-scaled: phone is the priority target (sheet fills the width, desk-brown bars top/bottom), iPad second (fills the height, desk margins at the sides). Drag
   anywhere to pull back, release to launch a paper plane (slingshot, `LAUNCH_POWER`
   × pull up to `MAX_PULL`); clicking mid-flight resets to the last safe spot. Three
   office levels defined in `this.levels` (start, goal bin, `solids`, `fans`,
@@ -1156,7 +1156,16 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   `INK_W` outline weight, one `draw*()` helper per object type (desk/cork/glass/
   hazard/goal/plane/wind/pull indicator), so an art pass should only touch those.
   The launcher also paints `#game-container` desk-brown and adds a canvas shadow
-  (reverted on `destroy`) so the 4:3 sheet doesn't sit in a harsh letterbox.
+  (reverted on `destroy`) so the sheet doesn't sit in a harsh letterbox. Keep the
+  top ~90px (HUD band: name, throws, hint, Menu chip) free of level geometry.
+  Plane leaves the sheet (sides, bottom **and top**) = reset.
+  **Level tuning is measured, not eyeballed:** a headless sweep of launches (angle
+  × power through the real `update()`, with `playSound`/`drawDynamicFrame`/
+  `handleWin` stubbed) gives each level's single-throw success rate — currently
+  ~1.6% / ~0.4% / ~2.2% for levels 1–3. Re-run it after moving anything.
+  **Planned / ideas:** (1) make the plane physics easier for the player to read
+  (the first priority — before par scores); (2) a par (best throws) per level;
+  (3) try tall **scrolling** levels (camera follows the plane) later.
 
 ```
 index.html             Fantasia selector menu, page shell, mobile styles

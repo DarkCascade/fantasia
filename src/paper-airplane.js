@@ -43,8 +43,9 @@
   const INK_W = 2.5; // the one outline weight
   const UI_FONT = "ui-monospace, Menlo, Consolas, monospace";
   const css = (n) => "#" + n.toString(16).padStart(6, "0");
-  const W = 800;
-  const H = 600;
+  // Portrait sheet (9:16-ish): phone-first. FIT-scales onto iPads / desktops.
+  const W = 450;
+  const H = 800;
 
   class PaperAirplaneScene extends Phaser.Scene {
     constructor() {
@@ -83,69 +84,75 @@
       this.uiGraphics = this.add.graphics();
       this.planeGraphics = this.add.graphics();
 
-      // HUD: level name + throw count, with a hint that fades after the first throw.
-      this.hudText = this.add.text(20, 16, "", {
+      // HUD (top band, y < ~90, kept clear of level geometry): level name and
+      // throw count on two lines, plus a hint that fades after the first throw.
+      this.hudText = this.add.text(16, 14, "", {
         fontFamily: UI_FONT,
-        fontSize: "16px",
+        fontSize: "15px",
         color: css(PALETTE.ink),
         fontStyle: "bold",
+        lineSpacing: 4,
       });
       this.hudText.setStroke(css(PALETTE.paper), 5);
       this.hintText = this.add.text(
-        20,
-        40,
-        "Drag to pull back, release to launch  •  tap while flying to reset",
-        { fontFamily: UI_FONT, fontSize: "12px", color: css(PALETTE.pencil) }
+        16,
+        62,
+        "Drag back, release to launch. Tap mid-flight to reset.",
+        {
+          fontFamily: UI_FONT,
+          fontSize: "11px",
+          color: css(PALETTE.pencil),
+          wordWrap: { width: W - 32 },
+        }
       );
       this.hintText.setStroke(css(PALETTE.paper), 4);
       this.labelTexts = []; // per-level doodle labels (hazards), rebuilt on load
 
-      // Level Definitions (800x600 reference space)
+      // Level Definitions (450x800 portrait reference space)
       this.levels = [
         {
-          name: '1. The Cubicle Hop',
-          start: { x: 110, y: 470 },
-          goal: { x: 680, y: 460, w: 64, h: 52 },
+          name: "1. The Cubicle Hop",
+          start: { x: 60, y: 700 },
+          goal: { x: 320, y: 664, w: 84, h: 56 },
           solids: [
-            { x: 0, y: 520, w: 800, h: 80, type: 'desk' }, // Floor desk
-            { x: 360, y: 310, w: 24, h: 210, type: 'cork' }, // Cubicle divider
-            { x: 520, y: 210, w: 180, h: 18, type: 'glass' } // Overhead shelf
+            { x: 0, y: 720, w: W, h: 80, type: "desk" }, // Floor desk
+            { x: 190, y: 590, w: 24, h: 130, type: "cork" }, // Cubicle divider
+            { x: 250, y: 330, w: 160, h: 18, type: "glass" }, // Overhead shelf
           ],
           fans: [],
-          hazards: [{ x: 240, y: 496, w: 34, h: 24, label: 'COFFEE' }]
+          hazards: [{ x: 110, y: 696, w: 34, h: 24, label: "COFFEE" }],
         },
         {
-          name: '2. Updraft Atrium',
-          start: { x: 90, y: 500 },
-          goal: { x: 690, y: 150, w: 64, h: 52 },
+          name: "2. Updraft Atrium",
+          start: { x: 50, y: 700 },
+          goal: { x: 350, y: 408, w: 84, h: 52 },
           solids: [
-            { x: 0, y: 540, w: 800, h: 60, type: 'desk' },
-            { x: 580, y: 202, w: 220, h: 22, type: 'desk' }, // High ledge
-            { x: 260, y: 0, w: 24, h: 310, type: 'cork' }, // Hanging partition
-            { x: 430, y: 280, w: 24, h: 260, type: 'glass' } // Glass barrier
+            { x: 0, y: 740, w: W, h: 60, type: "desk" },
+            { x: 250, y: 460, w: 200, h: 22, type: "desk" }, // High ledge
+            { x: 290, y: 560, w: 24, h: 180, type: "glass" }, // Glass barrier
           ],
           fans: [
             // Floor vent updraft
-            { x: 310, y: 160, w: 95, h: 380, forceX: 0, forceY: -760 }
+            { x: 110, y: 330, w: 120, h: 410, forceX: 0, forceY: -760 },
           ],
-          hazards: [{ x: 480, y: 516, w: 70, h: 24, label: 'SPILL' }]
+          hazards: [{ x: 330, y: 716, w: 70, h: 24, label: "SPILL" }],
         },
         {
-          name: '3. Corner Office Bank Shot',
-          start: { x: 100, y: 180 },
-          goal: { x: 110, y: 470, w: 64, h: 52 },
+          name: "3. Corner Office Bank Shot",
+          start: { x: 60, y: 200 },
+          goal: { x: 30, y: 664, w: 84, h: 56 },
           solids: [
-            { x: 0, y: 522, w: 800, h: 78, type: 'desk' },
-            { x: 0, y: 230, w: 510, h: 24, type: 'desk' }, // Mezzanine floor
-            { x: 750, y: 60, w: 22, h: 462, type: 'glass' }, // Bouncy glass back wall
-            { x: 260, y: 400, w: 24, h: 122, type: 'cork' } // Guard wall before bin
+            { x: 0, y: 720, w: W, h: 80, type: "desk" },
+            { x: 0, y: 250, w: 280, h: 24, type: "desk" }, // Mezzanine floor
+            { x: 418, y: 100, w: 22, h: 620, type: "glass" }, // Bouncy glass back wall
+            { x: 160, y: 610, w: 24, h: 110, type: "cork" }, // Guard wall before bin
           ],
           fans: [
             // AC crosswind pushing left
-            { x: 530, y: 260, w: 190, h: 90, forceX: -480, forceY: 0 }
+            { x: 250, y: 440, w: 160, h: 100, forceX: -480, forceY: 0 },
           ],
-          hazards: [{ x: 340, y: 206, w: 45, h: 24, label: 'COFFEE' }]
-        }
+          hazards: [{ x: 190, y: 226, w: 45, h: 24, label: "COFFEE" }],
+        },
       ];
 
       // Input handlers (Zero-delay pull-back even mid-flight)
@@ -178,7 +185,7 @@
 
       // "Menu" chip (top-right) back to the Fantasia selector.
       const menuBtn = this.add
-        .text(W - 20, 16, "≡ Menu", {
+        .text(W - 14, 14, "≡ Menu", {
           fontFamily: UI_FONT,
           fontSize: "14px",
           color: css(PALETTE.paper),
@@ -273,7 +280,7 @@
           this.pos.y += this.vel.y * subDt;
 
           // Screen bounds
-          if (this.pos.x < 10 || this.pos.x > 790 || this.pos.y > 610) {
+          if (this.pos.x < 10 || this.pos.x > W - 10 || this.pos.y < -10 || this.pos.y > H + 10) {
             this.playSound('crumple', 120);
             this.resetToSafeSpot();
             break;
@@ -386,7 +393,7 @@
       this.vel.set(0, 0);
       this.playSound('win', 520);
       this.hudText.setText(
-        `${this.levels[this.levelIndex].name} — Sunk in ${this.strokes} throws!`
+        `${this.levels[this.levelIndex].name}\nSunk in ${this.strokes} throws!`
       );
       this.time.delayedCall(1400, () => {
         this.loadLevel(this.levelIndex + 1);
@@ -409,7 +416,7 @@
       g.lineStyle(1, PALETTE.rule, 1);
       for (let y = 96; y < H; y += 32) g.lineBetween(0, y, W, y);
       g.lineStyle(2, PALETTE.margin, 1);
-      g.lineBetween(64, 0, 64, H);
+      g.lineBetween(40, 0, 40, H);
     }
 
     drawDesk(g, s) {
@@ -605,7 +612,7 @@
 
     updateHUD() {
       const lvl = this.levels[this.levelIndex];
-      this.hudText.setText(`${lvl.name}  ·  Throws: ${this.strokes}`);
+      this.hudText.setText(`${lvl.name}\nThrows: ${this.strokes}`);
     }
 
     pointInRect(px, py, r) {
