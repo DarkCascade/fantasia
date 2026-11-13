@@ -1142,7 +1142,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   games it ships large binary assets (`.wasm` / `.pck`), so it is the one
   exception to the "all art generated at runtime / no external assets" rule.
 - **Paper Airplane** (`src/paper-airplane.js`) — a "Kinda Hard Golf"-style
-  flick game on Phaser, the **Featured marquee on menu page 1** (and a plain button on page 5). **Portrait 450×800 sheet** (`W`/`H`), FIT-scaled: phone is the priority target (sheet fills the width, desk-brown bars top/bottom), iPad second (fills the height, desk margins at the sides). Drag
+  flick game on Phaser, the **Featured marquee** (and a tile in the Arcade shelf). **Portrait 450×800 sheet** (`W`/`H`), FIT-scaled: phone is the priority target (sheet fills the width, desk-brown bars top/bottom), iPad second (fills the height, desk margins at the sides). Drag
   anywhere to pull back, release to launch a paper plane (slingshot, `LAUNCH_POWER`
   × pull up to `MAX_PULL`); clicking mid-flight resets to the last safe spot. Three
   office levels defined in `this.levels` (start, goal bin, `solids`, `fans`,
@@ -1444,23 +1444,27 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 ## Game architecture notes
 
-- **Menu pages.** The carousel has 5 pages (`PAGE_COUNT` in `index.html`'s
-  script). **Page 1 is the Featured marquee** (`#btn-featured`): a carnival /
+- **Menu layout: marquee + genre shelves (no pages).** The selector is one
+  scrolling screen (`#menu-screen` is `overflow-y: auto`; `.menu-inner` uses
+  `margin: auto 0` so it centres when short and scrolls when tall). At the top
+  is the **Featured marquee** (`#btn-featured` in `.menu-feature`): a carnival /
   old-Vegas sign — striped scalloped awning, a board ringed with chasing bulbs
   (dim set + two lit sets blinking in antiphase, all CSS gradients with
-  `background-repeat: round` so bulbs never clip), neon title, Sir Fish from
-  Chibi Crawl's map art, and a Play Now pill; `prefers-reduced-motion` freezes
-  it. It currently features **Paper Airplane** (image: `src/paper-airplane/marquee.svg`,
-  a vector card drawn in the game's ink style; Tiny Haulers and, before it, Chibi
-  Crawl held the spot); to feature another game, change the
-  button's copy, image and click handler (the game's regular button stays on its
-  list page too). Pages 2–5 are the game lists. Every page sits in one grid
-  cell (so the carousel is as tall as its tallest page) and slides by
-  `translateX((--i - --cur) * 120%)`; `--cur` comes from
-  `#menu-screen[data-page]`, so **adding a page = one `#page-N { --i: N }`
-  rule, one `[data-page="N"] { --cur: N }` rule, the last-page arrow selector
-  and `PAGE_COUNT`**. Page numbers quoted in the game entries above ("menu page
-  2" etc.) predate the Featured page — add 1.
+  `background-repeat: round` so bulbs never clip), neon title, a Play Now pill;
+  `prefers-reduced-motion` freezes it. It currently features **Paper Airplane**
+  (image: `src/paper-airplane/marquee.svg`; Tiny Haulers and, before it, Chibi
+  Crawl held the spot); to feature another game, change the button's copy,
+  image and click handler (the game keeps its tile on its shelf too). Below it,
+  `.menu-shelves` holds one `<section class="shelf">` per genre (Arcade,
+  Action & RPG, Puzzle & Physics, Management & Idle), each a heading over a
+  `.shelf-grid` (`auto-fill, minmax(148px, 1fr)`: 2 columns on phones, 4 on
+  desktop) of coloured **title cards**: `<button id="btn-…" class="tile"
+  style="--a:#…;--b:#…">Name<small>tagline</small></button>`. **Adding a game =
+  one tile in the right shelf** (pick two gradient colours, keep the `btn-…` id
+  the click handler binds to) plus the usual launcher/teardown wiring below.
+  Bark Quest's `#btn-barkquest` rule still overrides the tile background with
+  its drifting bones. The old paged carousel (`--cur`/`data-page`/arrows) is
+  gone, so "menu page N" in the game entries above is historical.
 - **The Fantasia menu is plain HTML/CSS** in `index.html` (not a Phaser scene), so
   the decorative title font renders well; it is the first screen. No game
   auto-boots — each game file defines a `window.launch<Game>()`
