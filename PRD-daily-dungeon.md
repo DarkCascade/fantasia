@@ -266,7 +266,9 @@ time and health.
 
 **Best result.** The player's day result is their **best attempt**, compared
 by stars and then by total time (lower is better). An exact tie keeps the
-earlier attempt.
+earlier attempt. Among 0-star attempts, the one that reached more rooms
+ranks higher before time is compared, because a wipe in an early room has
+the lowest total time and would otherwise win.
 
 **No leaderboard in v1.** Score is personal. Stats (played, win rate, star
 distribution, streak) are kept locally, in the style of a daily word game.
@@ -343,6 +345,12 @@ Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
 
 - The header shows the day number, the best star rating, and the best time.
   The time is optional and can be turned off.
+- The star rating always shows three glyphs: ★ for each star earned and ☆
+  for each star not earned (`★★☆` is a 2-star day). If the best attempt has
+  0 stars, the header shows `✗` instead of stars, and no time, because a
+  wiped run's time means nothing. Example: `Daily Dungeon #142  ✗`.
+- The time is the best attempt's total time in whole seconds, rounded down,
+  followed by `s`. The header's parts are separated by two spaces.
 - Each row is one attempt. The grid shows only attempts that were actually
   played.
 - The **Copy** button puts this text on the clipboard. The share text does
