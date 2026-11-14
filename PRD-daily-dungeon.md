@@ -122,6 +122,9 @@ ability, which keeps party composition tied to slot decisions.
 
 The Knight's −2 applies to every combat-type room (Swarm, Magic, Elite, Boss)
 that the Mage has not cleared. It never applies to Traps or Ambushes.
+A room the Mage only halves (D1 "halve" mode) is not cleared, so the Knight
+applies too: halve first (rounded down), then −2, min 0. Spike D1 (§16) may
+revisit this.
 
 Damage, base times and the Mage's −20 s are placeholders, tuned in M1
 (§17). The Mage's "cancel" effect is subject to a spike (§16, D1).
@@ -231,6 +234,9 @@ Every hero has **3 HP** except the Mage, which has 2.
 | Ranger | Support | In Slot 4, cancels Ambushes and gives bonus speed | No |
 | Berserker | Bruiser | At full HP on entering the boss room, −15 s | No |
 
+"Slot 4" is literal: with fewer than 4 heroes standing nobody is in Slot 4,
+so the Ranger gets neither the ambush cancel nor the speed bonus.
+
 **Roster size.** v1 launches with these **6 heroes**. Each day's roster is
 **5 or 6** of them, chosen by the generator. Leaving a hero out is a
 difficulty lever ("no Rogue today"). New heroes are post-v1 (§19).
@@ -266,7 +272,9 @@ time and health.
 
 **Best result.** The player's day result is their **best attempt**, compared
 by stars and then by total time (lower is better). An exact tie keeps the
-earlier attempt.
+earlier attempt. Among 0-star attempts, the one that reached more rooms
+ranks higher before time is compared, because a wipe in an early room has
+the lowest total time and would otherwise win.
 
 **No leaderboard in v1.** Score is personal. Stats (played, win rate, star
 distribution, streak) are kept locally, in the style of a daily word game.
@@ -343,6 +351,12 @@ Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
 
 - The header shows the day number, the best star rating, and the best time.
   The time is optional and can be turned off.
+- The star rating always shows three glyphs: ★ for each star earned and ☆
+  for each star not earned (`★★☆` is a 2-star day). If the best attempt has
+  0 stars, the header shows `✗` instead of stars, and no time, because a
+  wiped run's time means nothing. Example: `Daily Dungeon #142  ✗`.
+- The time is the best attempt's total time in whole seconds, rounded down,
+  followed by `s`. The header's parts are separated by two spaces.
 - Each row is one attempt. The grid shows only attempts that were actually
   played.
 - The **Copy** button puts this text on the clipboard. The share text does

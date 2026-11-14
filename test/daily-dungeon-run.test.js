@@ -1,6 +1,7 @@
 // Unit tests for Daily Dungeon's run engine (runDungeon in src/daily-dungeon/sim.js):
 // damage targets, overflow, knockouts, wipes, time and the event log (FAN-10).
-// Hero abilities are FAN-11, so every hero here is just a body with HP.
+// Hero abilities (FAN-11) are tested in daily-dungeon-abilities.test.js; the
+// lineups here are picked so no ability changes the mechanic under test.
 // Run with: node --test test/*.test.js
 "use strict";
 const test = require("node:test");
@@ -40,13 +41,16 @@ function allLineups() {
 /* Damage targets (PRD §7.2)                                              */
 /* --------------------------------------------------------------------- */
 
+// The Rogue in Slot 3 can't disarm (FAN-11), so traps land.
+const TRAP4 = ["knight", "mage", "rogue", "cleric"];
+
 test("slot1 (trap) hits only the hero in Slot 1", () => {
-  const r = S.runDungeon(rooms("trap"), ALL4);
+  const r = S.runDungeon(rooms("trap"), TRAP4);
   const room = r.rooms[0];
   assert.deepEqual(damages(room.events), [
     { kind: "damage", hero: "knight", slot: 1, amount: 2, hpBefore: 3, hpAfter: 1, overkill: 0, overflow: false },
   ]);
-  assert.deepEqual(hp(room.lineAfter), { knight: 1, rogue: 3, mage: 2, cleric: 3 });
+  assert.deepEqual(hp(room.lineAfter), { knight: 1, mage: 2, rogue: 3, cleric: 3 });
   assert.deepEqual(room.damageByHero, { knight: 2 });
   assert.equal(room.damageTaken, 2);
 });
@@ -69,7 +73,7 @@ test("slot1 excess damage is lost, never carried to Slot 2", () => {
 });
 
 test("slot1 excess is lost across rooms too: a second trap knocks out the 1-HP hero and stops", () => {
-  const r = S.runDungeon(rooms("trap", "trap"), ALL4);
+  const r = S.runDungeon(rooms("trap", "trap"), TRAP4);
   const second = r.rooms[1];
   assert.deepEqual(damages(second.events), [
     { kind: "damage", hero: "knight", slot: 1, amount: 1, hpBefore: 1, hpAfter: 0, overkill: 1, overflow: false },
@@ -78,7 +82,7 @@ test("slot1 excess is lost across rooms too: a second trap knocks out the 1-HP h
 });
 
 test("front damage that a single hero absorbs does not overflow", () => {
-  const r = S.runDungeon(rooms("magic"), ["rogue", "knight", "mage", "cleric"]);
+  const r = S.runDungeon(rooms("magic"), ["rogue", "knight", "berserker", "cleric"]);
   const ev = damages(r.rooms[0].events);
   assert.equal(ev.length, 1);
   assert.deepEqual(ev[0], { kind: "damage", hero: "rogue", slot: 1, amount: 3, hpBefore: 3, hpAfter: 0, overkill: 0, overflow: false });
@@ -100,17 +104,18 @@ test("front damage overflows across two heroes", () => {
 
 test("front overflow can wipe the entire line in one room; the rest is overkill", () => {
   const tune = S.withTune({ rooms: { boss: { damage: 20 } } });
-  const r = S.runDungeon(rooms("trap", "boss", "swarm"), ALL4, tune);
+  // No Knight in Slot 1, Rogue in Slot 3, and a Slot-1 Cleric heals nobody.
+  const r = S.runDungeon(rooms("trap", "boss", "swarm"), ["cleric", "mage", "rogue", "knight"], tune);
   const boss = r.rooms[1];
-  // Knight is at 1 after the trap: 1 + 3 + 2 + 3 = 9 absorbed, 11 lost.
+  // Cleric is at 1 after the trap: 1 + 2 + 3 + 3 = 9 absorbed, 11 lost.
   assert.deepEqual(damages(boss.events), [
-    { kind: "damage", hero: "knight", slot: 1, amount: 1, hpBefore: 1, hpAfter: 0, overkill: 0, overflow: false },
-    { kind: "damage", hero: "rogue", slot: 2, amount: 3, hpBefore: 3, hpAfter: 0, overkill: 0, overflow: true },
-    { kind: "damage", hero: "mage", slot: 3, amount: 2, hpBefore: 2, hpAfter: 0, overkill: 0, overflow: true },
-    { kind: "damage", hero: "cleric", slot: 4, amount: 3, hpBefore: 3, hpAfter: 0, overkill: 11, overflow: true },
+    { kind: "damage", hero: "cleric", slot: 1, amount: 1, hpBefore: 1, hpAfter: 0, overkill: 0, overflow: false },
+    { kind: "damage", hero: "mage", slot: 2, amount: 2, hpBefore: 2, hpAfter: 0, overkill: 0, overflow: true },
+    { kind: "damage", hero: "rogue", slot: 3, amount: 3, hpBefore: 3, hpAfter: 0, overkill: 0, overflow: true },
+    { kind: "damage", hero: "knight", slot: 4, amount: 3, hpBefore: 3, hpAfter: 0, overkill: 11, overflow: true },
   ]);
   assert.equal(boss.overkill, 11);
-  assert.deepEqual(boss.knockouts, ["knight", "rogue", "mage", "cleric"]);
+  assert.deepEqual(boss.knockouts, ["cleric", "mage", "rogue", "knight"]);
   assert.equal(boss.wiped, true);
   assert.equal(boss.cleared, false);
   assert.deepEqual(boss.lineAfter, []);
@@ -126,9 +131,9 @@ test("slot4 (ambush) hits the hero in Slot 4 when four are standing", () => {
 });
 
 test("slot4 with only 2 heroes standing hits the back-most hero (Slot 2)", () => {
-  // Swarm 5 knocks out Mage (2) and Rogue (3); Knight and Cleric are left.
-  const tune = S.withTune({ rooms: { swarm: { damage: 5 } } });
-  const r = S.runDungeon(rooms("swarm", "ambush"), ["mage", "rogue", "knight", "cleric"], tune);
+  // Swarm 6 knocks out Berserker (3) and Rogue (3); Knight and Cleric are left.
+  const tune = S.withTune({ rooms: { swarm: { damage: 6 } } });
+  const r = S.runDungeon(rooms("swarm", "ambush"), ["berserker", "rogue", "knight", "cleric"], tune);
   assert.deepEqual(ids(r.rooms[1].lineBefore), ["knight", "cleric"]);
   assert.deepEqual(damages(r.rooms[1].events), [
     { kind: "damage", hero: "cleric", slot: 2, amount: 2, hpBefore: 3, hpAfter: 1, overkill: 0, overflow: false },
@@ -147,8 +152,8 @@ test("slot4 excess is lost: it does not carry forward to Slot 3", () => {
 });
 
 test("slot4 with a single hero standing hits that hero", () => {
-  const tune = S.withTune({ rooms: { swarm: { damage: 8 } } });
-  const r = S.runDungeon(rooms("swarm", "ambush"), ["mage", "rogue", "knight", "cleric"], tune);
+  const tune = S.withTune({ rooms: { swarm: { damage: 9 } } });
+  const r = S.runDungeon(rooms("swarm", "ambush"), ["berserker", "rogue", "knight", "cleric"], tune);
   assert.deepEqual(ids(r.rooms[1].lineBefore), ["cleric"]);
   assert.deepEqual(damages(r.rooms[1].events)[0].hero, "cleric");
   assert.equal(damages(r.rooms[1].events)[0].slot, 1);
@@ -159,23 +164,23 @@ test("slot4 with a single hero standing hits that hero", () => {
 /* --------------------------------------------------------------------- */
 
 test("a knockout leaves the line and everyone behind moves forward", () => {
-  const r = S.runDungeon(rooms("magic"), ["rogue", "knight", "mage", "cleric"]);
+  const r = S.runDungeon(rooms("magic"), ["rogue", "knight", "berserker", "cleric"]);
   const room = r.rooms[0];
   const ko = room.events.find((e) => e.kind === "ko");
-  assert.deepEqual(ko, { kind: "ko", hero: "rogue", slot: 1, line: ["knight", "mage", "cleric"] });
-  assert.deepEqual(ids(room.lineAfter), ["knight", "mage", "cleric"]);
+  assert.deepEqual(ko, { kind: "ko", hero: "rogue", slot: 1, line: ["knight", "berserker", "cleric"] });
+  assert.deepEqual(ids(room.lineAfter), ["knight", "berserker", "cleric"]);
   assert.deepEqual(room.knockouts, ["rogue"]);
   // The next room's front hero is the Knight.
-  const r2 = S.runDungeon(rooms("magic", "trap"), ["rogue", "knight", "mage", "cleric"]);
+  const r2 = S.runDungeon(rooms("magic", "trap"), ["rogue", "knight", "berserker", "cleric"]);
   assert.equal(damages(r2.rooms[1].events)[0].hero, "knight");
 });
 
 test("ko events in one room come front to back, each with the line after it closed up", () => {
-  const tune = S.withTune({ rooms: { swarm: { damage: 5 } } });
-  const r = S.runDungeon(rooms("swarm"), ["mage", "rogue", "knight", "cleric"], tune);
+  const tune = S.withTune({ rooms: { swarm: { damage: 6 } } });
+  const r = S.runDungeon(rooms("swarm"), ["berserker", "rogue", "knight", "cleric"], tune);
   const kos = r.rooms[0].events.filter((e) => e.kind === "ko");
   assert.deepEqual(kos, [
-    { kind: "ko", hero: "mage", slot: 1, line: ["rogue", "knight", "cleric"] },
+    { kind: "ko", hero: "berserker", slot: 1, line: ["rogue", "knight", "cleric"] },
     { kind: "ko", hero: "rogue", slot: 1, line: ["knight", "cleric"] },
   ]);
 });
@@ -256,7 +261,8 @@ test("cleared is true iff a hero stands after the last room's step 3", () => {
 
 test("a 0-damage room emits no damage events and counts as no damage taken", () => {
   const tune = S.withTune({ rooms: { trap: { damage: 0 } } });
-  const r = S.runDungeon(rooms("trap"), ALL4, tune);
+  // No Rogue, so no counter event either.
+  const r = S.runDungeon(rooms("trap"), ["knight", "mage", "berserker", "cleric"], tune);
   assert.deepEqual(kinds(r.rooms[0].events), ["time"]);
   assert.equal(r.rooms[0].damageTaken, 0);
   assert.deepEqual(r.rooms[0].damageByHero, {});
@@ -267,9 +273,10 @@ test("a 0-damage room emits no damage events and counts as no damage taken", () 
 /* --------------------------------------------------------------------- */
 
 test("totalTime is the sum of the played rooms' times; time events carry the running total", () => {
-  // Light combat damage so this 12-HP party survives all five rooms.
+  // Light combat damage so this 12-HP party survives all five rooms. No
+  // Mage, no Berserker, no Ranger in Slot 4: nothing saves time.
   const tune = S.withTune({ rooms: { swarm: { damage: 1 }, magic: { damage: 1 }, boss: { damage: 1 } } });
-  const r = S.runDungeon(rooms("trap", "swarm", "magic", "ambush", "boss"), ["knight", "rogue", "ranger", "berserker"], tune);
+  const r = S.runDungeon(rooms("trap", "swarm", "magic", "ambush", "boss"), ["knight", "ranger", "rogue", "cleric"], tune);
   assert.equal(r.cleared, true);
   assert.deepEqual(
     r.rooms.map((x) => x.time),
@@ -277,7 +284,7 @@ test("totalTime is the sum of the played rooms' times; time events carry the run
   );
   assert.equal(r.totalTime, 120);
   const t = r.rooms.map((x) => x.events.find((e) => e.kind === "time"));
-  assert.deepEqual(t[0], { kind: "time", seconds: 10, base: 10, saved: 0, floored: false, total: 10 });
+  assert.deepEqual(t[0], { kind: "time", seconds: 10, base: 10, saved: 0, floored: false, total: 10, savings: [] });
   assert.deepEqual(
     t.map((e) => e.total),
     [10, 40, 65, 80, 120]
@@ -286,7 +293,7 @@ test("totalTime is the sum of the played rooms' times; time events carry the run
 
 test("room time is floored at tune.minRoomTime", () => {
   const tune = S.withTune({ rooms: { trap: { time: 2 } }, minRoomTime: 5 });
-  const r = S.runDungeon(rooms("trap", "swarm"), ALL4, tune);
+  const r = S.runDungeon(rooms("trap", "swarm"), ["knight", "berserker", "rogue", "cleric"], tune);
   assert.equal(r.rooms[0].time, 5);
   assert.deepEqual(r.rooms[0].events.find((e) => e.kind === "time"), {
     kind: "time",
@@ -295,6 +302,7 @@ test("room time is floored at tune.minRoomTime", () => {
     saved: 0,
     floored: true,
     total: 5,
+    savings: [],
   });
   assert.equal(r.totalTime, 35);
 });
@@ -305,20 +313,21 @@ test("room time is floored at tune.minRoomTime", () => {
 
 test("a withTune override changes the result even for rooms built with the default tune", () => {
   const rs = rooms("trap", "elite"); // baked damage 2 / 4, time 10 / 30
-  const base = S.runDungeon(rs, ALL4);
-  // Default: trap 2 leaves the Knight at 1; elite 4 overflows 3 onto the Rogue.
+  const lineup = ["berserker", "ranger", "rogue", "cleric"]; // no ability touches these rooms
+  const base = S.runDungeon(rs, lineup);
+  // Default: trap 2 leaves the Berserker at 1; elite 4 overflows 3 onto the Ranger.
   assert.deepEqual(base.rooms[0].knockouts, []);
-  assert.deepEqual(base.knockedOut, ["knight", "rogue"]);
+  assert.deepEqual(base.knockedOut, ["berserker", "ranger"]);
   const tune = S.withTune({ rooms: { trap: { damage: 3, time: 12 } } });
-  const over = S.runDungeon(rs, ALL4, tune);
-  // Trap 3 knocks the Knight out, so the elite lands on the Rogue.
-  assert.deepEqual(over.rooms[0].knockouts, ["knight"]);
+  const over = S.runDungeon(rs, lineup, tune);
+  // Trap 3 knocks the Berserker out, so the elite lands on the Ranger.
+  assert.deepEqual(over.rooms[0].knockouts, ["berserker"]);
   assert.equal(over.rooms[0].time, 12);
-  assert.equal(damages(over.rooms[1].events)[0].hero, "rogue");
+  assert.equal(damages(over.rooms[1].events)[0].hero, "ranger");
   assert.notDeepEqual(over, base);
   // The room's own baked numbers (and target) are display values only.
   const lying = rs.map((r) => ({ ...r, damage: 99, time: 1, target: "slot4" }));
-  assert.deepEqual(S.runDungeon(lying, ALL4), base);
+  assert.deepEqual(S.runDungeon(lying, lineup), base);
 });
 
 test("the room object's display fields are passed through to the result", () => {
@@ -383,7 +392,8 @@ test("events within a room follow the PRD §7.5 step order and use only known ki
 
 test("event order in a room with damage, knockouts and a wipe: the wipe comes last", () => {
   const tune = S.withTune({ rooms: { swarm: { damage: 20 } } });
-  const r = S.runDungeon(rooms("swarm", "trap"), ALL4, tune);
+  // No Mage or Knight, so no counter event in the swarm.
+  const r = S.runDungeon(rooms("swarm", "trap"), ["berserker", "rogue", "ranger", "cleric"], tune);
   assert.deepEqual(kinds(r.rooms[0].events), [
     "damage",
     "damage",
@@ -420,10 +430,12 @@ test("hp bookkeeping: damage events, damageByHero and the lines agree (all lineu
       assert.equal(room.damageTaken, total);
       // Damage in = HP lost + overkill.
       assert.equal(room.damage, room.damageTaken + room.overkill);
-      // HP before − damage = HP after, for heroes still standing.
+      // HP before − damage + Cleric heal (FAN-11) = HP after, for heroes still standing.
+      const healed = {};
+      for (const e of room.events) if (e.kind === "heal") healed[e.hero] = (healed[e.hero] || 0) + e.amount;
       for (const h of room.lineAfter) {
         const before = room.lineBefore.find((b) => b.id === h.id);
-        assert.equal(h.hp, before.hp - (fromEvents[h.id] || 0));
+        assert.equal(h.hp, before.hp - (fromEvents[h.id] || 0) + (healed[h.id] || 0));
         assert.ok(h.hp > 0 && h.hp <= h.maxHp);
       }
       assert.equal(room.lineAfter.length + room.knockouts.length, room.lineBefore.length);
@@ -516,8 +528,9 @@ test("line snapshots are copies, never live references", () => {
   r.rooms[0].lineAfter.length = 0;
   r.line[0].hp = 42;
   assert.equal(JSON.stringify(r.rooms[1]), expected);
-  // Elite knocked out Knight and Rogue, so the Mage (2 HP) leads.
-  assert.deepEqual(r.rooms[2].lineAfter[0], { id: "mage", hp: 2, maxHp: 2, exhausted: false });
+  // The Rogue disarmed the trap (FAN-11), so the Knight still leads after the
+  // elite, guarding it down to 2 damage.
+  assert.deepEqual(r.rooms[2].lineAfter[0], { id: "knight", hp: 1, maxHp: 3, exhausted: false });
 });
 
 test("hero state starts at maxHp from the HEROES table, not exhausted", () => {

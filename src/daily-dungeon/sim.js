@@ -22,10 +22,27 @@
  * {placeholder} that fillText() resolves against a tune object.
  */
 (function (root, factory) {
-  var api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
+  var isNode = typeof module === "object" && module.exports;
+  // The daily plumbing (daily.js: seeded PRNG) is only needed by the
+  // generator, so it is handed in as a lazy accessor and resolved on the
+  // first generateCandidate() call: everything else here loads and works
+  // without daily.js. Node: require it from beside this file. Browser: the
+  // page loads daily.js before sim.js, so it is on the global.
+  var plumbing = function () {
+    if (isNode) {
+      try {
+        return require("./daily.js");
+      } catch (e) {
+        if (e && e.code === "MODULE_NOT_FOUND") return null;
+        throw e; // daily.js exists but failed to load: surface the real error
+      }
+    }
+    return root.DailyPlumbing || null;
+  };
+  var api = factory(plumbing);
+  if (isNode) module.exports = api;
   else root.DailyDungeonSim = api;
-})(typeof self !== "undefined" ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function (plumbing) {
   "use strict";
 
   /* ------------------------------------------------------------------ */
@@ -319,8 +336,8 @@
   // `hp` is a fixed rule of the PRD (3, Mage 2), not a tuning value.
   // `slots`: the slots where the ability works, or null for any slot. Slot
   // numbers are literal 1-based positions in the line as it stands when the
-  // room starts; [4] does NOT mean "back-most". How "Slot 4" works with
-  // fewer than 4 heroes standing is decided in FAN-11. `rotates`: a one-shot
+  // room starts; [4] does NOT mean "back-most": with fewer than 4 heroes
+  // standing nobody is in Slot 4 (FAN-11, PRD §8). `rotates`: a one-shot
   // counter that exhausts the hero and sends it to the back (PRD §7.3).
   var HEROES = deepFreeze([
     {
@@ -475,6 +492,179 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Daily generator (PRD §6, §6.2, §8) — FAN-13                         */
+  /* ------------------------------------------------------------------ */
+
+  // generateCandidate(seedString, tune) builds ONE unverified day from a seed
+  // string such as "2026-11-14" or "2026-11-14#1" (daily.js seedString()).
+  // Verification and reseeding are FAN-14. It is a pure function of its
+  // arguments: no Math.random, no Date; the only randomness is a
+  // daily.js createRng(seedString) stream.
+  //
+  // Result (deep-frozen):
+  //   {
+  //     seed,                   // the seed string, as given
+  //     rooms: [r1..r5],        // makeRoom() shape: type, variant, name,
+  //                             //   target, damage, time (numbers from `tune`)
+  //     rumors: { 3: id, 4: id },  // the Rumor shown for rooms 3 and 4
+  //     hidden: { 3: { type, variant }, 4: { type, variant } },
+  //                             // what rooms 3 and 4 really are (redundant
+  //                             //   with rooms[2]/rooms[3]; for the reveal)
+  //     roster: [heroId],       // 5 or 6 heroes, in HERO_IDS order
+  //     missing,                // the hero left out, or null (full roster)
+  //   }
+  //
+  // Room rules:
+  //   1  the lowest-damage visible type under `tune` (a low-stakes lesson,
+  //      PRD §14). With today's TUNE that is trap or ambush (both 2).
+  //   2  any visible type; it may repeat room 1's type but not its variant.
+  //   3,4  a Rumor each (the same Rumor may be drawn twice), then one of its
+  //      two options. A pinned option (Rune Trap, Skeleton Horde) is used as
+  //      is, even if a visible room already has that variant.
+  //   5  always the boss.
+  // Unpinned variants avoid any variant already used earlier in the day
+  // (falling back to every variant if all are taken), so a day never shows
+  // two rooms with the same name unless a Rumor pins it.
+
+  // The generator's own knobs (not TUNE: they shape the day, not the rules).
+  // Read-only; FAN-16's balance harness reads them.
+  var GEN = deepFreeze({
+    // Types allowed in the visible rooms 1 and 2 (room 1 further narrows to
+    // the minimum-damage ones). Every non-boss type.
+    visibleTypes: ROOM_TYPE_IDS.filter(function (t) {
+      return t !== "boss";
+    }),
+    // Chance that all six heroes are on the day's roster; otherwise one is
+    // left out (PRD §8 "5 or 6"). Placeholder, tuned in M1.
+    fullRosterChance: 0.5,
+    // (Rooms 3 and 4 draw their Rumors independently, so both may show the
+    // same Rumor: 9 combinations instead of 6. Not a knob.)
+    // Documentation of the stream, one entry per draw (see CONTRACT below).
+    drawOrder: [
+      "rosterFull",
+      "missingHero",
+      "room1Type",
+      "room1Variant",
+      "room2Type",
+      "room2Variant",
+      "room3Rumor",
+      "room3Option",
+      "room3Variant",
+      "room4Rumor",
+      "room4Option",
+      "room4Variant",
+      "bossVariant",
+    ],
+  });
+
+  /*
+   * CONTRACT: generateCandidate consumes the seed stream in GEN.drawOrder,
+   * exactly ONE draw per entry, ALWAYS — even when the draw cannot matter (a
+   * full roster still draws a missing hero; a pinned Rumor variant still
+   * draws from a one-element list; room 1 with a unique minimum-damage type
+   * still draws from a one-element list). So each step sits at a fixed
+   * position in the stream and a change to one step's candidate list can't
+   * reshuffle the others. After launch, changing the draw order, the number
+   * of draws, how a draw maps to a choice, or the order of any candidate list
+   * (table order in ROOM_TYPES / RUMORS / HEROES and their variants) changes
+   * every future day; see daily.js's CONTRACT for why that is bad. The golden
+   * test in test/daily-dungeon-gen.test.js guards it: if it fails, the fix is
+   * almost never to update its expected days.
+   */
+
+  var cachedPlumbing = null;
+
+  function getPlumbing() {
+    if (cachedPlumbing) return cachedPlumbing;
+    var p = typeof plumbing === "function" ? plumbing() : null;
+    if (!p || typeof p.createRng !== "function")
+      throw new Error(
+        "generateCandidate needs the daily plumbing (src/daily-dungeon/daily.js): " +
+          "load daily.js before sim.js in the browser, or keep it next to sim.js in Node"
+      );
+    cachedPlumbing = p;
+    return p;
+  }
+
+  function variantIds(typeId) {
+    return roomType(typeId).variants.map(function (v) {
+      return v.id;
+    });
+  }
+
+  // One draw: a variant of `typeId`, avoiding the ids in `used` when possible.
+  function drawVariant(rng, typeId, used) {
+    var all = variantIds(typeId);
+    var fresh = all.filter(function (id) {
+      return used.indexOf(id) < 0;
+    });
+    return rng.pick(fresh.length ? fresh : all);
+  }
+
+  function generateCandidate(seedString, tune) {
+    if (typeof seedString !== "string" || seedString === "")
+      throw new TypeError("generateCandidate: seedString must be a non-empty string");
+    tune = tune || TUNE;
+    var rng = getPlumbing().createRng(seedString);
+    var used = []; // variant ids placed so far
+
+    // Draws 1–2: roster.
+    var full = rng.float() < GEN.fullRosterChance;
+    var dropped = rng.pick(HERO_IDS);
+    var missing = full ? null : dropped;
+    var roster = HERO_IDS.filter(function (id) {
+      return id !== missing;
+    });
+
+    // Draws 3–4: room 1, the lowest-damage visible type.
+    var minDamage = Infinity;
+    GEN.visibleTypes.forEach(function (t) {
+      minDamage = Math.min(minDamage, roomStats(t, tune).damage);
+    });
+    var room1Types = GEN.visibleTypes.filter(function (t) {
+      return roomStats(t, tune).damage === minDamage;
+    });
+    var type1 = rng.pick(room1Types);
+    var variant1 = drawVariant(rng, type1, used);
+    used.push(variant1);
+
+    // Draws 5–6: room 2, any visible type, never room 1's exact variant.
+    var type2 = rng.pick(GEN.visibleTypes);
+    var variant2 = drawVariant(rng, type2, used);
+    used.push(variant2);
+
+    // Draws 7–12: rooms 3 and 4 — Rumor, which option is real, its variant.
+    var rumors = {};
+    var hidden = {};
+    [3, 4].forEach(function (n) {
+      var rumor = rng.pick(RUMORS);
+      var option = rng.pick(rumor.options);
+      var variant = option.variant != null ? rng.pick([option.variant]) : drawVariant(rng, option.type, used);
+      used.push(variant);
+      rumors[n] = rumor.id;
+      hidden[n] = { type: option.type, variant: variant };
+    });
+
+    // Draw 13: the boss.
+    var bossVariant = drawVariant(rng, "boss", used);
+
+    return deepFreeze({
+      seed: seedString,
+      rooms: [
+        makeRoom(type1, variant1, tune),
+        makeRoom(type2, variant2, tune),
+        makeRoom(hidden[3].type, hidden[3].variant, tune),
+        makeRoom(hidden[4].type, hidden[4].variant, tune),
+        makeRoom("boss", bossVariant, tune),
+      ],
+      rumors: rumors,
+      hidden: hidden,
+      roster: roster,
+      missing: missing,
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Run engine (PRD §7.1–7.5, §9) — FAN-10                              */
   /* ------------------------------------------------------------------ */
 
@@ -527,7 +717,25 @@
   //   }
   //
   // Events, in PRD §7.5 step order. Every event is a plain object { kind, … }.
-  //   Emitted by FAN-10:
+  //   counter { kind, hero, ability, fired, blocked?, effect?, amount?, seconds? }
+  //           step 1 (FAN-11). One per ability whose hero is standing at room
+  //           start in a room type it targets — fired or not, so the replay
+  //           can say "the Rogue was exhausted, so the trap hit". Emitted in
+  //           the order Rogue, Mage, Ranger, Knight, Berserker.
+  //             hero/ability: rogue/"disarm" (trap), mage/"clear"
+  //               (swarm, magic), ranger/"cancel" (ambush), knight/"guard"
+  //               (swarm, magic, elite, boss — but no event at all in a room
+  //               the Mage cleared in "cancel" mode), berserker/"fury" (boss).
+  //             fired: true → `effect` is "disarm" | "clear" (Mage, cancel
+  //               mode) | "halve" (Mage, halve mode) | "cancel" (Ranger) |
+  //               "reduce" (Knight) | "speed" (Berserker). `amount` is the
+  //               damage it prevented (not on "speed"); `seconds` the time it
+  //               saves (Mage, Berserker; the same saving is listed again in
+  //               the step-4 `time` event's `savings`).
+  //             fired: false → `blocked` is "exhausted" (checked first),
+  //               "slot" (Rogue not in Slot 1–2, Ranger not literally in
+  //               Slot 4, Knight not in Slot 1) or "hp" (Berserker below
+  //               full HP on entry). No effect/amount/seconds.
   //   damage  { kind, hero, slot, amount, hpBefore, hpAfter, overkill, overflow }
   //           step 2. `slot` is the hero's 1-based position when hit. `amount`
   //           is HP actually lost. `overkill` is damage lost beyond this hero
@@ -541,10 +749,13 @@
   //           in the line as it stood just before this ko (so after any
   //           earlier ko in the same room closed up); `line` is the hero ids
   //           after this ko closed it up.
-  //   time    { kind, seconds, base, saved, floored, total }
+  //   time    { kind, seconds, base, saved, floored, total, savings }
   //           step 4. `saved` is the sum of savings that fired, `floored` is
   //           true when tune.minRoomTime raised the result, `total` is the
-  //           running time after this room.
+  //           running time after this room. `savings` lists each saving as
+  //           { hero, seconds, reason }, in the order: Mage "clear",
+  //           Berserker "fury" (both fired at step 1), Ranger "speed" (the
+  //           Ranger stood literally in Slot 4 at room start; not a counter).
   //   wipe    { kind }
   //           TERMINAL, not a §7.5 step: nobody is left and the run ends. The
   //           party is wiped at step 3, but the room was still played, so
@@ -552,15 +763,33 @@
   //           skipped. `wipe` is always the LAST event of its room, appears
   //           at most once per run, only in rooms[wipedAt], and every room
   //           after it has no events. (Playback shows 💀 as the final beat.)
-  //   Reserved for hero abilities (FAN-11; suggested fields):
-  //   counter { kind, hero, ability, … }      step 1
-  //   exhaust { kind, hero, exhausted }       step 5
-  //   rotate  { kind, hero, from, line }      step 6 (`line` after the move)
-  //   heal    { kind, hero, by, amount, hpAfter }  step 7
+  //   exhaust { kind, hero, exhausted }
+  //           step 5 (FAN-11). First `exhausted: false` for each hero whose
+  //           exhaustion from last room clears (front to back), then
+  //           `exhausted: true` for a Rogue/Mage whose ability fired this room
+  //           and is still standing (exhausted for the next room).
+  //   rotate  { kind, hero, from, line }
+  //           step 6 (FAN-11). That Rogue/Mage moved from 1-based slot `from`
+  //           to the back; `line` is the hero ids after the move. Emitted
+  //           even if it was already last (`from` === line.length).
+  //   heal    { kind, hero, by, amount, hpAfter }
+  //           step 7 (FAN-11). `hero` (directly in front of the Cleric after
+  //           step 6) gained `amount` HP from `by` ("cleric"). Only when
+  //           amount > 0, so healing a full-HP hero emits nothing.
+  //   heal    { kind, hero: null, by: "cleric", amount: 0, blocked: "slot" }
+  //           step 7, blocked: the Cleric stands in Slot 1 after step 6, so
+  //           there is nobody in front to heal. Emitted only when at least
+  //           one other standing hero is below max HP (a heal would have
+  //           mattered); no `hpAfter`. Every heal event has amount > 0
+  //           unless `blocked` is set.
+  //   Steps 5–7 never run in a wipe room, so it has no exhaust, rotate or
+  //   heal events.
   var EVENT_KINDS = deepFreeze(["counter", "damage", "ko", "time", "exhaust", "rotate", "heal", "wipe"]);
 
   // The order each event kind belongs to: the §7.5 step for 1–7, and 8 for the
   // terminal `wipe`. Within a room, events never go backwards in this order.
+  // Blocked events share their kind's step (a blocked `counter` is step 1, a
+  // blocked `heal` is step 7).
   var EVENT_STEP = deepFreeze({ counter: 1, damage: 2, ko: 3, time: 4, exhaust: 5, rotate: 6, heal: 7, wipe: 8 });
 
   function copyHero(h) {
@@ -598,16 +827,117 @@
   }
 
   // --- The seven §7.5 steps. Each takes the per-room context (see
-  // --- resolveRoom) and only reads/writes it. FAN-11 fills in the hooks.
+  // --- resolveRoom) and only reads/writes it. Hero abilities are FAN-11.
 
-  // Step 1 — Counters. HOOK (FAN-11): work out which abilities fire, checking
-  // slot conditions against ctx.lineAtStart and skipping exhausted heroes.
-  // It may: push `counter` events; set ctx.cancelled (Rogue disarm, Ranger
-  // cancel, Mage clear in "cancel" mode); lower ctx.damage (Knight −N, Mage
-  // "halve"); push { hero, seconds, reason } onto ctx.savings (Mage,
-  // Berserker); push a rotating hero's id onto ctx.fired (Rogue, Mage).
+  // 1-based slot of hero `id` in the line at room start, or 0 if it is not
+  // standing. Slot numbers are literal: with fewer than 4 heroes standing,
+  // nobody is in Slot 4 (FAN-11 decision; PRD §8).
+  function startSlot(ctx, id) {
+    for (var i = 0; i < ctx.lineAtStart.length; i++) if (ctx.lineAtStart[i].id === id) return i + 1;
+    return 0;
+  }
+
+  // Push a `counter` event; `extra` holds effect/amount/seconds or blocked.
+  function counterEvent(ctx, hero, ability, fired, extra) {
+    var e = { kind: "counter", hero: hero, ability: ability, fired: fired };
+    Object.keys(extra).forEach(function (k) {
+      e[k] = extra[k];
+    });
+    ctx.events.push(e);
+  }
+
+  // Step 1 — Counters (PRD §7.5 step 1, §6.1, §8). Slot and HP conditions
+  // read ctx.lineAtStart; exhausted heroes skip their ability. Resolved in
+  // the PRD's order: Rogue, Mage, Ranger, Knight, Berserker (the Knight must
+  // follow the Mage, whose clear switches him off). An ability whose hero is
+  // standing in a room type it targets emits exactly one `counter` event:
+  // fired, or blocked with a reason (exhaustion is checked before slot/HP).
+  // It sets ctx.cancelled (Rogue, Ranger, Mage in "cancel" mode), lowers
+  // ctx.damage (Mage "halve", Knight), pushes ctx.savings (Mage, Berserker)
+  // and ctx.fired (the rotating Rogue and Mage).
   function stepCounters(ctx) {
-    void ctx; // no hero abilities in FAN-10
+    var t = ctx.tune;
+    var typeId = ctx.room.type;
+    var cleared = false; // the Mage cancelled the room ("cancel" mode only)
+
+    // The hero's start-of-room { slot, state } if it is standing and the room
+    // is one its ability targets; otherwise null (and no event at all).
+    function eligible(id, applies) {
+      if (!applies) return null;
+      var slot = startSlot(ctx, id);
+      return slot ? { slot: slot, state: ctx.lineAtStart[slot - 1] } : null;
+    }
+
+    // Rogue: trap, Slot 1 or 2 → disarmed, no damage. Rotates.
+    var rogue = eligible("rogue", typeId === "trap");
+    if (rogue) {
+      if (rogue.state.exhausted) counterEvent(ctx, "rogue", "disarm", false, { blocked: "exhausted" });
+      else if (rogue.slot > 2) counterEvent(ctx, "rogue", "disarm", false, { blocked: "slot" });
+      else {
+        counterEvent(ctx, "rogue", "disarm", true, { effect: "disarm", amount: ctx.damage });
+        ctx.cancelled = true;
+        ctx.fired.push("rogue");
+      }
+    }
+
+    // Mage: swarm/magic, any slot → no damage ("cancel") or half, rounded
+    // down ("halve"), and −mageTimeSave s. Rotates. A halved room is not
+    // "cleared", so a Slot-1 Knight still reduces it (PRD §6.1 note).
+    var mage = eligible("mage", ctx.type.clearable);
+    if (mage) {
+      if (mage.state.exhausted) counterEvent(ctx, "mage", "clear", false, { blocked: "exhausted" });
+      else {
+        var before = ctx.damage;
+        if (t.mageMode === "halve") ctx.damage = Math.floor(before / 2);
+        else {
+          ctx.cancelled = true;
+          cleared = true;
+        }
+        counterEvent(ctx, "mage", "clear", true, {
+          effect: cleared ? "clear" : "halve",
+          amount: cleared ? before : before - ctx.damage,
+          seconds: t.mageTimeSave,
+        });
+        ctx.savings.push({ hero: "mage", seconds: t.mageTimeSave, reason: "clear" });
+        ctx.fired.push("mage");
+      }
+    }
+
+    // Ranger: ambush, literally in Slot 4 → cancelled, no damage. His speed
+    // bonus is a step-4 saving (collectTimeSavings), not a counter.
+    var ranger = eligible("ranger", typeId === "ambush");
+    if (ranger) {
+      if (ranger.state.exhausted) counterEvent(ctx, "ranger", "cancel", false, { blocked: "exhausted" });
+      else if (ranger.slot !== 4) counterEvent(ctx, "ranger", "cancel", false, { blocked: "slot" });
+      else {
+        counterEvent(ctx, "ranger", "cancel", true, { effect: "cancel", amount: ctx.damage });
+        ctx.cancelled = true;
+      }
+    }
+
+    // Knight: combat room the Mage didn't clear, Slot 1 → damage −N, min 0.
+    var knight = eligible("knight", ctx.type.combat && !cleared);
+    if (knight) {
+      if (knight.state.exhausted) counterEvent(ctx, "knight", "guard", false, { blocked: "exhausted" });
+      else if (knight.slot !== 1) counterEvent(ctx, "knight", "guard", false, { blocked: "slot" });
+      else {
+        var pre = Math.max(0, ctx.damage);
+        ctx.damage = Math.max(0, pre - t.knightReduction);
+        counterEvent(ctx, "knight", "guard", true, { effect: "reduce", amount: pre - ctx.damage });
+      }
+    }
+
+    // Berserker: boss room, full HP on entry → −berserkerTimeSave s.
+    var berserker = eligible("berserker", typeId === "boss");
+    if (berserker) {
+      if (berserker.state.exhausted) counterEvent(ctx, "berserker", "fury", false, { blocked: "exhausted" });
+      else if (berserker.state.hp < berserker.state.maxHp)
+        counterEvent(ctx, "berserker", "fury", false, { blocked: "hp" });
+      else {
+        counterEvent(ctx, "berserker", "fury", true, { effect: "speed", seconds: t.berserkerTimeSave });
+        ctx.savings.push({ hero: "berserker", seconds: t.berserkerTimeSave, reason: "fury" });
+      }
+    }
   }
 
   // Step 2 — Damage. Applies max(0, ctx.damage) to the room's target unless
@@ -668,10 +998,13 @@
   }
 
   // Step 4 hook — time savings that PRD §7.5 assigns to step 4 itself rather
-  // than step 1. HOOK (FAN-11): the Ranger speed bonus (Ranger in Slot 4 of
-  // ctx.lineAtStart) pushes { hero, seconds, reason } onto ctx.savings.
+  // than step 1: the Ranger speed bonus, in any room, when the Ranger stood
+  // literally in Slot 4 of ctx.lineAtStart (so never with < 4 standing). It
+  // counts even if the Ranger is knocked out in this room: he started there.
   function collectTimeSavings(ctx) {
-    void ctx;
+    var back = ctx.lineAtStart[3];
+    if (back && back.id === "ranger" && !back.exhausted)
+      ctx.savings.push({ hero: "ranger", seconds: ctx.tune.rangerTimeSave, reason: "speed" });
   }
 
   // Step 4 — Time. base − savings, never below tune.minRoomTime. Runs on a
@@ -692,25 +1025,73 @@
       saved: saved,
       floored: seconds > base - saved,
       total: ctx.runTime + seconds,
+      savings: ctx.savings.map(function (s) {
+        return { hero: s.hero, seconds: s.seconds, reason: s.reason };
+      }),
     });
   }
 
-  // Step 5 — Exhaustion. HOOK (FAN-11): clear last room's `exhausted` flags,
-  // then mark each hero in ctx.fired exhausted; push `exhaust` events.
+  // Index of hero `id` in the live line, or -1 (knocked out).
+  function liveIndex(line, id) {
+    for (var i = 0; i < line.length; i++) if (line[i].id === id) return i;
+    return -1;
+  }
+
+  // Step 5 — Exhaustion. Clear last room's flags (front to back), then mark
+  // each hero in ctx.fired that is still standing exhausted for the next
+  // room. (A hero exhausted last room cannot have fired this room.)
   function stepExhaustion(ctx) {
-    void ctx;
+    ctx.line.forEach(function (h) {
+      if (h.exhausted) {
+        h.exhausted = false;
+        ctx.events.push({ kind: "exhaust", hero: h.id, exhausted: false });
+      }
+    });
+    ctx.fired.forEach(function (id) {
+      var i = liveIndex(ctx.line, id);
+      if (i < 0) return;
+      ctx.line[i].exhausted = true;
+      ctx.events.push({ kind: "exhaust", hero: id, exhausted: true });
+    });
   }
 
-  // Step 6 — Rotation. HOOK (FAN-11): move each hero in ctx.fired to the back
-  // of ctx.line; push `rotate` events.
+  // Step 6 — Rotation. Each hero in ctx.fired that is still standing moves
+  // to the back of the line; everyone behind it moves up one slot. The event
+  // is emitted even when the hero was already last (`from` = line length),
+  // so the replay always shows the rotation the ability causes.
   function stepRotation(ctx) {
-    void ctx;
+    ctx.fired.forEach(function (id) {
+      var i = liveIndex(ctx.line, id);
+      if (i < 0) return;
+      var h = ctx.line.splice(i, 1)[0];
+      ctx.line.push(h);
+      ctx.events.push({ kind: "rotate", hero: id, from: i + 1, line: lineIds(ctx.line) });
+    });
   }
 
-  // Step 7 — Heal. HOOK (FAN-11): each Cleric heals the hero directly in front
-  // by tune.clericHeal, up to maxHp, front to back; push `heal` events.
+  // Step 7 — Heal. Front to back, each Cleric heals the hero directly in
+  // front of her in the line as it stands after step 6 by tune.clericHeal,
+  // up to maxHp. Emits `heal` only when the hero actually gains HP. A Cleric
+  // in Slot 1 heals nobody; she emits a blocked `heal` (hero null, amount 0,
+  // blocked "slot") only when another standing hero is below max HP, i.e.
+  // when a heal would have mattered.
   function stepHeal(ctx) {
-    void ctx;
+    var line = ctx.line;
+    for (var i = 0; i < line.length; i++) {
+      if (line[i].id !== "cleric") continue;
+      if (i === 0) {
+        var hurt = line.some(function (h, j) {
+          return j > 0 && h.hp < h.maxHp;
+        });
+        if (hurt) ctx.events.push({ kind: "heal", hero: null, by: "cleric", amount: 0, blocked: "slot" });
+        continue;
+      }
+      var target = line[i - 1];
+      var amount = Math.min(ctx.tune.clericHeal, target.maxHp - target.hp);
+      if (amount <= 0) continue;
+      target.hp += amount;
+      ctx.events.push({ kind: "heal", hero: target.id, by: "cleric", amount: amount, hpAfter: target.hp });
+    }
   }
 
   // The per-room context every step reads and writes. `line` is the run's
@@ -837,6 +1218,156 @@
     };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Scoring and share text (PRD §10, §13) — FAN-12 */
+  /* ------------------------------------------------------------------ */
+
+  // Everything here reads only documented runDungeon result fields: on the
+  // result, `cleared`, `knockouts`, `totalTime` and `rooms`; on each room,
+  // `reached`, `wiped`, `damageTaken` and `knockouts`. Nothing reads hero ids,
+  // room names or events, so hero abilities (FAN-11) can't change the rules
+  // and the share text can't leak a lineup or a room.
+
+  // UI labels for 0–3 stars (PRD §10). Index 0 is a run that did not clear.
+  var STAR_NAMES = deepFreeze(["", "Clear", "Unscathed", "Gold Par"]);
+
+  // Per-room codes (PRD §13.2). Written as escapes so an editor can't strip
+  // the variation selector: ⚔️ is U+2694 U+FE0F, and without U+FE0F some
+  // platforms draw the swords as a narrow text glyph.
+  var ROOM_CODES = deepFreeze({
+    flawless: "\u2694\uFE0F", // ⚔️ reached, not wiped, no damage taken, no knockouts
+    damaged: "\uD83D\uDE2C", // 😬 reached, not wiped, but damage taken or a knockout
+    wipe: "\uD83D\uDC80", // 💀 the party was wiped out in this room
+    unreached: "\u2B1C", // ⬜ the run ended before this room
+  });
+
+  var STAR_ON = "\u2605"; // ★
+  var STAR_OFF = "\u2606"; // ☆
+  var NO_CLEAR = "\u2717"; // ✗ (header for a day whose best attempt has 0 stars)
+
+  function isFiniteNumber(v) {
+    return typeof v === "number" && isFinite(v);
+  }
+
+  function checkResult(result, fn) {
+    if (!isPlainObject(result) || !Array.isArray(result.rooms))
+      throw new TypeError(fn + ": expected a runDungeon result");
+    if (typeof result.cleared !== "boolean") throw new TypeError(fn + ": result.cleared must be a boolean");
+    if (!Number.isInteger(result.knockouts) || result.knockouts < 0)
+      throw new TypeError(fn + ": result.knockouts must be a non-negative integer");
+    if (!isFiniteNumber(result.totalTime) || result.totalTime < 0)
+      throw new TypeError(fn + ": result.totalTime must be a non-negative number");
+  }
+
+  function checkPar(parTime, fn) {
+    if (!isFiniteNumber(parTime) || parTime < 0)
+      throw new TypeError(fn + ": parTime must be a non-negative number, got " + parTime);
+  }
+
+  // stars(result, parTime) → 0..3 (PRD §10).
+  //   0  not cleared (the party was wiped)
+  //   1  cleared: at least one hero standing after the last room
+  //   2  cleared with zero knockouts
+  //   3  zero knockouts AND totalTime strictly under parTime (equal is 2★)
+  function stars(result, parTime) {
+    checkResult(result, "stars");
+    checkPar(parTime, "stars");
+    if (!result.cleared) return 0;
+    if (result.knockouts > 0) return 1;
+    return result.totalTime < parTime ? 3 : 2;
+  }
+
+  // roomCode(roomResult) → one of ROOM_CODES (PRD §13.2). Healing is ignored:
+  // a hero who lost HP and was healed back still makes the room 😬.
+  function roomCode(room) {
+    if (!isPlainObject(room)) throw new TypeError("roomCode: expected a room result");
+    if (!room.reached) return ROOM_CODES.unreached;
+    if (room.wiped) return ROOM_CODES.wipe;
+    var kos = Array.isArray(room.knockouts) ? room.knockouts.length : 0;
+    return room.damageTaken > 0 || kos > 0 ? ROOM_CODES.damaged : ROOM_CODES.flawless;
+  }
+
+  // roomCodes(result) → one code per room, in room order.
+  function roomCodes(result) {
+    if (!isPlainObject(result) || !Array.isArray(result.rooms))
+      throw new TypeError("roomCodes: expected a runDungeon result");
+    return result.rooms.map(roomCode);
+  }
+
+  function roomsReached(result) {
+    var n = 0;
+    result.rooms.forEach(function (r) {
+      if (r && r.reached) n++;
+    });
+    return n;
+  }
+
+  // bestAttempt(attempts, parTime) → { index, stars, totalTime } | null.
+  // `attempts` is runDungeon results in play order; `index` is 0-based. The
+  // order (PRD §10 "Best result"): more stars; then, among 0★ attempts only,
+  // more rooms reached (otherwise the earliest wipe would have the lowest
+  // time and win); then lower totalTime; an exact tie keeps the earlier one.
+  function bestAttempt(attempts, parTime) {
+    if (!Array.isArray(attempts)) throw new TypeError("bestAttempt: attempts must be an array");
+    checkPar(parTime, "bestAttempt");
+    var best = null;
+    attempts.forEach(function (a, i) {
+      var c = { index: i, stars: stars(a, parTime), totalTime: a.totalTime, reached: roomsReached(a) };
+      if (best === null || beats(c, best)) best = c;
+    });
+    return best && { index: best.index, stars: best.stars, totalTime: best.totalTime };
+  }
+
+  // True if candidate `a` ranks strictly above `b` (ties keep `b`, the earlier).
+  function beats(a, b) {
+    if (a.stars !== b.stars) return a.stars > b.stars;
+    if (a.stars === 0 && a.reached !== b.reached) return a.reached > b.reached;
+    return a.totalTime < b.totalTime;
+  }
+
+  // shareText({ dayNumber, attempts, parTime, showTime = true }) → string
+  // (PRD §13.3):
+  //
+  //   Daily Dungeon #142  ★★☆  73s
+  //   Attempt 1: ⚔️ 😬 💀 ⬜ ⬜
+  //   Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
+  //
+  // Header: the day number as given, then the best attempt's stars as three
+  // glyphs (★ earned, ☆ not), or "✗" alone if the best attempt has 0 stars,
+  // then its totalTime in whole seconds (rounded down, so a 3★ time never
+  // reads as par or more) — omitted when showTime is false or the best attempt
+  // has 0 stars. Fields are separated by exactly two spaces. One row per
+  // attempt played, codes separated by one space; rows joined by "\n", no
+  // trailing newline. It never includes hero names, slot order, room names or
+  // Rumors. Throws on anything but 1–3 attempts or an integer dayNumber.
+  function shareText(opts) {
+    if (!isPlainObject(opts)) throw new TypeError("shareText: expected an options object");
+    var dayNumber = opts.dayNumber;
+    var attempts = opts.attempts;
+    var showTime = opts.showTime === undefined ? true : opts.showTime;
+    if (!Number.isInteger(dayNumber)) throw new TypeError("shareText: dayNumber must be an integer, got " + dayNumber);
+    if (!Array.isArray(attempts) || attempts.length < 1 || attempts.length > 3)
+      throw new Error(
+        "shareText: attempts must be an array of 1-3 runDungeon results, got " +
+          (Array.isArray(attempts) ? attempts.length : typeof attempts)
+      );
+    if (typeof showTime !== "boolean") throw new TypeError("shareText: showTime must be a boolean");
+    checkPar(opts.parTime, "shareText");
+
+    var best = bestAttempt(attempts, opts.parTime);
+    var header = "Daily Dungeon #" + dayNumber + "  ";
+    if (best.stars === 0) header += NO_CLEAR;
+    else {
+      for (var s = 1; s <= 3; s++) header += s <= best.stars ? STAR_ON : STAR_OFF;
+      if (showTime) header += "  " + Math.floor(best.totalTime) + "s";
+    }
+    var lines = [header];
+    attempts.forEach(function (a, i) {
+      lines.push("Attempt " + (i + 1) + ": " + roomCodes(a).join(" "));
+    });
+    return lines.join("\n");
+  }
+
   return {
     TUNE: TUNE,
     MAGE_MODES: MAGE_MODES,
@@ -857,9 +1388,18 @@
     fillText: fillText,
     heroAbilityText: heroAbilityText,
     roomCounterText: roomCounterText,
+    GEN: GEN,
+    generateCandidate: generateCandidate,
     EVENT_KINDS: EVENT_KINDS,
     EVENT_STEP: EVENT_STEP,
     runDungeon: runDungeon,
+    STAR_NAMES: STAR_NAMES,
+    ROOM_CODES: ROOM_CODES,
+    stars: stars,
+    roomCode: roomCode,
+    roomCodes: roomCodes,
+    bestAttempt: bestAttempt,
+    shareText: shareText,
     // Not public API: exposed so tests can drive single steps with a
     // hand-set context (e.g. a step-1 damage modifier before FAN-11 exists).
     _internal: { newRoomContext: newRoomContext, stepDamage: stepDamage },
