@@ -1,9 +1,10 @@
 /*
- * Daily Dungeon — simulation core (content tables + tuning).
+ * Daily Dungeon — simulation core (content tables, tuning, run engine).
  *
- * Pure data and small lookup helpers, no rendering. It runs unchanged in the
- * browser (window.DailyDungeonSim) and under Node (module.exports), which is
- * what test/daily-dungeon-sim.test.js drives. Spec: PRD-daily-dungeon.md
+ * Pure data, small lookup helpers and the run engine (runDungeon), no
+ * rendering. It runs unchanged in the browser (window.DailyDungeonSim) and
+ * under Node (module.exports), which is what test/daily-dungeon-sim.test.js
+ * and test/daily-dungeon-run.test.js drive. Spec: PRD-daily-dungeon.md
  * §6.1 (room types), §6.2 (Rumors), §7 (the line), §8 (heroes), §9 (timing).
  *
  * Two rules keep the balance harness honest:
@@ -473,6 +474,369 @@
     return fillText(roomType(typeId).counterText, tune);
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Run engine (PRD §7.1–7.5, §9) — FAN-10                              */
+  /* ------------------------------------------------------------------ */
+
+  // runDungeon(rooms, lineup, tune) resolves one attempt. It is a pure
+  // function: it never mutates `rooms`, `lineup`, `tune` or any table, and the
+  // same inputs always produce a deep-equal result.
+  //
+  //   rooms  — array of >= 1 room objects in the makeRoom() shape. Only `type`
+  //            drives the rules; damage, time and target are read from `tune`
+  //            and ROOM_TYPES (roomStats), so a withTune() override changes
+  //            the outcome even for rooms built with the default tune. The
+  //            room's baked `damage`/`time`/`target` are display values only.
+  //   lineup — exactly 4 distinct hero ids, Slot 1 (front) first.
+  //   tune   — TUNE (default) or a withTune() result.
+  //
+  // Result:
+  //   {
+  //     rooms: [RoomResult],  // one per input room, in order (unreached too)
+  //     totalTime,            // sum of `time` over the rooms that were played
+  //     knockouts,            // number of heroes knocked out
+  //     knockedOut: [id],     // who, in knockout order
+  //     survivors,            // number of heroes standing at the end
+  //     line: [HeroState],    // the line at the end (copies)
+  //     cleared,              // true iff someone is standing after the last
+  //                           //   room's step 3 (PRD §7.5) — i.e. no wipe
+  //     wipedAt,              // 0-based index of the wipe room, or null
+  //   }
+  //
+  // HeroState: { id, hp, maxHp, exhausted }. Every HeroState in a result is a
+  // fresh copy, never a reference into the engine's live line.
+  //
+  // RoomResult (everything FAN-12 needs to derive the §13.2 code):
+  //   {
+  //     index, type, variant, name, target,
+  //     reached,         // false: the run ended before this room (⬜)
+  //     cleared,         // reached and not wiped
+  //     wiped,           // the party was wiped out in this room (💀)
+  //     baseDamage,      // tune damage for the type
+  //     damage,          // damage actually aimed at the line after step 1
+  //                      //   (0 if cancelled)
+  //     damageTaken,     // HP actually lost by heroes in this room
+  //     damageByHero,    // { heroId: HP lost } for each hero that lost HP
+  //     overkill,        // damage that was lost (slot1/slot4 excess, or front
+  //                      //   overflow past the last hero)
+  //     knockouts: [id], // heroes knocked out in this room, in order
+  //     time,            // seconds this room took (0 if not reached)
+  //     events: [Event], // display-ordered log (empty if not reached)
+  //     lineBefore,      // [HeroState] as the room started ([] if not reached)
+  //     lineAfter,       // [HeroState] after step 7 ([] if not reached)
+  //   }
+  //
+  // Events, in PRD §7.5 step order. Every event is a plain object { kind, … }.
+  //   Emitted by FAN-10:
+  //   damage  { kind, hero, slot, amount, hpBefore, hpAfter, overkill, overflow }
+  //           step 2. `slot` is the hero's 1-based position when hit. `amount`
+  //           is HP actually lost. `overkill` is damage lost beyond this hero
+  //           (slot1/slot4 excess; for `front`, only on the last hero when the
+  //           whole line could not absorb it). `overflow` is true when this
+  //           damage carried back from the hero in front (`front` only). A room
+  //           whose damage is 0 after step 1 emits no damage events; the
+  //           counter event explains why.
+  //   ko      { kind, hero, slot, line }
+  //           step 3, front to back. `slot` is the hero's 1-based position
+  //           in the line as it stood just before this ko (so after any
+  //           earlier ko in the same room closed up); `line` is the hero ids
+  //           after this ko closed it up.
+  //   time    { kind, seconds, base, saved, floored, total }
+  //           step 4. `saved` is the sum of savings that fired, `floored` is
+  //           true when tune.minRoomTime raised the result, `total` is the
+  //           running time after this room.
+  //   wipe    { kind }
+  //           TERMINAL, not a §7.5 step: nobody is left and the run ends. The
+  //           party is wiped at step 3, but the room was still played, so
+  //           step 4 runs and its `time` event comes first; steps 5–7 are
+  //           skipped. `wipe` is always the LAST event of its room, appears
+  //           at most once per run, only in rooms[wipedAt], and every room
+  //           after it has no events. (Playback shows 💀 as the final beat.)
+  //   Reserved for hero abilities (FAN-11; suggested fields):
+  //   counter { kind, hero, ability, … }      step 1
+  //   exhaust { kind, hero, exhausted }       step 5
+  //   rotate  { kind, hero, from, line }      step 6 (`line` after the move)
+  //   heal    { kind, hero, by, amount, hpAfter }  step 7
+  var EVENT_KINDS = deepFreeze(["counter", "damage", "ko", "time", "exhaust", "rotate", "heal", "wipe"]);
+
+  // The order each event kind belongs to: the §7.5 step for 1–7, and 8 for the
+  // terminal `wipe`. Within a room, events never go backwards in this order.
+  var EVENT_STEP = deepFreeze({ counter: 1, damage: 2, ko: 3, time: 4, exhaust: 5, rotate: 6, heal: 7, wipe: 8 });
+
+  function copyHero(h) {
+    return { id: h.id, hp: h.hp, maxHp: h.maxHp, exhausted: h.exhausted };
+  }
+
+  function snapshotLine(line) {
+    return line.map(copyHero);
+  }
+
+  function lineIds(line) {
+    return line.map(function (h) {
+      return h.id;
+    });
+  }
+
+  function validateRun(rooms, lineup) {
+    if (!Array.isArray(rooms) || rooms.length < 1) throw new Error("runDungeon: rooms must be a non-empty array");
+    rooms.forEach(function (r, i) {
+      if (!isPlainObject(r)) throw new TypeError("runDungeon: room " + i + " must be a room object");
+      if (!Object.prototype.hasOwnProperty.call(ROOM_TYPES, r.type))
+        throw new Error("runDungeon: room " + i + " has unknown room type '" + r.type + "'");
+    });
+    if (!Array.isArray(lineup) || lineup.length !== 4)
+      throw new Error(
+        "runDungeon: lineup must be an array of exactly 4 hero ids, got " +
+          (Array.isArray(lineup) ? lineup.length : typeof lineup)
+      );
+    var seen = {};
+    lineup.forEach(function (id) {
+      if (HERO_IDS.indexOf(id) < 0) throw new Error("runDungeon: unknown hero '" + id + "' in lineup");
+      if (seen[id]) throw new Error("runDungeon: duplicate hero '" + id + "' in lineup");
+      seen[id] = true;
+    });
+  }
+
+  // --- The seven §7.5 steps. Each takes the per-room context (see
+  // --- resolveRoom) and only reads/writes it. FAN-11 fills in the hooks.
+
+  // Step 1 — Counters. HOOK (FAN-11): work out which abilities fire, checking
+  // slot conditions against ctx.lineAtStart and skipping exhausted heroes.
+  // It may: push `counter` events; set ctx.cancelled (Rogue disarm, Ranger
+  // cancel, Mage clear in "cancel" mode); lower ctx.damage (Knight −N, Mage
+  // "halve"); push { hero, seconds, reason } onto ctx.savings (Mage,
+  // Berserker); push a rotating hero's id onto ctx.fired (Rogue, Mage).
+  function stepCounters(ctx) {
+    void ctx; // no hero abilities in FAN-10
+  }
+
+  // Step 2 — Damage. Applies max(0, ctx.damage) to the room's target unless
+  // ctx.cancelled. Heroes may drop to 0 HP here; they leave in step 3.
+  function stepDamage(ctx) {
+    var dmg = ctx.cancelled ? 0 : Math.max(0, ctx.damage);
+    ctx.damage = dmg;
+    if (dmg === 0) return;
+    var line = ctx.line;
+    if (ctx.target === "front") {
+      var left = dmg;
+      for (var i = 0; i < line.length && left > 0; i++) {
+        var dealt = Math.min(left, line[i].hp);
+        left -= dealt;
+        var last = left > 0 && i === line.length - 1;
+        hitHero(ctx, line[i], i, dealt, last ? left : 0, i > 0);
+      }
+    } else {
+      // slot1: the front hero; slot4: the back-most hero (PRD §7.2). The
+      // excess beyond that hero's HP is lost, never carried.
+      var idx = ctx.target === "slot1" ? 0 : line.length - 1;
+      var hit = Math.min(dmg, line[idx].hp);
+      hitHero(ctx, line[idx], idx, hit, dmg - hit, false);
+    }
+  }
+
+  function hitHero(ctx, hero, idx, amount, overkill, overflow) {
+    var before = hero.hp;
+    hero.hp -= amount;
+    if (amount > 0) ctx.damageByHero[hero.id] = (ctx.damageByHero[hero.id] || 0) + amount;
+    ctx.damageTaken += amount;
+    ctx.overkill += overkill;
+    ctx.events.push({
+      kind: "damage",
+      hero: hero.id,
+      slot: idx + 1,
+      amount: amount,
+      hpBefore: before,
+      hpAfter: hero.hp,
+      overkill: overkill,
+      overflow: overflow,
+    });
+  }
+
+  // Step 3 — Knockouts. Heroes at 0 HP leave, front to back, and the line
+  // closes up. An empty line is a wipe: it sets ctx.wiped here, but the
+  // `wipe` event is pushed by resolveRoom as the room's last event.
+  function stepKnockouts(ctx) {
+    var line = ctx.line;
+    for (var i = 0; i < line.length; ) {
+      if (line[i].hp <= 0) {
+        var h = line.splice(i, 1)[0];
+        ctx.knockouts.push(h.id);
+        ctx.events.push({ kind: "ko", hero: h.id, slot: i + 1, line: lineIds(line) });
+      } else i++;
+    }
+    if (line.length === 0) ctx.wiped = true;
+  }
+
+  // Step 4 hook — time savings that PRD §7.5 assigns to step 4 itself rather
+  // than step 1. HOOK (FAN-11): the Ranger speed bonus (Ranger in Slot 4 of
+  // ctx.lineAtStart) pushes { hero, seconds, reason } onto ctx.savings.
+  function collectTimeSavings(ctx) {
+    void ctx;
+  }
+
+  // Step 4 — Time. base − savings, never below tune.minRoomTime. Runs on a
+  // wipe too: the room was played, so its time counts.
+  function stepTime(ctx) {
+    collectTimeSavings(ctx);
+    var base = ctx.stats.time;
+    var saved = 0;
+    ctx.savings.forEach(function (s) {
+      saved += s.seconds;
+    });
+    var seconds = Math.max(ctx.tune.minRoomTime, base - saved);
+    ctx.time = seconds;
+    ctx.events.push({
+      kind: "time",
+      seconds: seconds,
+      base: base,
+      saved: saved,
+      floored: seconds > base - saved,
+      total: ctx.runTime + seconds,
+    });
+  }
+
+  // Step 5 — Exhaustion. HOOK (FAN-11): clear last room's `exhausted` flags,
+  // then mark each hero in ctx.fired exhausted; push `exhaust` events.
+  function stepExhaustion(ctx) {
+    void ctx;
+  }
+
+  // Step 6 — Rotation. HOOK (FAN-11): move each hero in ctx.fired to the back
+  // of ctx.line; push `rotate` events.
+  function stepRotation(ctx) {
+    void ctx;
+  }
+
+  // Step 7 — Heal. HOOK (FAN-11): each Cleric heals the hero directly in front
+  // by tune.clericHeal, up to maxHp, front to back; push `heal` events.
+  function stepHeal(ctx) {
+    void ctx;
+  }
+
+  // The per-room context every step reads and writes. `line` is the run's
+  // live line (it belongs to this run only, so mutating it is safe).
+  function newRoomContext(room, index, line, tune, runTime) {
+    var type = ROOM_TYPES[room.type];
+    var stats = roomStats(room.type, tune);
+    return {
+      index: index,
+      room: room, // read-only input
+      type: type, // ROOM_TYPES entry (combat, clearable, …)
+      tune: tune,
+      stats: stats, // { damage, time } from tune
+      target: type.target,
+      lineAtStart: snapshotLine(line), // slot conditions check this (§7.5)
+      line: line, // live line; steps 2, 3, 6 change it
+      runTime: runTime, // total time before this room
+      damage: stats.damage, // step 1 may lower it; step 2 floors at 0
+      cancelled: false, // step 1 may set it: no damage at all
+      savings: [], // [{ hero, seconds, reason }]
+      fired: [], // ids of heroes whose rotating ability fired (Rogue, Mage)
+      events: [],
+      damageTaken: 0,
+      damageByHero: {},
+      overkill: 0,
+      knockouts: [],
+      wiped: false,
+      time: 0,
+    };
+  }
+
+  // Resolve one room: the seven §7.5 steps in their fixed order. Returns the
+  // context, from which the room result is built. On a wipe, steps 5–7 are
+  // skipped and the terminal `wipe` event closes the room's log (after step 4's
+  // `time`), so playback shows 💀 as the run's final beat.
+  function resolveRoom(room, index, line, tune, runTime) {
+    var ctx = newRoomContext(room, index, line, tune, runTime);
+    stepCounters(ctx); // 1
+    stepDamage(ctx); // 2
+    stepKnockouts(ctx); // 3
+    stepTime(ctx); // 4
+    if (ctx.wiped) {
+      ctx.events.push({ kind: "wipe" }); // terminal: always last
+      return ctx;
+    }
+    stepExhaustion(ctx); // 5
+    stepRotation(ctx); // 6
+    stepHeal(ctx); // 7
+    return ctx;
+  }
+
+  function roomHeader(room, index) {
+    return {
+      index: index,
+      type: room.type,
+      variant: room.variant == null ? null : room.variant,
+      name: room.name == null ? null : room.name,
+      target: ROOM_TYPES[room.type].target,
+    };
+  }
+
+  function runDungeon(rooms, lineup, tune) {
+    tune = tune || TUNE;
+    validateRun(rooms, lineup);
+
+    var line = lineup.map(function (id) {
+      var h = heroById(id);
+      return { id: id, hp: h.hp, maxHp: h.hp, exhausted: false };
+    });
+    var results = [];
+    var totalTime = 0;
+    var knockedOut = [];
+    var wipedAt = null;
+
+    rooms.forEach(function (room, i) {
+      var r = roomHeader(room, i);
+      if (wipedAt !== null) {
+        r.reached = false;
+        r.cleared = false;
+        r.wiped = false;
+        r.baseDamage = roomStats(room.type, tune).damage;
+        r.damage = 0;
+        r.damageTaken = 0;
+        r.damageByHero = {};
+        r.overkill = 0;
+        r.knockouts = [];
+        r.time = 0;
+        r.events = [];
+        r.lineBefore = [];
+        r.lineAfter = [];
+        results.push(r);
+        return;
+      }
+      var lineBefore = snapshotLine(line);
+      var ctx = resolveRoom(room, i, line, tune, totalTime);
+      totalTime += ctx.time;
+      knockedOut = knockedOut.concat(ctx.knockouts);
+      if (ctx.wiped) wipedAt = i;
+      r.reached = true;
+      r.cleared = !ctx.wiped;
+      r.wiped = ctx.wiped;
+      r.baseDamage = ctx.stats.damage;
+      r.damage = ctx.damage;
+      r.damageTaken = ctx.damageTaken;
+      r.damageByHero = ctx.damageByHero;
+      r.overkill = ctx.overkill;
+      r.knockouts = ctx.knockouts;
+      r.time = ctx.time;
+      r.events = ctx.events;
+      r.lineBefore = lineBefore;
+      r.lineAfter = snapshotLine(line);
+      results.push(r);
+    });
+
+    return {
+      rooms: results,
+      totalTime: totalTime,
+      knockouts: knockedOut.length,
+      knockedOut: knockedOut,
+      survivors: line.length,
+      line: snapshotLine(line),
+      cleared: wipedAt === null,
+      wipedAt: wipedAt,
+    };
+  }
+
   return {
     TUNE: TUNE,
     MAGE_MODES: MAGE_MODES,
@@ -493,5 +857,11 @@
     fillText: fillText,
     heroAbilityText: heroAbilityText,
     roomCounterText: roomCounterText,
+    EVENT_KINDS: EVENT_KINDS,
+    EVENT_STEP: EVENT_STEP,
+    runDungeon: runDungeon,
+    // Not public API: exposed so tests can drive single steps with a
+    // hand-set context (e.g. a step-1 damage modifier before FAN-11 exists).
+    _internal: { newRoomContext: newRoomContext, stepDamage: stepDamage },
   };
 });
