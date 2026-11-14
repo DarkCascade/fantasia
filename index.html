@@ -205,6 +205,24 @@
       background: radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.26), transparent 55%);
     }
 
+    /* Tiles with game art: the screenshot is the card, with a dark-to-colour
+       fade from the bottom so the title and tagline stay legible. The
+       gradient underneath (--a/--b) is the fallback if the image is missing. */
+    .tile--art {
+      background:
+        linear-gradient(to top, color-mix(in srgb, var(--b) 70%, transparent) 0%, transparent 80%),
+        linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.55) 45%, transparent 88%),
+        var(--img) center top / cover no-repeat,
+        linear-gradient(135deg, var(--a, #5a4bb0), var(--b, #2c2370));
+    }
+
+    .tile--art { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 2px 0 rgba(0, 0, 0, 0.35); }
+    .tile--art small { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0.95; }
+
+    .tile--art::before {
+      background: radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.14), transparent 50%);
+    }
+
     .tile > * { position: relative; }
 
     .tile small {
@@ -593,27 +611,27 @@
         <section class="shelf">
           <h2 class="shelf-title">Arcade</h2>
           <div class="shelf-grid">
-            <button id="btn-flappy" class="tile" type="button" style="--a:#f0b94a;--b:#b3611a">
+            <button id="btn-flappy" class="tile tile--art" type="button" style="--img:url(src/menu-art/flappy.webp);--a:#f0b94a;--b:#b3611a">
               Flappy Bird
               <small>Tap to flap through the pipes</small>
             </button>
-            <button id="btn-starcatcher" class="tile" type="button" style="--a:#6b5de0;--b:#2b1f86">
+            <button id="btn-starcatcher" class="tile tile--art" type="button" style="--img:url(src/menu-art/starcatcher.webp);--a:#6b5de0;--b:#2b1f86">
               Star Catcher
               <small>Catch stars, dodge meteors</small>
             </button>
-            <button id="btn-arrow" class="tile" type="button" style="--a:#d9534f;--b:#7c1d1d">
+            <button id="btn-arrow" class="tile tile--art" type="button" style="--img:url(src/menu-art/arrow.webp);--a:#d9534f;--b:#7c1d1d">
               Arrow Rush
               <small>20 seconds, aim and release</small>
             </button>
-            <button id="btn-cosmicdash" class="tile" type="button" style="--a:#e6a817;--b:#7a4a06">
+            <button id="btn-cosmicdash" class="tile tile--art" type="button" style="--img:url(src/menu-art/cosmicdash.webp);--a:#e6a817;--b:#7a4a06">
               Cosmic Dash
               <small>Endless runner, double-jump</small>
             </button>
-            <button id="btn-slopeman" class="tile" type="button" style="--a:#5aa9d6;--b:#1d4f7a">
+            <button id="btn-slopeman" class="tile tile--art" type="button" style="--img:url(src/menu-art/slopeman.webp);--a:#5aa9d6;--b:#1d4f7a">
               The Abominable Slopeman
               <small>Dodge trees down the slope</small>
             </button>
-            <button id="btn-paperairplane" class="tile" type="button" style="--a:#7fb3a8;--b:#2e6258">
+            <button id="btn-paperairplane" class="tile tile--art" type="button" style="--img:url(src/menu-art/paperairplane.webp);--a:#7fb3a8;--b:#2e6258">
               Paper Airplane
               <small>Flick a plane through the office</small>
             </button>
