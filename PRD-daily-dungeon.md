@@ -391,7 +391,9 @@ Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
 - **Security and cheating.** Local storage can be edited. That is acceptable
   for a Wordle-style game with no leaderboard. It must not become a
   leaderboard without a server.
-- **Tests** (`test/daily-dungeon.test.js`, run with `node --test test/*.test.js`):
+- **Tests** (`test/daily-dungeon-*.test.js`, one file per module so parallel
+  work doesn't collide — `-daily` for `daily.js`, `-sim` for `sim.js`; run
+  with `node --test test/*.test.js`):
   seed determinism, each damage target (Slot 1 / front with overflow /
   Slot 4), every hero ability, exhaustion and rotation, the Cleric heal,
   star thresholds and best-attempt comparison, share-text format, and the
