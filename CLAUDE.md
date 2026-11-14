@@ -1462,13 +1462,18 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   style="--a:#…;--b:#…">Name<small>tagline</small></button>`. **Adding a game =
   one tile in the right shelf** (pick two gradient colours, keep the `btn-…` id
   the click handler binds to) plus the usual launcher/teardown wiring below.
-  The six Arcade tiles are `tile tile--art` with `--img:url(src/menu-art/<game>.webp)`:
+  The Arcade and Action & RPG tiles (11 so far) are `tile tile--art` with `--img:url(src/menu-art/<game>.webp)`:
   560x300 WebP stills (1-7 KB each) captured from real play in headless
   Chromium (autopilots for Flappy / Cosmic Dash, a held aim for Arrow Rush, a
-  pulled-back throw on Paper Airplane's Pinball Desk, the Slopeman HUD hidden),
+  pulled-back throw on Paper Airplane's Pinball Desk, the Slopeman HUD hidden;
+  Action & RPG: Gloom Hollow on a battle platform mid-nova, Dungeon Dive via
+  `?gh3q=low`, Hollow Moon with `?hmq=low&hmgrass=20000&hmbloom=0` + `bossSet("charge")`,
+  Chibi Crawl with `g.guards=['knight','mage','cleric']` stepped into a fight,
+  Sir Fish's Godot battle strip — SwiftShader chokes on the full-quality
+  grass/GTAO, so use those low flags and 90s screenshot timeouts),
   cropped so the subject sits in the top half and colour-boosted. The tile
   overlays a bottom-up dark + `--b` fade so the title and tagline stay readable
-  and keeps the `--a/--b` gradient as the fallback. Other shelves are still
+  and keeps the `--a/--b` gradient as the fallback. Puzzle & Physics and Management & Idle are still
   plain colour cards; to art-ify one, add the WebP and the `tile--art`/`--img`.
   Bark Quest's `#btn-barkquest` rule still overrides the tile background with
   its drifting bones. The old paged carousel (`--cur`/`data-page`/arrows) is
