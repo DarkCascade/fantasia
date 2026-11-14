@@ -59,15 +59,18 @@
     return s;
   }
 
-  // Accepts a Date, a millisecond timestamp, or nothing (now). Returns ms.
+  var KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+  // Every date input in this file goes through here. Accepts a Date, a
+  // millisecond timestamp, a "YYYY-MM-DD" day key (read as 00:00 UTC), or
+  // nothing (now). Any other string, or an invalid Date, throws RangeError.
   function toMs(date) {
     if (date === undefined || date === null) return Date.now();
-    var ms = date instanceof Date ? date.getTime() : Number(date);
+    if (typeof date === "string") return parseDayKey(date);
+    var ms = date instanceof Date ? date.getTime() : typeof date === "number" ? date : NaN;
     if (!isFinite(ms)) throw new RangeError("Invalid date: " + date);
     return ms;
   }
-
-  var KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
   // "YYYY-MM-DD" -> ms of that date's 00:00 UTC. Throws on a malformed or
   // impossible date ("2026-02-30").
@@ -82,13 +85,16 @@
     return ms;
   }
 
-  // ms of 00:00 UTC on the day containing `date`. A "YYYY-MM-DD" string is
-  // read as a day key.
+  // ms of 00:00 UTC on the day containing `date`.
   function utcMidnight(date) {
-    if (typeof date === "string") return parseDayKey(date);
     var ms = toMs(date);
     return ms - (((ms % DAY_MS) + DAY_MS) % DAY_MS);
   }
+
+  /*
+   * Date inputs: every function below takes the same thing, a Date, a ms
+   * timestamp, a "YYYY-MM-DD" day key (00:00 UTC that day) or nothing (now).
+   */
 
   /** dayKey(date = now) -> "YYYY-MM-DD" of the UTC date. */
   function dayKey(date) {
@@ -135,6 +141,16 @@
   /* ------------------------------------------------------------------ */
   /* Seeded PRNG                                                         */
   /* ------------------------------------------------------------------ */
+
+  /*
+   * CONTRACT: changing hashString, mulberry32 or how int/pick/shuffle consume
+   * the stream changes every future day — never change it after launch
+   * without a versioned seed. This stream IS every player's dungeon: a change
+   * swaps today's dungeon mid-day for people who already played and breaks
+   * saved day states and shared grids. The golden-value test in
+   * test/daily-dungeon-daily.test.js guards it; if that test fails, the fix
+   * is almost never to update its numbers.
+   */
 
   /**
    * seedString("2026-11-14") -> "2026-11-14"; seedString("2026-11-14", 2) ->

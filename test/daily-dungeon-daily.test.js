@@ -113,6 +113,29 @@ test("msUntilReset counts down to the next 00:00 UTC", () => {
   assert.ok(now > 0 && now <= D.DAY_MS);
 });
 
+test("every date function accepts Date | ms | day key | nothing", () => {
+  const key = "2026-11-14";
+  const inputs = [key, new Date("2026-11-14T00:00:00Z"), Date.UTC(2026, 10, 14)];
+  for (const d of inputs) {
+    assert.equal(D.dayKey(d), key);
+    assert.equal(D.msUntilReset(d), D.DAY_MS);
+    assert.equal(D.dayNumber(d, "2026-11-01"), 14);
+    assert.equal(D.dayNumber("2026-11-20", d), 7);
+    assert.equal(D.dayKeyForNumber(2, d), "2026-11-15");
+  }
+  assert.equal(D.dayKey("2028-02-29"), "2028-02-29");
+  for (const fn of [() => D.dayKey(), () => D.msUntilReset(), () => D.dayNumber()]) assert.doesNotThrow(fn);
+  // any other string is still a RangeError, including ISO timestamps and numbers-as-strings
+  for (const bad of ["2026-11-14T12:00:00Z", "2026-02-30", "14/11/2026", "1763078400000", "", "today"]) {
+    assert.throws(() => D.dayKey(bad), RangeError, bad);
+    assert.throws(() => D.msUntilReset(bad), RangeError, bad);
+    assert.throws(() => D.dayNumber(bad, "2026-11-01"), RangeError, bad);
+    assert.throws(() => D.dayNumber("2026-11-14", bad), RangeError, bad);
+  }
+  for (const bad of [NaN, Infinity, new Date("nope"), {}, true])
+    assert.throws(() => D.dayKey(bad), RangeError, String(bad));
+});
+
 test("formatCountdown renders HH:MM:SS", () => {
   assert.equal(D.formatCountdown(D.DAY_MS), "24:00:00");
   assert.equal(D.formatCountdown(3600000 + 61000), "01:01:01");
@@ -143,34 +166,39 @@ test("PRNG: same seed gives the same sequence; #1 differs from the base", () => 
   assert.notDeepEqual(seq(D.createRng("2026-11-14#1"), 50), seq(D.createRng("2026-11-14#2"), 50));
   assert.notDeepEqual(seq(D.createRng("2026-11-15"), 50), a);
   for (const x of a) assert.ok(x >= 0 && x < 1);
-  // Pinned values: a change here changes every published daily.
-  assert.equal(D.hashString("2026-11-14"), D.hashString("2026-11-14"));
   assert.notEqual(D.hashString("2026-11-14"), D.hashString("2026-11-14#1"));
-  const pinned = D.createRng("2026-11-14");
-  assert.deepEqual([pinned.int(0, 999), pinned.int(0, 999), pinned.int(0, 999)], PINNED);
 });
-const PINNED = (() => {
-  // computed once from the reference implementation below, so the test is
-  // self-checking rather than a magic number copied from a run
-  const h = (str) => {
-    let x = 1779033703 ^ str.length;
-    for (let i = 0; i < str.length; i++) {
-      x = Math.imul(x ^ str.charCodeAt(i), 3432918353);
-      x = (x << 13) | (x >>> 19);
-    }
-    x = Math.imul(x ^ (x >>> 16), 2246822507);
-    x = Math.imul(x ^ (x >>> 13), 3266489909);
-    return (x ^ (x >>> 16)) >>> 0;
-  };
-  let a = h("2026-11-14");
-  const next = () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  return [0, 0, 0].map(() => Math.floor(next() * 1000));
-})();
+
+// GOLDEN VALUES. These literals ARE the published dailies: after launch they
+// must never change (see the CONTRACT comment in daily.js). If this test
+// fails, revert the change to the PRNG; do not update the numbers unless a
+// versioned seed scheme is being introduced on purpose.
+test("PRNG golden values: the seed stream is frozen", () => {
+  assert.equal(D.hashString("2026-11-14"), 3531210512);
+  assert.equal(D.hashString("2026-11-14#1"), 3108761153);
+  assert.equal(D.hashString("2026-11-14#2"), 2000587118);
+  assert.equal(D.hashString("daily-dungeon"), 1300006016);
+  assert.equal(D.hashString(""), 167010153);
+
+  let r = D.createRng("2026-11-14");
+  assert.deepEqual(seq(r, 5), [
+    0.1472262698225677, 0.2652731165289879, 0.006300171837210655, 0.8590412640478462,
+    0.46450928947888315,
+  ]);
+
+  r = D.createRng("2026-11-14");
+  assert.deepEqual([1, 2, 3, 4, 5].map(() => r.int(1, 6)), [1, 2, 1, 6, 3]);
+
+  r = D.createRng("2026-11-14#1");
+  const heroes = ["knight", "rogue", "mage", "cleric", "ranger", "berserker"];
+  assert.deepEqual([1, 2, 3].map(() => r.pick(heroes)), ["knight", "knight", "mage"]);
+
+  r = D.createRng("2026-11-14#2");
+  assert.deepEqual(r.shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), [8, 5, 4, 7, 9, 1, 2, 0, 6, 3]);
+
+  r = D.createRng(42); // integer seeds skip the hash
+  assert.deepEqual([r.float(), r.int(1, 6)], [0.6011037519201636, 3]);
+});
 
 test("PRNG helpers: int, pick, shuffle, chance, state", () => {
   const r = D.createRng("helpers");
@@ -306,6 +334,46 @@ test("recordResult is idempotent per day and upgrades to the better result", () 
   const frozen = JSON.stringify(once);
   D.recordResult(once, 7, 3);
   assert.equal(JSON.stringify(once), frozen);
+});
+
+test("stats invariants hold over a random walk of recordResult calls", () => {
+  const r = D.createRng("stats-invariants");
+  let s = D.emptyStats();
+  let day = 1;
+  const kinds = { next: 0, skip: 0, same: 0, stale: 0 };
+  const check = (step, what) => {
+    const sum = s.stars.reduce((a, b) => a + b, 0);
+    const where = `step ${step} (${what}): ${JSON.stringify(s)}`;
+    assert.equal(s.played, sum, "played === sum(stars) at " + where);
+    assert.equal(s.wins, s.played - s.stars[0], "wins === played - stars[0] at " + where);
+    assert.ok(s.maxStreak >= s.currentStreak, "maxStreak >= currentStreak at " + where);
+    assert.ok(s.currentStreak <= s.played, "currentStreak <= played at " + where);
+    assert.ok(s.stars.every((n) => Number.isInteger(n) && n >= 0), "non-negative buckets at " + where);
+  };
+  for (let step = 0; step < 500; step++) {
+    const roll = r.float();
+    let what;
+    if (roll < 0.4) {
+      what = "next"; // consecutive day
+      day += 1;
+    } else if (roll < 0.55) {
+      what = "skip"; // skip 1-3 days
+      day += r.int(2, 4);
+    } else if (roll < 0.9) {
+      what = "same"; // same-day re-record: upgrade, repeat or downgrade
+    } else {
+      what = "stale"; // a day before the last recorded one
+    }
+    kinds[what]++;
+    const target = what === "stale" ? day - r.int(1, 5) : day;
+    const before = s;
+    s = D.recordResult(s, target, r.int(0, 3));
+    if (what === "stale") assert.deepEqual(s, D.normalizeStats(before), "stale day ignored");
+    check(step, what);
+    // round-trip through JSON (what storage does) must not change anything
+    assert.deepEqual(D.normalizeStats(JSON.parse(JSON.stringify(s))), s);
+  }
+  for (const k of Object.keys(kinds)) assert.ok(kinds[k] > 20, `walk exercised "${k}"`);
 });
 
 test("liveStreak goes to 0 once a day has been skipped", () => {
