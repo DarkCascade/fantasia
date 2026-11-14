@@ -190,6 +190,32 @@ learned.
 
 Positional effects resolve in slot order, front to back.
 
+### 7.5 Resolution Order (per room)
+
+Every room resolves in the same fixed order. Slot conditions ("in Slot 1",
+"in Slot 4") are checked against the line **as it stands when the room
+starts**.
+
+1. **Counters.** Work out which abilities fire, skipping exhausted heroes:
+   Rogue disarm (trap, Rogue in Slot 1–2), Mage clear (swarm/magic), Ranger
+   cancel (ambush, Ranger in Slot 4), Knight −2 (combat room not cleared by
+   the Mage, Knight in Slot 1), Berserker (boss, at full HP).
+2. **Damage.** Apply the room's remaining damage (never below 0) to its
+   target: Slot 1, the front with overflow, or Slot 4.
+3. **Knockouts.** Heroes at 0 HP leave the line and everyone behind moves
+   forward. If nobody is left, the run ends here (💀).
+4. **Time.** Room time = base time minus the savings that fired (Mage,
+   Berserker, Ranger speed bonus if the Ranger started the room in Slot 4).
+   Never below a minimum set in `TUNE`.
+5. **Exhaustion.** Clear last room's exhaustion. A Rogue or Mage whose
+   ability fired this room becomes exhausted for the next room.
+6. **Rotation.** That Rogue or Mage moves to the back of the line.
+7. **Heal.** Each Cleric heals the hero directly in front of them by 1, up to
+   that hero's maximum HP. A Cleric in Slot 1 heals nobody.
+
+Knocked-out heroes never return. Room 5 counts as cleared (★) if at least
+one hero is standing after step 3.
+
 ## 8. Hero Roster
 
 Every hero has **3 HP** except the Mage, which has 2.
