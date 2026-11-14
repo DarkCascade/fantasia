@@ -1027,6 +1027,156 @@
     };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Scoring and share text (PRD §10, §13) — FAN-12 */
+  /* ------------------------------------------------------------------ */
+
+  // Everything here reads only documented runDungeon result fields: on the
+  // result, `cleared`, `knockouts`, `totalTime` and `rooms`; on each room,
+  // `reached`, `wiped`, `damageTaken` and `knockouts`. Nothing reads hero ids,
+  // room names or events, so hero abilities (FAN-11) can't change the rules
+  // and the share text can't leak a lineup or a room.
+
+  // UI labels for 0–3 stars (PRD §10). Index 0 is a run that did not clear.
+  var STAR_NAMES = deepFreeze(["", "Clear", "Unscathed", "Gold Par"]);
+
+  // Per-room codes (PRD §13.2). Written as escapes so an editor can't strip
+  // the variation selector: ⚔️ is U+2694 U+FE0F, and without U+FE0F some
+  // platforms draw the swords as a narrow text glyph.
+  var ROOM_CODES = deepFreeze({
+    flawless: "\u2694\uFE0F", // ⚔️ reached, not wiped, no damage taken, no knockouts
+    damaged: "\uD83D\uDE2C", // 😬 reached, not wiped, but damage taken or a knockout
+    wipe: "\uD83D\uDC80", // 💀 the party was wiped out in this room
+    unreached: "\u2B1C", // ⬜ the run ended before this room
+  });
+
+  var STAR_ON = "\u2605"; // ★
+  var STAR_OFF = "\u2606"; // ☆
+  var NO_CLEAR = "\u2717"; // ✗ (header for a day whose best attempt has 0 stars)
+
+  function isFiniteNumber(v) {
+    return typeof v === "number" && isFinite(v);
+  }
+
+  function checkResult(result, fn) {
+    if (!isPlainObject(result) || !Array.isArray(result.rooms))
+      throw new TypeError(fn + ": expected a runDungeon result");
+    if (typeof result.cleared !== "boolean") throw new TypeError(fn + ": result.cleared must be a boolean");
+    if (!Number.isInteger(result.knockouts) || result.knockouts < 0)
+      throw new TypeError(fn + ": result.knockouts must be a non-negative integer");
+    if (!isFiniteNumber(result.totalTime) || result.totalTime < 0)
+      throw new TypeError(fn + ": result.totalTime must be a non-negative number");
+  }
+
+  function checkPar(parTime, fn) {
+    if (!isFiniteNumber(parTime) || parTime < 0)
+      throw new TypeError(fn + ": parTime must be a non-negative number, got " + parTime);
+  }
+
+  // stars(result, parTime) → 0..3 (PRD §10).
+  //   0  not cleared (the party was wiped)
+  //   1  cleared: at least one hero standing after the last room
+  //   2  cleared with zero knockouts
+  //   3  zero knockouts AND totalTime strictly under parTime (equal is 2★)
+  function stars(result, parTime) {
+    checkResult(result, "stars");
+    checkPar(parTime, "stars");
+    if (!result.cleared) return 0;
+    if (result.knockouts > 0) return 1;
+    return result.totalTime < parTime ? 3 : 2;
+  }
+
+  // roomCode(roomResult) → one of ROOM_CODES (PRD §13.2). Healing is ignored:
+  // a hero who lost HP and was healed back still makes the room 😬.
+  function roomCode(room) {
+    if (!isPlainObject(room)) throw new TypeError("roomCode: expected a room result");
+    if (!room.reached) return ROOM_CODES.unreached;
+    if (room.wiped) return ROOM_CODES.wipe;
+    var kos = Array.isArray(room.knockouts) ? room.knockouts.length : 0;
+    return room.damageTaken > 0 || kos > 0 ? ROOM_CODES.damaged : ROOM_CODES.flawless;
+  }
+
+  // roomCodes(result) → one code per room, in room order.
+  function roomCodes(result) {
+    if (!isPlainObject(result) || !Array.isArray(result.rooms))
+      throw new TypeError("roomCodes: expected a runDungeon result");
+    return result.rooms.map(roomCode);
+  }
+
+  function roomsReached(result) {
+    var n = 0;
+    result.rooms.forEach(function (r) {
+      if (r && r.reached) n++;
+    });
+    return n;
+  }
+
+  // bestAttempt(attempts, parTime) → { index, stars, totalTime } | null.
+  // `attempts` is runDungeon results in play order; `index` is 0-based. The
+  // order (PRD §10 "Best result"): more stars; then, among 0★ attempts only,
+  // more rooms reached (otherwise the earliest wipe would have the lowest
+  // time and win); then lower totalTime; an exact tie keeps the earlier one.
+  function bestAttempt(attempts, parTime) {
+    if (!Array.isArray(attempts)) throw new TypeError("bestAttempt: attempts must be an array");
+    checkPar(parTime, "bestAttempt");
+    var best = null;
+    attempts.forEach(function (a, i) {
+      var c = { index: i, stars: stars(a, parTime), totalTime: a.totalTime, reached: roomsReached(a) };
+      if (best === null || beats(c, best)) best = c;
+    });
+    return best && { index: best.index, stars: best.stars, totalTime: best.totalTime };
+  }
+
+  // True if candidate `a` ranks strictly above `b` (ties keep `b`, the earlier).
+  function beats(a, b) {
+    if (a.stars !== b.stars) return a.stars > b.stars;
+    if (a.stars === 0 && a.reached !== b.reached) return a.reached > b.reached;
+    return a.totalTime < b.totalTime;
+  }
+
+  // shareText({ dayNumber, attempts, parTime, showTime = true }) → string
+  // (PRD §13.3):
+  //
+  //   Daily Dungeon #142  ★★☆  73s
+  //   Attempt 1: ⚔️ 😬 💀 ⬜ ⬜
+  //   Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
+  //
+  // Header: the day number as given, then the best attempt's stars as three
+  // glyphs (★ earned, ☆ not), or "✗" alone if the best attempt has 0 stars,
+  // then its totalTime in whole seconds (rounded down, so a 3★ time never
+  // reads as par or more) — omitted when showTime is false or the best attempt
+  // has 0 stars. Fields are separated by exactly two spaces. One row per
+  // attempt played, codes separated by one space; rows joined by "\n", no
+  // trailing newline. It never includes hero names, slot order, room names or
+  // Rumors. Throws on anything but 1–3 attempts or an integer dayNumber.
+  function shareText(opts) {
+    if (!isPlainObject(opts)) throw new TypeError("shareText: expected an options object");
+    var dayNumber = opts.dayNumber;
+    var attempts = opts.attempts;
+    var showTime = opts.showTime === undefined ? true : opts.showTime;
+    if (!Number.isInteger(dayNumber)) throw new TypeError("shareText: dayNumber must be an integer, got " + dayNumber);
+    if (!Array.isArray(attempts) || attempts.length < 1 || attempts.length > 3)
+      throw new Error(
+        "shareText: attempts must be an array of 1-3 runDungeon results, got " +
+          (Array.isArray(attempts) ? attempts.length : typeof attempts)
+      );
+    if (typeof showTime !== "boolean") throw new TypeError("shareText: showTime must be a boolean");
+    checkPar(opts.parTime, "shareText");
+
+    var best = bestAttempt(attempts, opts.parTime);
+    var header = "Daily Dungeon #" + dayNumber + "  ";
+    if (best.stars === 0) header += NO_CLEAR;
+    else {
+      for (var s = 1; s <= 3; s++) header += s <= best.stars ? STAR_ON : STAR_OFF;
+      if (showTime) header += "  " + Math.floor(best.totalTime) + "s";
+    }
+    var lines = [header];
+    attempts.forEach(function (a, i) {
+      lines.push("Attempt " + (i + 1) + ": " + roomCodes(a).join(" "));
+    });
+    return lines.join("\n");
+  }
+
   return {
     TUNE: TUNE,
     MAGE_MODES: MAGE_MODES,
@@ -1052,6 +1202,13 @@
     EVENT_KINDS: EVENT_KINDS,
     EVENT_STEP: EVENT_STEP,
     runDungeon: runDungeon,
+    STAR_NAMES: STAR_NAMES,
+    ROOM_CODES: ROOM_CODES,
+    stars: stars,
+    roomCode: roomCode,
+    roomCodes: roomCodes,
+    bestAttempt: bestAttempt,
+    shareText: shareText,
     // Not public API: exposed so tests can drive single steps with a
     // hand-set context (e.g. a step-1 damage modifier before FAN-11 exists).
     _internal: { newRoomContext: newRoomContext, stepDamage: stepDamage },
