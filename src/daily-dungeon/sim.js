@@ -585,13 +585,21 @@
   //   heal    { kind, hero, by, amount, hpAfter }
   //           step 7 (FAN-11). `hero` (directly in front of the Cleric after
   //           step 6) gained `amount` HP from `by` ("cleric"). Only when
-  //           amount > 0, so a full-HP hero or a Slot-1 Cleric emits nothing.
+  //           amount > 0, so healing a full-HP hero emits nothing.
+  //   heal    { kind, hero: null, by: "cleric", amount: 0, blocked: "slot" }
+  //           step 7, blocked: the Cleric stands in Slot 1 after step 6, so
+  //           there is nobody in front to heal. Emitted only when at least
+  //           one other standing hero is below max HP (a heal would have
+  //           mattered); no `hpAfter`. Every heal event has amount > 0
+  //           unless `blocked` is set.
   //   Steps 5–7 never run in a wipe room, so it has no exhaust, rotate or
   //   heal events.
   var EVENT_KINDS = deepFreeze(["counter", "damage", "ko", "time", "exhaust", "rotate", "heal", "wipe"]);
 
   // The order each event kind belongs to: the §7.5 step for 1–7, and 8 for the
   // terminal `wipe`. Within a room, events never go backwards in this order.
+  // Blocked events share their kind's step (a blocked `counter` is step 1, a
+  // blocked `heal` is step 7).
   var EVENT_STEP = deepFreeze({ counter: 1, damage: 2, ko: 3, time: 4, exhaust: 5, rotate: 6, heal: 7, wipe: 8 });
 
   function copyHero(h) {
@@ -873,12 +881,21 @@
 
   // Step 7 — Heal. Front to back, each Cleric heals the hero directly in
   // front of her in the line as it stands after step 6 by tune.clericHeal,
-  // up to maxHp. A Cleric in Slot 1 heals nobody. Emits `heal` only when
-  // the hero actually gains HP.
+  // up to maxHp. Emits `heal` only when the hero actually gains HP. A Cleric
+  // in Slot 1 heals nobody; she emits a blocked `heal` (hero null, amount 0,
+  // blocked "slot") only when another standing hero is below max HP, i.e.
+  // when a heal would have mattered.
   function stepHeal(ctx) {
     var line = ctx.line;
-    for (var i = 1; i < line.length; i++) {
+    for (var i = 0; i < line.length; i++) {
       if (line[i].id !== "cleric") continue;
+      if (i === 0) {
+        var hurt = line.some(function (h, j) {
+          return j > 0 && h.hp < h.maxHp;
+        });
+        if (hurt) ctx.events.push({ kind: "heal", hero: null, by: "cleric", amount: 0, blocked: "slot" });
+        continue;
+      }
       var target = line[i - 1];
       var amount = Math.min(ctx.tune.clericHeal, target.maxHp - target.hp);
       if (amount <= 0) continue;
