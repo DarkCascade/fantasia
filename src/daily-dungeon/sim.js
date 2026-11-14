@@ -319,8 +319,8 @@
   // `hp` is a fixed rule of the PRD (3, Mage 2), not a tuning value.
   // `slots`: the slots where the ability works, or null for any slot. Slot
   // numbers are literal 1-based positions in the line as it stands when the
-  // room starts; [4] does NOT mean "back-most". How "Slot 4" works with
-  // fewer than 4 heroes standing is decided in FAN-11. `rotates`: a one-shot
+  // room starts; [4] does NOT mean "back-most": with fewer than 4 heroes
+  // standing nobody is in Slot 4 (FAN-11, PRD §8). `rotates`: a one-shot
   // counter that exhausts the hero and sends it to the back (PRD §7.3).
   var HEROES = deepFreeze([
     {
@@ -527,7 +527,25 @@
   //   }
   //
   // Events, in PRD §7.5 step order. Every event is a plain object { kind, … }.
-  //   Emitted by FAN-10:
+  //   counter { kind, hero, ability, fired, blocked?, effect?, amount?, seconds? }
+  //           step 1 (FAN-11). One per ability whose hero is standing at room
+  //           start in a room type it targets — fired or not, so the replay
+  //           can say "the Rogue was exhausted, so the trap hit". Emitted in
+  //           the order Rogue, Mage, Ranger, Knight, Berserker.
+  //             hero/ability: rogue/"disarm" (trap), mage/"clear"
+  //               (swarm, magic), ranger/"cancel" (ambush), knight/"guard"
+  //               (swarm, magic, elite, boss — but no event at all in a room
+  //               the Mage cleared in "cancel" mode), berserker/"fury" (boss).
+  //             fired: true → `effect` is "disarm" | "clear" (Mage, cancel
+  //               mode) | "halve" (Mage, halve mode) | "cancel" (Ranger) |
+  //               "reduce" (Knight) | "speed" (Berserker). `amount` is the
+  //               damage it prevented (not on "speed"); `seconds` the time it
+  //               saves (Mage, Berserker; the same saving is listed again in
+  //               the step-4 `time` event's `savings`).
+  //             fired: false → `blocked` is "exhausted" (checked first),
+  //               "slot" (Rogue not in Slot 1–2, Ranger not literally in
+  //               Slot 4, Knight not in Slot 1) or "hp" (Berserker below
+  //               full HP on entry). No effect/amount/seconds.
   //   damage  { kind, hero, slot, amount, hpBefore, hpAfter, overkill, overflow }
   //           step 2. `slot` is the hero's 1-based position when hit. `amount`
   //           is HP actually lost. `overkill` is damage lost beyond this hero
@@ -541,10 +559,13 @@
   //           in the line as it stood just before this ko (so after any
   //           earlier ko in the same room closed up); `line` is the hero ids
   //           after this ko closed it up.
-  //   time    { kind, seconds, base, saved, floored, total }
+  //   time    { kind, seconds, base, saved, floored, total, savings }
   //           step 4. `saved` is the sum of savings that fired, `floored` is
   //           true when tune.minRoomTime raised the result, `total` is the
-  //           running time after this room.
+  //           running time after this room. `savings` lists each saving as
+  //           { hero, seconds, reason }, in the order: Mage "clear",
+  //           Berserker "fury" (both fired at step 1), Ranger "speed" (the
+  //           Ranger stood literally in Slot 4 at room start; not a counter).
   //   wipe    { kind }
   //           TERMINAL, not a §7.5 step: nobody is left and the run ends. The
   //           party is wiped at step 3, but the room was still played, so
@@ -552,11 +573,21 @@
   //           skipped. `wipe` is always the LAST event of its room, appears
   //           at most once per run, only in rooms[wipedAt], and every room
   //           after it has no events. (Playback shows 💀 as the final beat.)
-  //   Reserved for hero abilities (FAN-11; suggested fields):
-  //   counter { kind, hero, ability, … }      step 1
-  //   exhaust { kind, hero, exhausted }       step 5
-  //   rotate  { kind, hero, from, line }      step 6 (`line` after the move)
-  //   heal    { kind, hero, by, amount, hpAfter }  step 7
+  //   exhaust { kind, hero, exhausted }
+  //           step 5 (FAN-11). First `exhausted: false` for each hero whose
+  //           exhaustion from last room clears (front to back), then
+  //           `exhausted: true` for a Rogue/Mage whose ability fired this room
+  //           and is still standing (exhausted for the next room).
+  //   rotate  { kind, hero, from, line }
+  //           step 6 (FAN-11). That Rogue/Mage moved from 1-based slot `from`
+  //           to the back; `line` is the hero ids after the move. Emitted
+  //           even if it was already last (`from` === line.length).
+  //   heal    { kind, hero, by, amount, hpAfter }
+  //           step 7 (FAN-11). `hero` (directly in front of the Cleric after
+  //           step 6) gained `amount` HP from `by` ("cleric"). Only when
+  //           amount > 0, so a full-HP hero or a Slot-1 Cleric emits nothing.
+  //   Steps 5–7 never run in a wipe room, so it has no exhaust, rotate or
+  //   heal events.
   var EVENT_KINDS = deepFreeze(["counter", "damage", "ko", "time", "exhaust", "rotate", "heal", "wipe"]);
 
   // The order each event kind belongs to: the §7.5 step for 1–7, and 8 for the
@@ -598,16 +629,117 @@
   }
 
   // --- The seven §7.5 steps. Each takes the per-room context (see
-  // --- resolveRoom) and only reads/writes it. FAN-11 fills in the hooks.
+  // --- resolveRoom) and only reads/writes it. Hero abilities are FAN-11.
 
-  // Step 1 — Counters. HOOK (FAN-11): work out which abilities fire, checking
-  // slot conditions against ctx.lineAtStart and skipping exhausted heroes.
-  // It may: push `counter` events; set ctx.cancelled (Rogue disarm, Ranger
-  // cancel, Mage clear in "cancel" mode); lower ctx.damage (Knight −N, Mage
-  // "halve"); push { hero, seconds, reason } onto ctx.savings (Mage,
-  // Berserker); push a rotating hero's id onto ctx.fired (Rogue, Mage).
+  // 1-based slot of hero `id` in the line at room start, or 0 if it is not
+  // standing. Slot numbers are literal: with fewer than 4 heroes standing,
+  // nobody is in Slot 4 (FAN-11 decision; PRD §8).
+  function startSlot(ctx, id) {
+    for (var i = 0; i < ctx.lineAtStart.length; i++) if (ctx.lineAtStart[i].id === id) return i + 1;
+    return 0;
+  }
+
+  // Push a `counter` event; `extra` holds effect/amount/seconds or blocked.
+  function counterEvent(ctx, hero, ability, fired, extra) {
+    var e = { kind: "counter", hero: hero, ability: ability, fired: fired };
+    Object.keys(extra).forEach(function (k) {
+      e[k] = extra[k];
+    });
+    ctx.events.push(e);
+  }
+
+  // Step 1 — Counters (PRD §7.5 step 1, §6.1, §8). Slot and HP conditions
+  // read ctx.lineAtStart; exhausted heroes skip their ability. Resolved in
+  // the PRD's order: Rogue, Mage, Ranger, Knight, Berserker (the Knight must
+  // follow the Mage, whose clear switches him off). An ability whose hero is
+  // standing in a room type it targets emits exactly one `counter` event:
+  // fired, or blocked with a reason (exhaustion is checked before slot/HP).
+  // It sets ctx.cancelled (Rogue, Ranger, Mage in "cancel" mode), lowers
+  // ctx.damage (Mage "halve", Knight), pushes ctx.savings (Mage, Berserker)
+  // and ctx.fired (the rotating Rogue and Mage).
   function stepCounters(ctx) {
-    void ctx; // no hero abilities in FAN-10
+    var t = ctx.tune;
+    var typeId = ctx.room.type;
+    var cleared = false; // the Mage cancelled the room ("cancel" mode only)
+
+    // The hero's start-of-room { slot, state } if it is standing and the room
+    // is one its ability targets; otherwise null (and no event at all).
+    function eligible(id, applies) {
+      if (!applies) return null;
+      var slot = startSlot(ctx, id);
+      return slot ? { slot: slot, state: ctx.lineAtStart[slot - 1] } : null;
+    }
+
+    // Rogue: trap, Slot 1 or 2 → disarmed, no damage. Rotates.
+    var rogue = eligible("rogue", typeId === "trap");
+    if (rogue) {
+      if (rogue.state.exhausted) counterEvent(ctx, "rogue", "disarm", false, { blocked: "exhausted" });
+      else if (rogue.slot > 2) counterEvent(ctx, "rogue", "disarm", false, { blocked: "slot" });
+      else {
+        counterEvent(ctx, "rogue", "disarm", true, { effect: "disarm", amount: ctx.damage });
+        ctx.cancelled = true;
+        ctx.fired.push("rogue");
+      }
+    }
+
+    // Mage: swarm/magic, any slot → no damage ("cancel") or half, rounded
+    // down ("halve"), and −mageTimeSave s. Rotates. A halved room is not
+    // "cleared", so a Slot-1 Knight still reduces it (PRD §6.1 note).
+    var mage = eligible("mage", ctx.type.clearable);
+    if (mage) {
+      if (mage.state.exhausted) counterEvent(ctx, "mage", "clear", false, { blocked: "exhausted" });
+      else {
+        var before = ctx.damage;
+        if (t.mageMode === "halve") ctx.damage = Math.floor(before / 2);
+        else {
+          ctx.cancelled = true;
+          cleared = true;
+        }
+        counterEvent(ctx, "mage", "clear", true, {
+          effect: cleared ? "clear" : "halve",
+          amount: cleared ? before : before - ctx.damage,
+          seconds: t.mageTimeSave,
+        });
+        ctx.savings.push({ hero: "mage", seconds: t.mageTimeSave, reason: "clear" });
+        ctx.fired.push("mage");
+      }
+    }
+
+    // Ranger: ambush, literally in Slot 4 → cancelled, no damage. His speed
+    // bonus is a step-4 saving (collectTimeSavings), not a counter.
+    var ranger = eligible("ranger", typeId === "ambush");
+    if (ranger) {
+      if (ranger.state.exhausted) counterEvent(ctx, "ranger", "cancel", false, { blocked: "exhausted" });
+      else if (ranger.slot !== 4) counterEvent(ctx, "ranger", "cancel", false, { blocked: "slot" });
+      else {
+        counterEvent(ctx, "ranger", "cancel", true, { effect: "cancel", amount: ctx.damage });
+        ctx.cancelled = true;
+      }
+    }
+
+    // Knight: combat room the Mage didn't clear, Slot 1 → damage −N, min 0.
+    var knight = eligible("knight", ctx.type.combat && !cleared);
+    if (knight) {
+      if (knight.state.exhausted) counterEvent(ctx, "knight", "guard", false, { blocked: "exhausted" });
+      else if (knight.slot !== 1) counterEvent(ctx, "knight", "guard", false, { blocked: "slot" });
+      else {
+        var pre = Math.max(0, ctx.damage);
+        ctx.damage = Math.max(0, pre - t.knightReduction);
+        counterEvent(ctx, "knight", "guard", true, { effect: "reduce", amount: pre - ctx.damage });
+      }
+    }
+
+    // Berserker: boss room, full HP on entry → −berserkerTimeSave s.
+    var berserker = eligible("berserker", typeId === "boss");
+    if (berserker) {
+      if (berserker.state.exhausted) counterEvent(ctx, "berserker", "fury", false, { blocked: "exhausted" });
+      else if (berserker.state.hp < berserker.state.maxHp)
+        counterEvent(ctx, "berserker", "fury", false, { blocked: "hp" });
+      else {
+        counterEvent(ctx, "berserker", "fury", true, { effect: "speed", seconds: t.berserkerTimeSave });
+        ctx.savings.push({ hero: "berserker", seconds: t.berserkerTimeSave, reason: "fury" });
+      }
+    }
   }
 
   // Step 2 — Damage. Applies max(0, ctx.damage) to the room's target unless
@@ -668,10 +800,13 @@
   }
 
   // Step 4 hook — time savings that PRD §7.5 assigns to step 4 itself rather
-  // than step 1. HOOK (FAN-11): the Ranger speed bonus (Ranger in Slot 4 of
-  // ctx.lineAtStart) pushes { hero, seconds, reason } onto ctx.savings.
+  // than step 1: the Ranger speed bonus, in any room, when the Ranger stood
+  // literally in Slot 4 of ctx.lineAtStart (so never with < 4 standing). It
+  // counts even if the Ranger is knocked out in this room: he started there.
   function collectTimeSavings(ctx) {
-    void ctx;
+    var back = ctx.lineAtStart[3];
+    if (back && back.id === "ranger" && !back.exhausted)
+      ctx.savings.push({ hero: "ranger", seconds: ctx.tune.rangerTimeSave, reason: "speed" });
   }
 
   // Step 4 — Time. base − savings, never below tune.minRoomTime. Runs on a
@@ -692,25 +827,64 @@
       saved: saved,
       floored: seconds > base - saved,
       total: ctx.runTime + seconds,
+      savings: ctx.savings.map(function (s) {
+        return { hero: s.hero, seconds: s.seconds, reason: s.reason };
+      }),
     });
   }
 
-  // Step 5 — Exhaustion. HOOK (FAN-11): clear last room's `exhausted` flags,
-  // then mark each hero in ctx.fired exhausted; push `exhaust` events.
+  // Index of hero `id` in the live line, or -1 (knocked out).
+  function liveIndex(line, id) {
+    for (var i = 0; i < line.length; i++) if (line[i].id === id) return i;
+    return -1;
+  }
+
+  // Step 5 — Exhaustion. Clear last room's flags (front to back), then mark
+  // each hero in ctx.fired that is still standing exhausted for the next
+  // room. (A hero exhausted last room cannot have fired this room.)
   function stepExhaustion(ctx) {
-    void ctx;
+    ctx.line.forEach(function (h) {
+      if (h.exhausted) {
+        h.exhausted = false;
+        ctx.events.push({ kind: "exhaust", hero: h.id, exhausted: false });
+      }
+    });
+    ctx.fired.forEach(function (id) {
+      var i = liveIndex(ctx.line, id);
+      if (i < 0) return;
+      ctx.line[i].exhausted = true;
+      ctx.events.push({ kind: "exhaust", hero: id, exhausted: true });
+    });
   }
 
-  // Step 6 — Rotation. HOOK (FAN-11): move each hero in ctx.fired to the back
-  // of ctx.line; push `rotate` events.
+  // Step 6 — Rotation. Each hero in ctx.fired that is still standing moves
+  // to the back of the line; everyone behind it moves up one slot. The event
+  // is emitted even when the hero was already last (`from` = line length),
+  // so the replay always shows the rotation the ability causes.
   function stepRotation(ctx) {
-    void ctx;
+    ctx.fired.forEach(function (id) {
+      var i = liveIndex(ctx.line, id);
+      if (i < 0) return;
+      var h = ctx.line.splice(i, 1)[0];
+      ctx.line.push(h);
+      ctx.events.push({ kind: "rotate", hero: id, from: i + 1, line: lineIds(ctx.line) });
+    });
   }
 
-  // Step 7 — Heal. HOOK (FAN-11): each Cleric heals the hero directly in front
-  // by tune.clericHeal, up to maxHp, front to back; push `heal` events.
+  // Step 7 — Heal. Front to back, each Cleric heals the hero directly in
+  // front of her in the line as it stands after step 6 by tune.clericHeal,
+  // up to maxHp. A Cleric in Slot 1 heals nobody. Emits `heal` only when
+  // the hero actually gains HP.
   function stepHeal(ctx) {
-    void ctx;
+    var line = ctx.line;
+    for (var i = 1; i < line.length; i++) {
+      if (line[i].id !== "cleric") continue;
+      var target = line[i - 1];
+      var amount = Math.min(ctx.tune.clericHeal, target.maxHp - target.hp);
+      if (amount <= 0) continue;
+      target.hp += amount;
+      ctx.events.push({ kind: "heal", hero: target.id, by: "cleric", amount: amount, hpAfter: target.hp });
+    }
   }
 
   // The per-room context every step reads and writes. `line` is the run's
