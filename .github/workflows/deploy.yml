@@ -48,6 +48,8 @@ jobs:
           mkdir -p _site
           cp index.html _site/
           cp webgl-check.html _site/
+          cp manifest.webmanifest sw.js _site/
+          cp -r icons _site/
           cp -r src _site/
           cp -r vendor _site/
           cp -r museum _site/
@@ -87,6 +89,9 @@ jobs:
           # missing vendor copy would only show up as a broken game in the browser.
           test -f _site/vendor/three.module.min.js
           test -f _site/version.json
+          test -f _site/manifest.webmanifest
+          test -f _site/sw.js
+          test -f _site/icons/icon-512.png
           echo "Site assembled:"
           find _site -type f | sort
 
