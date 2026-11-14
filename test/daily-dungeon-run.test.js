@@ -200,7 +200,7 @@ test("a wipe mid-run ends the run; later rooms are not reached", () => {
     ]
   );
   const wipeRoom = r.rooms[2];
-  assert.deepEqual(kinds(wipeRoom.events), ["damage", "ko", "wipe", "time"]);
+  assert.deepEqual(kinds(wipeRoom.events), ["damage", "ko", "time", "wipe"]);
   assert.equal(wipeRoom.events[0].overkill, 4);
   // The wipe room was played, so its time counts; unreached rooms take none.
   assert.equal(wipeRoom.time, 40);
@@ -345,33 +345,45 @@ test("events within a room follow the PRD §7.5 step order and use only known ki
     rooms("boss", "elite", "swarm", "trap", "ambush"),
   ];
   let checked = 0;
+  let wipes = 0;
   for (const tune of tunes)
     for (const d of dungeons)
       for (const lineup of allLineups()) {
         const r = S.runDungeon(d, lineup, tune);
-        for (const room of r.rooms) {
+        r.rooms.forEach((room, i) => {
           let step = 0;
           for (const e of room.events) {
             assert.ok(S.EVENT_KINDS.includes(e.kind), `unknown event kind ${e.kind}`);
             assert.ok(S.EVENT_STEP[e.kind] >= step, `${e.kind} after step ${step}`);
             step = S.EVENT_STEP[e.kind];
           }
-          if (room.reached) {
-            // Exactly one time event per played room; a wipe comes right after the last ko.
-            assert.equal(room.events.filter((e) => e.kind === "time").length, 1);
-            const w = room.events.findIndex((e) => e.kind === "wipe");
-            assert.equal(w >= 0, room.wiped);
-            if (w >= 0) assert.equal(room.events[w - 1].kind, "ko");
+          // Exactly one time event per played room, none in unreached ones.
+          assert.equal(room.events.filter((e) => e.kind === "time").length, room.reached ? 1 : 0);
+          // The wipe is terminal: only in rooms[wipedAt], once, as its last event,
+          // right after the time event; no room after it has any events.
+          const w = room.events.filter((e) => e.kind === "wipe").length;
+          assert.equal(w, i === r.wipedAt ? 1 : 0);
+          assert.equal(room.wiped, i === r.wipedAt);
+          if (i === r.wipedAt) {
+            const ks = kinds(room.events);
+            assert.equal(ks[ks.length - 1], "wipe");
+            assert.equal(ks[ks.length - 2], "time");
+            assert.equal(ks[ks.length - 3], "ko");
           }
+          if (r.wipedAt !== null && i > r.wipedAt) assert.deepEqual(room.events, []);
           checked++;
-        }
+        });
+        if (r.wipedAt !== null) wipes++;
+        const allWipes = r.rooms.flatMap((room) => room.events).filter((e) => e.kind === "wipe");
+        assert.equal(allWipes.length, r.wipedAt === null ? 0 : 1);
       }
   assert.ok(checked > 3000);
+  assert.ok(wipes > 100, `the sweep should include wipes (got ${wipes})`);
 });
 
-test("event order in a room with damage, knockouts and a wipe", () => {
+test("event order in a room with damage, knockouts and a wipe: the wipe comes last", () => {
   const tune = S.withTune({ rooms: { swarm: { damage: 20 } } });
-  const r = S.runDungeon(rooms("swarm"), ALL4, tune);
+  const r = S.runDungeon(rooms("swarm", "trap"), ALL4, tune);
   assert.deepEqual(kinds(r.rooms[0].events), [
     "damage",
     "damage",
@@ -381,9 +393,12 @@ test("event order in a room with damage, knockouts and a wipe", () => {
     "ko",
     "ko",
     "ko",
-    "wipe",
     "time",
+    "wipe",
   ]);
+  assert.deepEqual(r.rooms[0].events[9], { kind: "wipe" });
+  assert.equal(r.rooms[0].time, 30);
+  assert.deepEqual(r.rooms[1].events, []);
 });
 
 test("hp bookkeeping: damage events, damageByHero and the lines agree (all lineups)", () => {

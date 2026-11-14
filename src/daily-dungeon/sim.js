@@ -541,23 +541,27 @@
   //           in the line as it stood just before this ko (so after any
   //           earlier ko in the same room closed up); `line` is the hero ids
   //           after this ko closed it up.
-  //   wipe    { kind }
-  //           step 3, after the last ko: nobody is left and the run ends.
-  //           Steps 5–7 are skipped; step 4 still runs (the room was played).
   //   time    { kind, seconds, base, saved, floored, total }
   //           step 4. `saved` is the sum of savings that fired, `floored` is
   //           true when tune.minRoomTime raised the result, `total` is the
   //           running time after this room.
+  //   wipe    { kind }
+  //           TERMINAL, not a §7.5 step: nobody is left and the run ends. The
+  //           party is wiped at step 3, but the room was still played, so
+  //           step 4 runs and its `time` event comes first; steps 5–7 are
+  //           skipped. `wipe` is always the LAST event of its room, appears
+  //           at most once per run, only in rooms[wipedAt], and every room
+  //           after it has no events. (Playback shows 💀 as the final beat.)
   //   Reserved for hero abilities (FAN-11; suggested fields):
   //   counter { kind, hero, ability, … }      step 1
   //   exhaust { kind, hero, exhausted }       step 5
   //   rotate  { kind, hero, from, line }      step 6 (`line` after the move)
   //   heal    { kind, hero, by, amount, hpAfter }  step 7
-  var EVENT_KINDS = deepFreeze(["counter", "damage", "ko", "wipe", "time", "exhaust", "rotate", "heal"]);
+  var EVENT_KINDS = deepFreeze(["counter", "damage", "ko", "time", "exhaust", "rotate", "heal", "wipe"]);
 
-  // The §7.5 step each event kind belongs to; within a room, events never go
-  // backwards in this order.
-  var EVENT_STEP = deepFreeze({ counter: 1, damage: 2, ko: 3, wipe: 3, time: 4, exhaust: 5, rotate: 6, heal: 7 });
+  // The order each event kind belongs to: the §7.5 step for 1–7, and 8 for the
+  // terminal `wipe`. Within a room, events never go backwards in this order.
+  var EVENT_STEP = deepFreeze({ counter: 1, damage: 2, ko: 3, time: 4, exhaust: 5, rotate: 6, heal: 7, wipe: 8 });
 
   function copyHero(h) {
     return { id: h.id, hp: h.hp, maxHp: h.maxHp, exhausted: h.exhausted };
@@ -649,7 +653,8 @@
   }
 
   // Step 3 — Knockouts. Heroes at 0 HP leave, front to back, and the line
-  // closes up. An empty line is a wipe.
+  // closes up. An empty line is a wipe: it sets ctx.wiped here, but the
+  // `wipe` event is pushed by resolveRoom as the room's last event.
   function stepKnockouts(ctx) {
     var line = ctx.line;
     for (var i = 0; i < line.length; ) {
@@ -659,10 +664,7 @@
         ctx.events.push({ kind: "ko", hero: h.id, slot: i + 1, line: lineIds(line) });
       } else i++;
     }
-    if (line.length === 0) {
-      ctx.wiped = true;
-      ctx.events.push({ kind: "wipe" });
-    }
+    if (line.length === 0) ctx.wiped = true;
   }
 
   // Step 4 hook — time savings that PRD §7.5 assigns to step 4 itself rather
@@ -741,18 +743,22 @@
   }
 
   // Resolve one room: the seven §7.5 steps in their fixed order. Returns the
-  // context, from which the room result is built.
+  // context, from which the room result is built. On a wipe, steps 5–7 are
+  // skipped and the terminal `wipe` event closes the room's log (after step 4's
+  // `time`), so playback shows 💀 as the run's final beat.
   function resolveRoom(room, index, line, tune, runTime) {
     var ctx = newRoomContext(room, index, line, tune, runTime);
     stepCounters(ctx); // 1
     stepDamage(ctx); // 2
     stepKnockouts(ctx); // 3
     stepTime(ctx); // 4
-    if (!ctx.wiped) {
-      stepExhaustion(ctx); // 5
-      stepRotation(ctx); // 6
-      stepHeal(ctx); // 7
+    if (ctx.wiped) {
+      ctx.events.push({ kind: "wipe" }); // terminal: always last
+      return ctx;
     }
+    stepExhaustion(ctx); // 5
+    stepRotation(ctx); // 6
+    stepHeal(ctx); // 7
     return ctx;
   }
 
