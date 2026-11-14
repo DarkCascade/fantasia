@@ -656,10 +656,6 @@
               Chibi Crawl
               <small>Party auto-battler and trading</small>
             </button>
-            <button id="btn-sirfish" class="tile tile--art" type="button" style="--img:url(src/menu-art/sirfish.webp);--a:#3aa6b8;--b:#0e4b66">
-              Sir Fish
-              <small>A knighted fish's adventure</small>
-            </button>
           </div>
         </section>
         <section class="shelf">
@@ -771,11 +767,6 @@
       document.getElementById("btn-cosmicdash").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchCosmicDash === "function") window.launchCosmicDash();
-      });
-
-      // Sir Fish -> the Godot build served at sirfish/index.html.
-      document.getElementById("btn-sirfish").addEventListener("click", function () {
-        window.location.href = "sirfish/index.html";
       });
 
       document.getElementById("btn-novamerge").addEventListener("click", function () {

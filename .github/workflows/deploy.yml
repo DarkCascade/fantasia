@@ -51,7 +51,6 @@ jobs:
           cp -r src _site/
           cp -r vendor _site/
           cp -r museum _site/
-          cp -r sirfish _site/
           cp -r ossimite _site/
           cp -r bowgeois-trader _site/
 
