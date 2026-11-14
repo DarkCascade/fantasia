@@ -119,6 +119,7 @@
   function validateTune(t) {
     if (MAGE_MODES.indexOf(t.mageMode) < 0)
       throw new Error("withTune: mageMode must be one of " + MAGE_MODES.join(", ") + ", got '" + t.mageMode + "'");
+    // Every number is finite and non-negative (times may be fractional).
     (function walk(o, path) {
       Object.keys(o).forEach(function (k) {
         var v = o[k],
@@ -128,11 +129,29 @@
           throw new Error("withTune: '" + p + "' must be a non-negative number, got " + v);
       });
     })(t, "");
+    // HP is an integer, so anything that changes HP must be too: fractional
+    // damage would make knockouts depend on float rounding.
+    var ints = ["knightReduction", "clericHeal", "maxReseeds"].map(function (k) {
+      return [k, t[k]];
+    });
+    Object.keys(t.rooms).forEach(function (r) {
+      ints.push(["rooms." + r + ".damage", t.rooms[r].damage]);
+    });
+    ints.forEach(function (e) {
+      if (!Number.isInteger(e[1])) throw new Error("withTune: '" + e[0] + "' must be an integer, got " + e[1]);
+    });
+    // "Under par" is strict, so with no slack even the best run misses 3★.
+    if (!(t.parSlack > 0)) throw new Error("withTune: 'parSlack' must be > 0, got " + t.parSlack);
+    if (t.rumorMin > 1) throw new Error("withTune: 'rumorMin' is a share and must be in [0, 1], got " + t.rumorMin);
+    if (t.maxReseeds < 1) throw new Error("withTune: 'maxReseeds' must be >= 1, got " + t.maxReseeds);
   }
 
   /* ------------------------------------------------------------------ */
   /* Room types (PRD §6.1, §7.2)                                         */
   /* ------------------------------------------------------------------ */
+
+  // Emoji rule: every room and hero emoji must be from Unicode 9 or older, or it
+  // renders as tofu on older Android and Windows 10 (this is a phone-first game).
 
   // Damage targets (PRD §7.2):
   //   slot1 — the hero in Slot 1 on entry; damage beyond its HP is lost.
@@ -150,7 +169,7 @@
     trap: {
       id: "trap",
       name: "Trap",
-      emoji: "🪤",
+      emoji: "⚠️",
       target: "slot1",
       combat: false,
       clearable: false,
@@ -165,7 +184,7 @@
     swarm: {
       id: "swarm",
       name: "Swarm",
-      emoji: "🦴",
+      emoji: "🕷️",
       target: "front",
       combat: true,
       clearable: true,
@@ -297,8 +316,10 @@
   /* ------------------------------------------------------------------ */
 
   // `hp` is a fixed rule of the PRD (3, Mage 2), not a tuning value.
-  // `slots`: the slots (1-based, line as it stands when the room starts)
-  // where the ability works, or null for any slot. `rotates`: a one-shot
+  // `slots`: the slots where the ability works, or null for any slot. Slot
+  // numbers are literal 1-based positions in the line as it stands when the
+  // room starts; [4] does NOT mean "back-most". How "Slot 4" works with
+  // fewer than 4 heroes standing is decided in FAN-11. `rotates`: a one-shot
   // counter that exhausts the hero and sends it to the back (PRD §7.3).
   var HEROES = deepFreeze([
     {
@@ -326,7 +347,7 @@
       name: "Mage",
       role: "DPS",
       hp: 2,
-      emoji: "🧙",
+      emoji: "🔮",
       rotates: true,
       slots: null,
       ability:
@@ -357,7 +378,7 @@
       name: "Berserker",
       role: "Bruiser",
       hp: 3,
-      emoji: "🪓",
+      emoji: "💪",
       rotates: false,
       slots: null,
       ability: "At full HP on entering the boss room, −{berserkerTimeSave} s.",

@@ -143,6 +143,67 @@ test("withTune rejects typos and bad values", () => {
   assert.throws(() => S.withTune({ rooms: 5 }), /must be an object/);
 });
 
+test("withTune enforces integers, par slack, the rumor share and reseed count", () => {
+  // anything that changes HP must be an integer
+  assert.throws(() => S.withTune({ rooms: { trap: { damage: 1.5 } } }), /'rooms.trap.damage' must be an integer/);
+  assert.throws(() => S.withTune({ rooms: { boss: { damage: 4.2 } } }), /'rooms.boss.damage' must be an integer/);
+  assert.throws(() => S.withTune({ knightReduction: 1.5 }), /'knightReduction' must be an integer/);
+  assert.throws(() => S.withTune({ clericHeal: 0.5 }), /'clericHeal' must be an integer/);
+  assert.throws(() => S.withTune({ maxReseeds: 2.5 }), /'maxReseeds' must be an integer/);
+  // par slack must be strictly positive
+  assert.throws(() => S.withTune({ parSlack: 0 }), /'parSlack' must be > 0/);
+  // rumorMin is a share
+  assert.throws(() => S.withTune({ rumorMin: 5 }), /'rumorMin'.*\[0, 1\]/);
+  assert.throws(() => S.withTune({ rumorMin: -0.1 }), /'rumorMin' must be a non-negative number/);
+  // at least one reseed
+  assert.throws(() => S.withTune({ maxReseeds: 0 }), /'maxReseeds' must be >= 1/);
+  // times must be non-negative but may be fractional
+  assert.throws(() => S.withTune({ rooms: { trap: { time: -1 } } }), /'rooms.trap.time' must be a non-negative number/);
+  assert.throws(() => S.withTune({ minRoomTime: -0.5 }), /'minRoomTime' must be a non-negative number/);
+  assert.throws(() => S.withTune({ rooms: { swarm: { time: NaN } } }), /non-negative number/);
+  // boundary values that are allowed
+  const t = S.withTune({
+    rooms: { trap: { time: 7.5, damage: 0 } },
+    minRoomTime: 2.5,
+    parSlack: 0.5,
+    rumorMin: 0,
+    maxReseeds: 1,
+    knightReduction: 0,
+  });
+  assert.equal(t.rooms.trap.time, 7.5);
+  assert.equal(S.withTune({ rumorMin: 1 }).rumorMin, 1);
+});
+
+test("the browser path: with no module/exports the API lands on the global", () => {
+  const vm = require("node:vm");
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const src = fs.readFileSync(path.join(__dirname, "../src/daily-dungeon/sim.js"), "utf8");
+  const sandbox = {};
+  sandbox.self = sandbox; // a browser's `self` is the window
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox, { filename: "sim.js" });
+  assert.equal(typeof sandbox.module, "undefined");
+  const G = sandbox.DailyDungeonSim;
+  assert.ok(G, "DailyDungeonSim is set on the global");
+  assert.deepEqual(Object.keys(G).sort(), Object.keys(S).sort());
+  for (const k of Object.keys(S)) assert.equal(typeof G[k], typeof S[k], k);
+  assert.equal(G.HEROES.length, 6);
+  assert.equal(G.makeRoom("trap", "rune-trap").name, "Rune Trap");
+  assert.equal(G.withTune({ parSlack: 9 }).parSlack, 9);
+});
+
+test("room and hero emoji avoid code points newer than Unicode 9", () => {
+  // Everything from U+1F900 up (🦴 🧙 🪤 🪓 …) is Unicode 8+ and mostly 10+,
+  // and renders as tofu on older Android / Windows 10. Stay below it.
+  const all = [
+    ...S.ROOM_TYPE_IDS.map((id) => [id, S.roomType(id).emoji]),
+    ...S.HEROES.map((h) => [h.id, h.emoji]),
+  ];
+  for (const [id, e] of all)
+    for (const ch of e) assert.ok(ch.codePointAt(0) < 0x1f900, `${id} emoji ${e} uses U+${ch.codePointAt(0).toString(16)}`);
+});
+
 test("a TUNE override changes room stats and the rooms built from them", () => {
   const t = S.withTune({ rooms: { swarm: { damage: 9, time: 44 } } });
   assert.deepEqual(S.roomStats("swarm", t), { damage: 9, time: 44 });
