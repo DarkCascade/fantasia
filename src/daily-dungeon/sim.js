@@ -22,10 +22,27 @@
  * {placeholder} that fillText() resolves against a tune object.
  */
 (function (root, factory) {
-  var api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
+  var isNode = typeof module === "object" && module.exports;
+  // The daily plumbing (daily.js: seeded PRNG) is only needed by the
+  // generator, so it is handed in as a lazy accessor and resolved on the
+  // first generateCandidate() call: everything else here loads and works
+  // without daily.js. Node: require it from beside this file. Browser: the
+  // page loads daily.js before sim.js, so it is on the global.
+  var plumbing = function () {
+    if (isNode) {
+      try {
+        return require("./daily.js");
+      } catch (e) {
+        if (e && e.code === "MODULE_NOT_FOUND") return null;
+        throw e; // daily.js exists but failed to load: surface the real error
+      }
+    }
+    return root.DailyPlumbing || null;
+  };
+  var api = factory(plumbing);
+  if (isNode) module.exports = api;
   else root.DailyDungeonSim = api;
-})(typeof self !== "undefined" ? self : this, function () {
+})(typeof self !== "undefined" ? self : this, function (plumbing) {
   "use strict";
 
   /* ------------------------------------------------------------------ */
@@ -475,6 +492,179 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Daily generator (PRD §6, §6.2, §8) — FAN-13                         */
+  /* ------------------------------------------------------------------ */
+
+  // generateCandidate(seedString, tune) builds ONE unverified day from a seed
+  // string such as "2026-11-14" or "2026-11-14#1" (daily.js seedString()).
+  // Verification and reseeding are FAN-14. It is a pure function of its
+  // arguments: no Math.random, no Date; the only randomness is a
+  // daily.js createRng(seedString) stream.
+  //
+  // Result (deep-frozen):
+  //   {
+  //     seed,                   // the seed string, as given
+  //     rooms: [r1..r5],        // makeRoom() shape: type, variant, name,
+  //                             //   target, damage, time (numbers from `tune`)
+  //     rumors: { 3: id, 4: id },  // the Rumor shown for rooms 3 and 4
+  //     hidden: { 3: { type, variant }, 4: { type, variant } },
+  //                             // what rooms 3 and 4 really are (redundant
+  //                             //   with rooms[2]/rooms[3]; for the reveal)
+  //     roster: [heroId],       // 5 or 6 heroes, in HERO_IDS order
+  //     missing,                // the hero left out, or null (full roster)
+  //   }
+  //
+  // Room rules:
+  //   1  the lowest-damage visible type under `tune` (a low-stakes lesson,
+  //      PRD §14). With today's TUNE that is trap or ambush (both 2).
+  //   2  any visible type; it may repeat room 1's type but not its variant.
+  //   3,4  a Rumor each (the same Rumor may be drawn twice), then one of its
+  //      two options. A pinned option (Rune Trap, Skeleton Horde) is used as
+  //      is, even if a visible room already has that variant.
+  //   5  always the boss.
+  // Unpinned variants avoid any variant already used earlier in the day
+  // (falling back to every variant if all are taken), so a day never shows
+  // two rooms with the same name unless a Rumor pins it.
+
+  // The generator's own knobs (not TUNE: they shape the day, not the rules).
+  // Read-only; FAN-16's balance harness reads them.
+  var GEN = deepFreeze({
+    // Types allowed in the visible rooms 1 and 2 (room 1 further narrows to
+    // the minimum-damage ones). Every non-boss type.
+    visibleTypes: ROOM_TYPE_IDS.filter(function (t) {
+      return t !== "boss";
+    }),
+    // Chance that all six heroes are on the day's roster; otherwise one is
+    // left out (PRD §8 "5 or 6"). Placeholder, tuned in M1.
+    fullRosterChance: 0.5,
+    // (Rooms 3 and 4 draw their Rumors independently, so both may show the
+    // same Rumor: 9 combinations instead of 6. Not a knob.)
+    // Documentation of the stream, one entry per draw (see CONTRACT below).
+    drawOrder: [
+      "rosterFull",
+      "missingHero",
+      "room1Type",
+      "room1Variant",
+      "room2Type",
+      "room2Variant",
+      "room3Rumor",
+      "room3Option",
+      "room3Variant",
+      "room4Rumor",
+      "room4Option",
+      "room4Variant",
+      "bossVariant",
+    ],
+  });
+
+  /*
+   * CONTRACT: generateCandidate consumes the seed stream in GEN.drawOrder,
+   * exactly ONE draw per entry, ALWAYS — even when the draw cannot matter (a
+   * full roster still draws a missing hero; a pinned Rumor variant still
+   * draws from a one-element list; room 1 with a unique minimum-damage type
+   * still draws from a one-element list). So each step sits at a fixed
+   * position in the stream and a change to one step's candidate list can't
+   * reshuffle the others. After launch, changing the draw order, the number
+   * of draws, how a draw maps to a choice, or the order of any candidate list
+   * (table order in ROOM_TYPES / RUMORS / HEROES and their variants) changes
+   * every future day; see daily.js's CONTRACT for why that is bad. The golden
+   * test in test/daily-dungeon-gen.test.js guards it: if it fails, the fix is
+   * almost never to update its expected days.
+   */
+
+  var cachedPlumbing = null;
+
+  function getPlumbing() {
+    if (cachedPlumbing) return cachedPlumbing;
+    var p = typeof plumbing === "function" ? plumbing() : null;
+    if (!p || typeof p.createRng !== "function")
+      throw new Error(
+        "generateCandidate needs the daily plumbing (src/daily-dungeon/daily.js): " +
+          "load daily.js before sim.js in the browser, or keep it next to sim.js in Node"
+      );
+    cachedPlumbing = p;
+    return p;
+  }
+
+  function variantIds(typeId) {
+    return roomType(typeId).variants.map(function (v) {
+      return v.id;
+    });
+  }
+
+  // One draw: a variant of `typeId`, avoiding the ids in `used` when possible.
+  function drawVariant(rng, typeId, used) {
+    var all = variantIds(typeId);
+    var fresh = all.filter(function (id) {
+      return used.indexOf(id) < 0;
+    });
+    return rng.pick(fresh.length ? fresh : all);
+  }
+
+  function generateCandidate(seedString, tune) {
+    if (typeof seedString !== "string" || seedString === "")
+      throw new TypeError("generateCandidate: seedString must be a non-empty string");
+    tune = tune || TUNE;
+    var rng = getPlumbing().createRng(seedString);
+    var used = []; // variant ids placed so far
+
+    // Draws 1–2: roster.
+    var full = rng.float() < GEN.fullRosterChance;
+    var dropped = rng.pick(HERO_IDS);
+    var missing = full ? null : dropped;
+    var roster = HERO_IDS.filter(function (id) {
+      return id !== missing;
+    });
+
+    // Draws 3–4: room 1, the lowest-damage visible type.
+    var minDamage = Infinity;
+    GEN.visibleTypes.forEach(function (t) {
+      minDamage = Math.min(minDamage, roomStats(t, tune).damage);
+    });
+    var room1Types = GEN.visibleTypes.filter(function (t) {
+      return roomStats(t, tune).damage === minDamage;
+    });
+    var type1 = rng.pick(room1Types);
+    var variant1 = drawVariant(rng, type1, used);
+    used.push(variant1);
+
+    // Draws 5–6: room 2, any visible type, never room 1's exact variant.
+    var type2 = rng.pick(GEN.visibleTypes);
+    var variant2 = drawVariant(rng, type2, used);
+    used.push(variant2);
+
+    // Draws 7–12: rooms 3 and 4 — Rumor, which option is real, its variant.
+    var rumors = {};
+    var hidden = {};
+    [3, 4].forEach(function (n) {
+      var rumor = rng.pick(RUMORS);
+      var option = rng.pick(rumor.options);
+      var variant = option.variant != null ? rng.pick([option.variant]) : drawVariant(rng, option.type, used);
+      used.push(variant);
+      rumors[n] = rumor.id;
+      hidden[n] = { type: option.type, variant: variant };
+    });
+
+    // Draw 13: the boss.
+    var bossVariant = drawVariant(rng, "boss", used);
+
+    return deepFreeze({
+      seed: seedString,
+      rooms: [
+        makeRoom(type1, variant1, tune),
+        makeRoom(type2, variant2, tune),
+        makeRoom(hidden[3].type, hidden[3].variant, tune),
+        makeRoom(hidden[4].type, hidden[4].variant, tune),
+        makeRoom("boss", bossVariant, tune),
+      ],
+      rumors: rumors,
+      hidden: hidden,
+      roster: roster,
+      missing: missing,
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Run engine (PRD §7.1–7.5, §9) — FAN-10                              */
   /* ------------------------------------------------------------------ */
 
@@ -857,6 +1047,8 @@
     fillText: fillText,
     heroAbilityText: heroAbilityText,
     roomCounterText: roomCounterText,
+    GEN: GEN,
+    generateCandidate: generateCandidate,
     EVENT_KINDS: EVENT_KINDS,
     EVENT_STEP: EVENT_STEP,
     runDungeon: runDungeon,
