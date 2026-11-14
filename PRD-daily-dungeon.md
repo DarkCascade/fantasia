@@ -122,6 +122,9 @@ ability, which keeps party composition tied to slot decisions.
 
 The Knight's −2 applies to every combat-type room (Swarm, Magic, Elite, Boss)
 that the Mage has not cleared. It never applies to Traps or Ambushes.
+A room the Mage only halves (D1 "halve" mode) is not cleared, so the Knight
+applies too: halve first (rounded down), then −2, min 0. Spike D1 (§16) may
+revisit this.
 
 Damage, base times and the Mage's −20 s are placeholders, tuned in M1
 (§17). The Mage's "cancel" effect is subject to a spike (§16, D1).
@@ -230,6 +233,9 @@ Every hero has **3 HP** except the Mage, which has 2.
 | Cleric | Healer | Restores 1 HP to the hero directly in front after each room | No |
 | Ranger | Support | In Slot 4, cancels Ambushes and gives bonus speed | No |
 | Berserker | Bruiser | At full HP on entering the boss room, −15 s | No |
+
+"Slot 4" is literal: with fewer than 4 heroes standing nobody is in Slot 4,
+so the Ranger gets neither the ambush cancel nor the speed bonus.
 
 **Roster size.** v1 launches with these **6 heroes**. Each day's roster is
 **5 or 6** of them, chosen by the generator. Leaving a hero out is a
