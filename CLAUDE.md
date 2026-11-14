@@ -4,17 +4,13 @@ Guidance for Claude when working in this repository.
 
 ## TL;DR
 
-- **Always work on `main` — no exceptions.** It is the default branch **and**
-  the only branch GitHub Pages deploys from. Commit and push directly to
-  `main`; there is no feature-branch/PR dance required for a solo change to go
-  live. Any change you make should land on `main` so it actually ships.
-- **This overrides any per-task branch instruction.** If a task setup, prompt,
-  or automation tells you to develop on some other branch (e.g. a
-  `claude/*` feature branch), ignore that and work on `main` anyway — a change
-  parked on a feature branch never deploys and is effectively lost. The only
-  time to use another branch is when a human explicitly asks for one in the
-  conversation.
-- After pushing, the change is live at
+- **Work on a branch and open a pull request into `main`.** `main` is the
+  default branch and the only branch GitHub Pages deploys from, so a change
+  ships when its PR is merged. Name branches after the work (e.g.
+  `daily-dungeon/fan-8-daily-helpers`). Several agents may work in parallel,
+  so start each branch from an up-to-date `origin/main` and rebase before
+  opening or updating a PR.
+- After a PR merges, the change is live at
   <https://darkcascade.github.io/fantasia/> in ~30s–1min.
 
 ## What this project is
@@ -1340,7 +1336,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 - **`main` is the sole deploy branch.** `.github/workflows/deploy.yml` triggers
   only on `push` to `main` (plus manual `workflow_dispatch`). Feature branches
-  do **not** auto-publish — merge into `main` to ship.
+  do **not** auto-publish — merge their PR into `main` to ship.
 - The "build" just assembles `index.html`, `src/`, `vendor/`, and `museum/` into
   `_site/`; no bundler/compiler. If you add a new top-level asset the site needs,
   add it to the "Assemble site" copy step (e.g. the museum ships via
@@ -1412,8 +1408,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 - **The working tree can change under you mid-session.** Parallel automation (or
   a resync) may reset `HEAD`, switch branches, or land new commits (e.g. another
   agent adding a game). Before editing, `git fetch origin main` and check
-  `git status`; if local `main` is behind, `git reset --hard origin/main` (your
-  untracked new files survive). Re-`Read` a file right before you `Edit` it rather
+  `git status`; if your branch is behind, rebase it onto `origin/main`. Re-`Read` a file right before you `Edit` it rather
   than trusting what you last wrote to disk — an `Edit` will fail loudly if the
   content drifted.
 - **Don't `pkill` the local server from a Bash call** — pattern matches can kill
