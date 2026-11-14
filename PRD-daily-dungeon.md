@@ -2,10 +2,17 @@
 
 | | |
 |---|---|
-| **Status** | Draft v0.1 |
+| **Status** | Draft v0.2 (rules settled; ready to split into issues) |
 | **Owner** | Fantasia project |
-| **Date** | 2026-11-13 |
+| **Date** | 2026-11-14 |
 | **Target** | A new game in the Fantasia menu, built as static HTML/CSS/JS (no backend) |
+
+**Relationship to Party Line.** `PRD-daily-party-builder.md` (*Party Line*) is
+a competing take on the same goal, a fantasy dungeon-delve daily. Daily
+Dungeon is the simpler, casual version and is the one being built first.
+Party Line is parked as a possible deeper follow-up (§19). Its verification
+approach is adopted here (§12). Its relics, mutators and turn-based combat are
+deliberately **not**.
 
 ---
 
@@ -29,10 +36,12 @@ immediate, and an outcome that fits in a text message.
 
 1. **Make party order the core decision.** A game where the only question is
    "is a Rogue in the party?" is a lock-and-key matching puzzle. Ordering has
-   to decide the outcome.
-2. **Transparent rules.** Everything that affects a run is stated on screen.
-   The only hidden information is what the dungeon contains, and that is
-   revealed on a schedule.
+   to decide the outcome. The levers for this are: rooms that hit different
+   slots (§7.2), counters that only work from certain slots (§8), and
+   rotation that moves heroes during the run (§7.3).
+2. **Transparent rules.** Everything that affects a run is stated on screen,
+   including exact times. The only hidden information is what Rooms 3 and 4
+   contain, and that is revealed on a schedule (§11).
 3. **Deduction over attempts.** Attempt 1 is exploration. Attempts 2 and 3 are
    optimization against information gathered earlier.
 4. **Shareable in one glance.** The result fits in a short emoji grid that
@@ -48,7 +57,8 @@ immediate, and an outcome that fits in a text message.
 - No paid content, ads or monetization.
 - No procedural generation beyond the daily seed. Tomorrow's dungeon is
   generated from the date, not from the player's history.
-- No archive mode for past dailies in v1 (listed as a stretch goal).
+- No archive mode for past dailies and no practice replays in v1 (§19).
+- No relics, mutators or turn-based combat (those belong to Party Line).
 
 ## 4. Target Players
 
@@ -59,9 +69,8 @@ immediate, and an outcome that fits in a text message.
 
 ## 5. Core Loop
 
-1. **Open the daily.** The player sees the dungeon's known rooms, the
-   partial information for rooms 3 and 4, the boss, and today's roster of
-   6–8 adventurers.
+1. **Open the daily.** The player sees Rooms 1, 2 and 5 in full, a Rumor for
+   Rooms 3 and 4 (§6.2), and today's roster of **5 or 6** heroes (§8).
 2. **Build a party.** The player picks **4 heroes** and assigns each to a slot
    from **Slot 1 (Front)** to **Slot 4 (Back)**.
 3. **Enter the dungeon.** The player presses **Enter Dungeon**. The run
@@ -75,8 +84,8 @@ immediate, and an outcome that fits in a text message.
 
 ### 5.1 Day Structure
 
-- A **day** runs from 00:00 to 23:59 **UTC** (see §12.3). A new dungeon, roster
-  and boss are available at the reset.
+- A **day** runs from 00:00 to 23:59 **UTC**. A new dungeon, roster and boss
+  are available at the reset, and the screen shows a countdown to it.
 - The player has **3 attempts**. A 3-star result **ends the day early**,
   because nothing more can be gained. The share grid then has fewer rows.
 - After the third attempt, or after an early 3-star, the day is locked
@@ -91,25 +100,45 @@ given day.
 |---|---|---|
 | 1 | Fully visible (e.g. *Spike Trap*) | Opening test |
 | 2 | Fully visible (e.g. *Skeleton Horde*) | Teaches the second rule |
-| 3 | Category only (e.g. *Arcane Mystery*) | Torchlight silhouette |
-| 4 | Category only (e.g. *Ambush?*) | Torchlight silhouette, with a question mark |
+| 3 | Rumor only (e.g. *A whiff of ozone*) | One of two possible rooms (§6.2) |
+| 4 | Rumor only (e.g. *Whispers in the dark*) | One of two possible rooms (§6.2) |
 | 5 | Fully visible (*The Boss*) | Always visible so the goal is clear |
 
 ### 6.1 Room Types
 
-Each room type maps to a hero ability and to an ordering rule. This keeps
-the composition of the party connected to the decisions made about slots.
+Each room has a **type**, a **damage** value, a **base time** in seconds, and
+a **target**: where its damage lands in the line. Each type maps to a hero
+ability, which keeps party composition tied to slot decisions.
 
-| Room type | Threat | Countered by | Notes |
+| Room type | Damage target | Countered by | Effect of the counter |
 |---|---|---|---|
-| Trap (Spike Trap, etc.) | Damage on entry, to Slot 1 first | Rogue (disarm, Slots 1–2) | Disarming exhausts the Rogue |
-| Swarm / Magic (Skeleton Horde, Arcane Mystery) | Large combat pool | Mage (clears the room, −20 s) | Mage has 2 HP |
-| Ambush | Surprise damage | Ranger (ignores ambush damage in any slot) | Category shown before entry |
-| Elite combat | Sustained combat pool | Knight (Slot 1 reduction) | Common in the middle rooms |
-| Boss | Heavy combat pool | Berserker (−15 s if at full HP on entry) | Always Room 5 |
+| Trap (Spike Trap, Rune Trap) | Slot 1, on entry | Rogue in Slot 1 or 2 | Trap disarmed, no damage. Rogue rotates and is exhausted (§7.3) |
+| Swarm (Skeleton Horde) | Front of line, overflow carries back | Mage, any slot | Room cleared: no damage, −20 s. Mage rotates and is exhausted |
+| Magic | Front of line, overflow carries back | Mage, any slot | As Swarm |
+| Elite combat | Front of line, overflow carries back | Knight in Slot 1 | Damage −2 |
+| Ambush | **Slot 4** | Ranger in Slot 4 | Ambush cancelled, no damage |
+| Boss | Front of line, overflow carries back | Knight in Slot 1; Berserker | Knight: damage −2. Berserker: −15 s if at full HP on entry |
 
-Room type and threat values are placeholders. They need tuning in the
-prototype (§14).
+The Knight's −2 applies to every combat-type room (Swarm, Magic, Elite, Boss)
+that the Mage has not cleared. It never applies to Traps or Ambushes.
+
+Damage, base times and the Mage's −20 s are placeholders, tuned in M1
+(§17). The Mage's "cancel" effect is subject to a spike (§16, D1).
+
+### 6.2 Rumors
+
+Rooms 3 and 4 show a **Rumor** instead of the room. Each Rumor has two
+possible rooms, so attempt 1 is a real guess.
+
+| Rumor | Possible rooms |
+|---|---|
+| *A whiff of ozone* | Magic room (Mage) **or** Rune Trap (Rogue) |
+| *Whispers in the dark* | Ambush (Ranger, Slot 4) **or** Elite combat (Knight) |
+| *Bones rattle* | Swarm (Mage) **or** Elite combat (Knight) |
+
+The generator picks a Rumor for each hidden room, then picks which of its two
+rooms is real. The verification step (§12) makes sure guessing wrong
+actually costs something.
 
 ## 7. The Party and the Line
 
@@ -119,71 +148,79 @@ prototype (§14).
 - A **line** is the ordered list of heroes still standing. A knocked-out hero
   leaves the line and everyone behind moves forward.
 
-### 7.2 The Vanguard Rule
+### 7.2 Damage and the Vanguard Rule
 
-Slot 1 takes the brunt of standard attacks and triggers room entry effects
-first. Combat damage is applied to the front of the line. Overflow carries
-to the next hero once a front hero is knocked out. The exact damage numbers
-are a tuning item (§14), but the principle is fixed: **who is at the front
-decides who gets hurt**.
+Where damage lands depends on the room type (§6.1):
+
+- **Traps** hit Slot 1 on entry.
+- **Combat rooms** (Swarm, Magic, Elite, Boss) apply their damage to the front
+  of the line. Damage beyond a hero's remaining HP carries to the next hero.
+- **Ambushes** hit Slot 4, the back of the line.
+
+So **who is at the front, and who is at the back, decides who gets hurt.**
 
 ### 7.3 Exhaustion and Rotation
 
-When a hero counters a hazard (for example, the Rogue disarms a trap):
+Only two abilities rotate: the **Rogue's disarm** and the **Mage's room
+clear**. These are one-shot counters. Every other ability is a formation
+ability and leaves its hero in place.
+
+When the Rogue or Mage uses its ability:
 
 1. The hero becomes **Exhausted** for the next room. Exhausted heroes do
    not use their abilities in that room.
 2. The hero **rotates to Slot 4 (Back)**. Everyone behind them moves forward
    one slot.
 
-Players must mentally simulate how the line shifts after each room. The
-replay should show this shift explicitly so it can be learned.
+Exhausted heroes **stay in the line and take hits normally**. Because they
+have just rotated to Slot 4, an Ambush in the next room hits them. That is
+intended: a Mage who clears Room 2 is sitting in Slot 4, exhausted and with
+2 HP, if Room 3 turns out to be an Ambush.
+
+Rotation also pushes a Slot-4 Ranger forward, which costs it its ambush
+protection and speed bonus. Players must mentally simulate how the line
+shifts after each room. The replay shows each shift explicitly so it can be
+learned.
 
 ### 7.4 Positional Synergies
 
-Abilities that care about neighbors give the order its depth.
+- **Cleric** restores 1 HP to the hero **directly in front** of them after
+  each room.
+- **Bard** (proposed, not in v1) boosts the speed of the hero directly ahead.
 
-- **Cleric** (Healer) restores 1 HP to the hero directly in front of them
-  after each room.
-- **Bard** (proposed, not in v1 roster) boosts the speed of the hero directly
-  ahead.
-
-Positional effects resolve in slot order, front to back, so the Vanguard Rule
-still decides who acts first.
+Positional effects resolve in slot order, front to back.
 
 ## 8. Hero Roster
 
-Every hero has **3 HP** and a unique role. Mage is the exception with 2 HP.
+Every hero has **3 HP** except the Mage, which has 2.
 
-| Hero | Role | Positional passive |
-|---|---|---|
-| Knight | Tank | In Slot 1, reduces combat damage to the party by 2 |
-| Rogue | Scout | Disarms traps in Slot 1 or 2. Rotates to Slot 4 after disarming (§7.3) |
-| Mage | DPS | Clears swarm and magic rooms instantly (−20 s). Only 2 HP |
-| Cleric | Healer | Restores 1 HP to the hero directly in front after each room |
-| Ranger | Support | Prevents ambush damage in any slot. Bonus speed in Slot 4 |
-| Berserker | Bruiser | At full HP on entering a boss room, −15 s |
+| Hero | Role | Ability | Rotates? |
+|---|---|---|---|
+| Knight | Tank | In Slot 1, combat-room damage −2 | No |
+| Rogue | Scout | Disarms traps from Slot 1 or 2 | **Yes** |
+| Mage | DPS | Clears Swarm and Magic rooms: no damage, −20 s. Only 2 HP | **Yes** |
+| Cleric | Healer | Restores 1 HP to the hero directly in front after each room | No |
+| Ranger | Support | In Slot 4, cancels Ambushes and gives bonus speed | No |
+| Berserker | Bruiser | At full HP on entering the boss room, −15 s | No |
 
-**Roster size.** Each day shows 6–8 heroes and the player picks 4. The
-six heroes above are the v1 launch set. For variety, v1 needs at least 8 in
-the pool, and 12 is the target for a month of distinct dailies.
+**Roster size.** v1 launches with these **6 heroes**. Each day's roster is
+**5 or 6** of them, chosen by the generator. Leaving a hero out is a
+difficulty lever ("no Rogue today"). New heroes are post-v1 (§19).
 
-**Open design issue.** The Cleric text is ambiguous. "Heals Slot 1 after
-every combat" in the synergy section does not match "heals the hero directly
-in front." This PRD uses **directly in front**, the stronger positional rule.
+The Ranger's speed bonus is a tuning value (M1).
 
 ## 9. Timing
 
-Time matters because it drives the 3-star target and the Mage, Ranger and
-Berserker abilities.
+Time drives the 3-star target and the Mage, Ranger and Berserker abilities.
 
 - Each room has a **base time** in seconds. Combat rooms take longer than
   trap rooms.
-- Abilities subtract or add time as stated. Ranger speed reduces the time of
-  the rooms it is active in.
+- Abilities subtract time as stated in §8.
 - The run's **total time** is the sum of room times after modifiers.
-- Each day has a **Gold Par Time** (for example, 90 seconds). A run under par
-  with no deaths earns 3 stars.
+- Each day has a **Gold Par Time**, derived by the generator from the best
+  possible run (§12). A run under par with no knockouts earns 3 stars.
+- Times are shown in **exact seconds**, in the lineup preview, the playback
+  and the result.
 
 Time is the only effect that changes with speed. Everything else is a
 deterministic result of the party order.
@@ -200,59 +237,74 @@ time and health.
 | ★★★ (3 Stars, Gold Par) | Zero heroes knocked out **and** total time under the daily Gold Par Time |
 
 **Best result.** The player's day result is their **best attempt**, compared
-first by stars and then by total time. Ties are broken by fewest knocked-out
-heroes across the run.
+by stars and then by total time (lower is better). An exact tie keeps the
+earlier attempt.
 
 **No leaderboard in v1.** Score is personal. Stats (played, win rate, star
 distribution, streak) are kept locally, in the style of a daily word game.
 
 ## 11. Information and Deduction
 
-The Torchlight system balances foresight against discovery.
-
 1. **Before attempt 1**, Rooms 1, 2 and 5 are fully visible. Rooms 3 and 4
-   show only categories. Room 3 shows a vague label such as *Arcane Mystery*,
-   and Room 4 shows a question such as *Ambush?*.
-2. **After attempt 1 ends**, all hidden room details are revealed. This is
-   the trigger, whatever the outcome. If attempt 1 was a 3-star run the day
-   has already ended, so the reveal only matters for the share and review
-   screen.
+   show only their Rumor (§6.2).
+2. **After attempt 1 ends**, Rooms 3 and 4 are revealed, whatever the
+   outcome. If attempt 1 was a 3-star run the day has already ended, so the
+   reveal only matters for the share and review screen.
 3. Attempts 2 and 3 are played with complete information.
 
-A player who fails attempt 1 has learned the whole dungeon for free. That is
+A player who fails attempt 1 has learned the whole dungeon. That is
 intentional: the first attempt is the cost of discovery.
 
-## 12. Attempt Resolution and the Share Grid
+## 12. Daily Generation and Verification
 
-### 12.1 Attempt Playback
+Adapted from Party Line §10. Every daily seed must pass these checks before
+it is used:
+
+1. **Solvable.** At least one lineup earns 3 stars.
+2. **Varied.** At least two different lineups earn 3 stars, so no single
+   lineup is "the answer".
+3. **Not trivial.** Simple baselines do not reach 3 stars. Proposed
+   baselines: the highest-HP party, and "each counter in room order".
+4. **Rumors matter.** A meaningful share of the lineups that would earn 2+
+   stars on either possible version of Rooms 3 and 4 fail on the real ones.
+   Exact threshold set in M1.
+5. **Par from the solver.** Gold Par Time = the best possible time plus a
+   slack, tuned in M1.
+6. **Reject and reseed.** A failed seed is regenerated from `date#1`,
+   `date#2`, and so on, until one passes.
+
+**Where it runs.** With 5–6 heroes there are at most 360 ordered lineups, so
+the generator brute-forces every day in the browser at load. The Node test
+suite also sweeps the next 365 days, so a date that cannot produce a valid
+dungeon fails CI before it ships.
+
+## 13. Attempt Resolution and the Share Grid
+
+### 13.1 Attempt Playback
 
 - The run resolves room by room with clear feedback: damage, knockouts,
   exhaustion, rotation, abilities, and the running time.
 - Speed options: normal, fast, and skip to result.
 - Reduced-motion users get the same information as text, with no animation.
 
-### 12.2 Per-Room Result Codes
+### 13.2 Per-Room Result Codes
 
 Each room in each attempt gets one code:
 
 | Code | Meaning |
 |---|---|
-| ⚔️ | **Flawless**: cleared with zero damage taken, within the room's par time |
+| ⚔️ | **Flawless**: cleared with no damage taken |
 | 😬 | **Damaged**: cleared, but a hero took damage or was knocked out |
 | 💀 | **Wipe**: the party was wiped out in this room. The run ends |
 | ⬜ | **Not reached**: the run ended before this room |
 
-**Clarifying the flawless definition.** The source sketch says "Fast / 0
-Damage." This PRD reads it as *zero damage taken, and the room is cleared
-within its par time*. Whether "fast" means per-room par or a shared budget
-is an open question (§15).
+Time is not part of the per-room code. It lives in the stars and the share
+header.
 
-### 12.3 The Share Grid
+### 13.3 The Share Grid
 
 The grid is spoiler-free. It shows results, not room names or hazard types.
 Rooms run across the top and attempts run down the side.
-
-Example (proposed format):
 
 ```
 Daily Dungeon #142  ★★★  73s
@@ -265,17 +317,18 @@ Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
 - Each row is one attempt. The grid shows only attempts that were actually
   played.
 - The **Copy** button puts this text on the clipboard. The share text does
-  not include the party, slot order, or any hero names.
+  not include the party, slot order, hero names, room names or Rumors.
 - Day numbers count from the launch date and use the UTC date for the seed.
 
-## 13. Experience Requirements
+## 14. Experience Requirements
 
 - **Daily seed.** Every player gets an identical dungeon and roster for the
   same UTC date. The generator is deterministic, so no server is needed.
 - **Persistence.** Attempt state for the current day, and lifetime stats, are
   stored in local storage. Reloading mid-day restores the attempts so far.
 - **Reset.** At UTC midnight the next day's content is generated. A player who
-  returns mid-session sees the new day with no action needed.
+  returns mid-session sees the new day with no action needed. A countdown to
+  the next dungeon is always visible once the day is locked.
 - **Onboarding.** A first-run card explains the rules in plain words. There
   are no long tutorials. Room 1 is a readable, low-stakes first lesson.
 - **Accessibility.** Keyboard control for the lineup (arrow keys to move a
@@ -284,7 +337,7 @@ Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
 - **Mobile.** The lineup must work on a phone screen. Drag-to-reorder and
   tap-to-select are both supported.
 
-## 14. Technical Approach (Fantasia-specific)
+## 15. Technical Approach (Fantasia-specific)
 
 - **Form.** A DOM/CSS overlay, not a Phaser or three.js scene. The game is
   turn-by-turn and text-heavy, so a canvas adds little. This matches how
@@ -293,60 +346,78 @@ Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
   - `src/daily-dungeon.js`: UI, overlay, playback and share. Exposes
     `window.launchDailyDungeon()` and a `window.dailyDungeonGame` handle with a
     no-argument `destroy()`.
-  - `src/daily-dungeon/sim.js`: pure logic (seeded generator, line and slot
-    resolution, scoring, share text). Written as a UMD module so Node can test
-    it under `node --test test/`.
-- **Menu.** A button on a menu page, plus a teardown line in `returnToMenu()`.
+  - `src/daily-dungeon/sim.js`: pure logic (room resolution, line and slot
+    rules, scoring, the generator and verifier, share text). Written as a UMD
+    module so Node can test it.
+  - `src/daily-dungeon/daily.js`: game-agnostic daily plumbing (UTC day key,
+    day number, seeded PRNG, per-day state and lifetime stats in storage,
+    copy to clipboard). Kept separate so Party Line could reuse it later. It
+    is not a shared framework until a second game actually needs it.
+- **Menu.** A tile on the **Puzzle & Physics** shelf in `index.html`, plus a
+  teardown line in `returnToMenu()`.
 - **Seed.** A small deterministic PRNG (for example mulberry32) seeded from the
-  UTC date string.
+  UTC date string, with a `#n` suffix for reseeds (§12).
 - **Storage keys.** `daily-dungeon-day-YYYY-MM-DD` for the day's attempts,
   `daily-dungeon-stats` for lifetime stats.
 - **Security and cheating.** Local storage can be edited. That is acceptable
-  for a Wordle-style game with no leaderboard. It must be stated in the
-  design, and must not become a leaderboard without a server.
-- **Tests.** Sim tests cover: seed determinism, the Vanguard Rule, exhaustion
-  and rotation, the Mage time reduction, star thresholds, and share-text
-  format. Run `node --test test/*.test.js` before pushing.
-- **Balance harness.** A bot that picks lineups at random and by search. It
-  reports 1-star, 2-star and 3-star rates, the spread of daily difficulty, and
-  how often a winning first attempt needs the hidden rooms. Target: 3-star
-  rate of roughly 5–15%, and a meaningful gap between good and great play.
+  for a Wordle-style game with no leaderboard. It must not become a
+  leaderboard without a server.
+- **Tests** (`test/daily-dungeon.test.js`, run with `node --test test/*.test.js`):
+  seed determinism, each damage target (Slot 1 / front with overflow /
+  Slot 4), every hero ability, exhaustion and rotation, the Cleric heal,
+  star thresholds and best-attempt comparison, share-text format, and the
+  365-day verification sweep (§12).
+- **Balance harness** (`experiments/daily-dungeon-balance/`): uses the solver
+  to report, across many seeds, the share of lineups earning 1, 2 and 3
+  stars, the spread of daily difficulty, how often Rumors change the best
+  lineup, and how far random and greedy players fall short of the best.
+  Target: 3-star rate among all lineups of roughly 5–15%, and a meaningful
+  gap between good and great play.
 
-## 15. Open Questions
+## 16. Decisions and Open Questions
 
-1. **Combat damage model.** The sketch does not define how much damage a room
-   deals or how it is split across the line. Proposal: each combat room has a
-   damage pool applied to the front of the line. Overflow carries forward.
-   Needs prototype tuning.
-2. **Flawless definition.** Is "fast" per-room par, or a shared budget across
-   the run?
-3. **Exhausted heroes.** Do exhausted heroes still count for the Vanguard
-   Rule? Do they still take hits in Slot 1?
-4. **Cleric wording.** Confirm "directly in front" (this PRD's choice) versus
-   "Slot 1" from the synergy text.
-5. **Day boundary.** UTC midnight, or the player's local midnight? UTC is
-   simpler and fair, but local midnight feels more natural.
-6. **Tie-breaking.** Is "fewest knocked-out heroes" the right tiebreak
-   between equal-star attempts, or is time the better one?
-7. **Early end on 3 stars.** Should a 3-star run end the day immediately, or
-   should the player still be able to play out the remaining attempts for
-   curiosity?
-8. **Roster size.** Is the pool of 8+ enough for v1, or should v1 launch with
-   the six sample heroes repeating on a rotation?
-9. **Time display.** Show exact seconds, or only the star threshold?
+**Decided in v0.2**
 
-## 16. Milestones
+| Topic | Decision |
+|---|---|
+| Damage model | Per-room damage with a target: Slot 1 (traps), front with overflow (combat), Slot 4 (ambush) |
+| Rotation | Only the Rogue and the Mage rotate |
+| Exhausted heroes | Stay in the line and take hits, but don't use their ability |
+| Ranger | Must be in Slot 4 to cancel an Ambush |
+| Knight | −2 per combat room while in Slot 1 |
+| Cleric | Heals the hero directly in front |
+| Hidden rooms | Called **Rumors**. Each Rumor has two possible rooms (§6.2) |
+| Flawless (⚔️) | No damage taken. No per-room time target |
+| Day boundary | UTC, with a countdown |
+| Tiebreak | Stars, then time, then the earlier attempt |
+| Early end | A 3-star run ends the day |
+| Roster | 6 heroes at launch, 5 or 6 per day |
+| Time display | Exact seconds |
+| Solvability | Verified by the generator, with reseeding (§12) |
+
+**Open**
+
+- **D1 (spike, M1): Mage halves instead of cancels.** Compare the current
+  rule (a Mage clear cancels the room's damage) with halving it (rounded
+  down, still −20 s). Measure the effect on 3-star rates, on how often the
+  Mage is in the best lineup, and on solution variety. Record the choice
+  here.
+- **Tuning values (M1).** Room damage and base times, the Mage and
+  Berserker time savings, the Ranger speed bonus, par slack, and the Rumor
+  threshold in §12.
+
+## 17. Milestones
 
 | Milestone | Scope | Exit criteria |
 |---|---|---|
-| **M0: Sim prototype** | `sim.js` with seed, slots, rooms, the six heroes and scoring. Node tests | Tests green. Bot results recorded for a spread of seeds |
-| **M1: Balance pass** | Tune damage, times and par with the bot harness | 3-star rate in target range. No day is unwinnable |
-| **M2: Playable UI** | Lineup screen, playback, result, share grid, storage | Full day playable on desktop and phone with no console errors |
-| **M3: Menu integration** | Menu button, teardown, onboarding card, stats screen | Launches and tears down cleanly from the menu |
+| **M0: Sim prototype** | `sim.js` and `daily.js`: seed, rooms, damage targets, the six heroes, rotation, scoring, share text, generator and verifier. Node tests | Tests green. Verifier passes 365 consecutive days |
+| **M1: Balance pass** | Balance harness, spike D1, tune all values in §16 | 3-star rate in target range. No date needs more than a few reseeds |
+| **M2: Playable UI** | Lineup screen, Rumors, playback, result, share grid, storage, countdown | Full day playable on desktop and phone with no console errors |
+| **M3: Menu integration** | Menu tile, teardown, onboarding card, stats screen | Launches and tears down cleanly from the menu |
 | **M4: Polish** | Accessibility pass, reduced motion, sound (optional) | Keyboard and screen-reader checks pass |
 | **M5: Launch** | Publish to `main`, verify deploy | Deploy workflow green, `version.json` shows the new commit |
 
-## 17. Success Metrics
+## 18. Success Metrics
 
 - **Completion.** Percentage of players who finish all 3 attempts or hit
   3 stars on a given day. Target: above 60%, so the day feels finishable.
@@ -356,13 +427,15 @@ Attempt 2: ⚔️ ⚔️ 😬 😬 ⚔️
 - **Difficulty spread.** Distribution of stars per day. No single star level
   should dominate.
 
-These metrics need client-side analytics or a survey, since v1 has no
-backend. Until one exists, these are goals to check by hand.
+v1 has no backend, so these are goals to check by hand. They are not part of
+the v1 issue scope.
 
-## 18. Stretch Goals (post-v1)
+## 19. Stretch Goals (post-v1)
 
-- Archive mode for past dailies.
-- A harder diagonal route or "challenge" modifier for experienced players.
+- Archive mode for past dailies, and practice replays of a locked day.
 - More heroes (the Bard from §7.4) and room types.
+- A harder "challenge" modifier for experienced players.
+- Party Line (`PRD-daily-party-builder.md`) as a deeper follow-up game,
+  possibly reusing `daily.js`.
 - Optional read-only leaderboard, which would require a backend and is a
   separate decision.

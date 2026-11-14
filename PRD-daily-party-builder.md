@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v0.1 for review |
+| **Status** | Parked: deeper follow-up to Daily Dungeon (`PRD-daily-dungeon.md`), which is being built first |
 | **Owner** | Fantasia project |
 | **Target** | New game on the Fantasia menu (`src/party-builder.js`) |
 | **Platforms** | Phone-first (portrait), desktop and tablet second |
