@@ -383,10 +383,38 @@ test("no heal event when the hero in front is at full HP", () => {
   assert.deepEqual(ofKind(r.rooms[0].events, "heal"), []);
 });
 
-test("a Cleric in Slot 1 heals nobody", () => {
+const BLOCKED_HEAL = { kind: "heal", hero: null, by: "cleric", amount: 0, blocked: "slot" };
+
+test("a Cleric in Slot 1 heals nobody, and says so when someone else is hurt", () => {
+  // The Ambush hurts the Rogue in Slot 4; the Cleric in Slot 1 can't reach him.
+  const r = S.runDungeon(rooms("ambush"), ["cleric", "knight", "mage", "rogue"]);
+  const room = r.rooms[0];
+  assert.deepEqual(ofKind(room.events, "heal"), [BLOCKED_HEAL]);
+  assert.equal(room.lineAfter[3].hp, 1); // unhealed
+  assert.equal(room.events[room.events.length - 1].kind, "heal"); // step 7, last
+});
+
+test("a Slot-1 Cleric emits no blocked heal when nobody else is hurt", () => {
+  // Only the Cleric herself is hurt (the trap hits Slot 1): nothing to explain.
   const r = S.runDungeon(rooms("trap"), ["cleric", "knight", "mage", "rogue"]);
   assert.equal(r.rooms[0].lineAfter[0].hp, 1);
   assert.deepEqual(ofKind(r.rooms[0].events, "heal"), []);
+  // Nobody hurt at all.
+  const z = S.withTune({ rooms: { elite: { damage: 0 } } });
+  const r2 = S.runDungeon(rooms("elite"), ["cleric", "knight", "mage", "rogue"], z);
+  assert.deepEqual(ofKind(r2.rooms[0].events, "heal"), []);
+});
+
+test("the blocked heal reads the line after rotation: a rotation can put the Cleric in Slot 1", () => {
+  // Ambush: the Berserker (Slot 4) drops to 1; the Cleric (Slot 2) faces the
+  // full-HP Rogue. Trap: the Rogue disarms from Slot 1 and rotates, leaving
+  // the Cleric in front with a hurt Berserker behind her.
+  const r = S.runDungeon(rooms("ambush", "trap"), ["rogue", "cleric", "knight", "berserker"]);
+  assert.deepEqual(ofKind(r.rooms[0].events, "heal"), []);
+  const trap = r.rooms[1];
+  assert.deepEqual(ids(trap.lineAfter), ["cleric", "knight", "berserker", "rogue"]);
+  assert.deepEqual(ofKind(trap.events, "heal"), [BLOCKED_HEAL]);
+  assert.deepEqual(trap.events.map((e) => e.kind), ["counter", "time", "exhaust", "rotate", "heal"]);
 });
 
 test("the heal reads the line after rotation (step 6 before step 7)", () => {
@@ -455,6 +483,7 @@ test("ability invariants hold for all 360 lineups, several dungeons and both Mag
   const fired = {};
   const blocked = {};
   let rotations = 0;
+  let blockedHeals = 0;
   for (const tune of tunes)
     for (const d of dungeons)
       for (const lineup of allLineups()) {
@@ -468,10 +497,23 @@ test("ability invariants hold for all 360 lineups, several dungeons and both Mag
           }
           // HP never exceeds maxHp, before or after the room.
           for (const h of [...room.lineBefore, ...room.lineAfter]) assert.ok(h.hp > 0 && h.hp <= h.maxHp);
+          // Heals: amount > 0 unless blocked; a blocked heal means the Cleric
+          // ended the room in Slot 1 with someone else below max HP.
           for (const e of ofKind(room.events, "heal")) {
+            if (e.blocked) {
+              assert.deepEqual(e, { kind: "heal", hero: null, by: "cleric", amount: 0, blocked: "slot" });
+              assert.equal(room.lineAfter[0].id, "cleric");
+              assert.ok(room.lineAfter.slice(1).some((h) => h.hp < h.maxHp));
+              blockedHeals++;
+              continue;
+            }
             const h = room.lineAfter.find((x) => x.id === e.hero);
             assert.ok(e.amount > 0 && e.hpAfter <= h.maxHp && e.hpAfter === h.hp);
           }
+          // ...and conversely, such a room always explains the missing heal.
+          if (!room.wiped && room.lineAfter[0] && room.lineAfter[0].id === "cleric" &&
+              room.lineAfter.slice(1).some((h) => h.hp < h.maxHp))
+            assert.ok(ofKind(room.events, "heal").some((e) => e.blocked === "slot"));
           // Counters: the hero stood at room start; slot/HP conditions hold;
           // an exhausted hero never fires.
           const startIdx = (id) => room.lineBefore.findIndex((h) => h.id === id);
@@ -519,6 +561,7 @@ test("ability invariants hold for all 360 lineups, several dungeons and both Mag
   for (const k of ["rogue:slot", "rogue:exhausted", "mage:exhausted", "ranger:slot", "knight:slot", "berserker:hp"])
     assert.ok(blocked[k] > 0, `sweep never saw ${k}`);
   assert.ok(rotations > 1000);
+  assert.ok(blockedHeals > 0, "sweep never saw a blocked heal");
 });
 
 test("purity and determinism hold in halve mode too", () => {
