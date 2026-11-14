@@ -6,6 +6,7 @@
 | **Owner** | Fantasia project |
 | **Date** | 2026-11-14 |
 | **Target** | A new game in the Fantasia menu, built as static HTML/CSS/JS (no backend) |
+| **Issues** | Label [`daily-dungeon`](https://github.com/DarkCascade/fantasia/issues?q=label%3Adaily-dungeon). Milestone parents: M0 #7, M1 #15, M2 #19, M3 #26, M4 #30, M5 #33 |
 
 **Relationship to Party Line.** `PRD-daily-party-builder.md` (*Party Line*) is
 a competing take on the same goal, a fantasy dungeon-delve daily. Daily
@@ -152,10 +153,11 @@ actually costs something.
 
 Where damage lands depends on the room type (§6.1):
 
-- **Traps** hit Slot 1 on entry.
+- **Traps** hit Slot 1 on entry. Damage beyond that hero's HP is lost.
 - **Combat rooms** (Swarm, Magic, Elite, Boss) apply their damage to the front
   of the line. Damage beyond a hero's remaining HP carries to the next hero.
-- **Ambushes** hit Slot 4, the back of the line.
+- **Ambushes** hit Slot 4, the back of the line. With fewer than four heroes
+  standing, they hit the back-most hero. Damage beyond that hero's HP is lost.
 
 So **who is at the front, and who is at the back, decides who gets hurt.**
 
@@ -291,9 +293,10 @@ it is used:
    lineup is "the answer".
 3. **Not trivial.** Simple baselines do not reach 3 stars. Proposed
    baselines: the highest-HP party, and "each counter in room order".
-4. **Rumors matter.** A meaningful share of the lineups that would earn 2+
-   stars on either possible version of Rooms 3 and 4 fail on the real ones.
-   Exact threshold set in M1.
+4. **Rumors matter.** Each day has three decoy dungeons: the other
+   combinations of what Rooms 3 and 4 could have been. For at least one
+   decoy, a share of its 3-star lineups at least `TUNE.rumorMin` must fail to
+   earn 3 stars on the real dungeon. The threshold is set in M1.
 5. **Par from the solver.** Gold Par Time = the best possible time plus a
    slack, tuned in M1.
 6. **Reject and reseed.** A failed seed is regenerated from `date#1`,
