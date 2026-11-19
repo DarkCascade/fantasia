@@ -251,6 +251,62 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     fatal panel, per the Slopeman lessons. Debug URL params: `?gh3q=low|high`
     (force a tier and fix resolution), `?gh3seed=N` (reproducible floors),
     `?gh3ao=0` (no GTAO).
+- **Aurora Barrage** (`src/aurora-barrage.js` + `src/aurora-barrage/sim.js`) — a
+  portrait **vertical arcade shooter** on Phaser 4 (the Arcade shelf; 540x960 FIT-scaled,
+  built for thumbs). Drag anywhere to fly (relative drag, 1.3x; WASD/arrows too), the ship
+  fires itself. Defeated enemies spill **XP orbs** that drift off the bottom (92 px/s) unless
+  you fly into them (tight magnet: `magnetR` 56 + level, capped +100). **Weapon level = beams per
+  volley**: level 1 fires one laser, level 2 two, level 60 sixty (`volley(level)`: a symmetric fan
+  topping out at +-40 degrees from a ~120 px muzzle line; `fireInterval` speeds up to a 0.1 s floor;
+  `boltDamage` is `1 + floor(level/30)`; max level 120). The point of the game is that a skilled run
+  *overwhelms the screen*. The counterweight is the **hit penalty**: a hit costs 1 hull (start 3, max 5,
+  +1 per boss), a fifth of your levels (`levelAfterHit`, at least 1, never below level 1) and your XP bar,
+  and half of what you lost spills as recoverable orbs. So a big weapon is earned and defended.
+  - **Split for testing/tuning.** `sim.js` is pure, seeded logic (UMD: `window.AuroraBarrageSim` /
+    `module.exports`): `World.step(dt)` at a fixed 1/60, `setTarget(x, y)` for the ship, `drainEvents()`
+    for the view. The Phaser file only reads the world (pooled sprites per kind) and feeds it a target.
+    **Light tests**: `test/aurora-barrage.test.js` (5 tests: beam count == level, XP curve and orb
+    splitting, hit penalty, idle determinism, stage flow). **Balance bot**:
+    `node experiments/aurora-barrage-balance/bot.js [seeds] [idle|dodge|good|great|all] [maxMin]` plays the
+    real sim with a danger-field controller and prints survival, level by minute, boss fight times and what
+    killed it. Last measured (16 runs): idle dies in ~1 min at level ~6; a bot that dodges but ignores orbs
+    survives a median ~12 min (level ~55, best 71); one that also chases orbs dies ~7 min in at level ~43
+    (best 65). Orb-chasing is a *risk*, not a free win, by design. Bots are not humans, treat as relative.
+    Findings: more enemy density just fed the bot more danger (the lever that worked was hull that
+    accumulates across bosses plus calmer boss spirals); the boss was the killer (80% of hits) until its
+    spiral cadence/HP dropped and bullets were cleared at each phase change; orbs drifting slowly let a
+    parked ship collect everything for free, hence the faster fall and tighter magnet.
+  - **Director.** Stages loop `waves` (52 s +3 s/stage) -> `warn` banner -> `boss` -> `clear` (3.8 s) ->
+    next stage. Waves pick patterns (`line`, `stagger`, `vee`, `snake` (a sine path sampled with per-ship lag
+    so they follow one curve), `rain`, then `gunships` and `bomber` as stages/time allow); spawn gap shrinks
+    with stage and with `density = 1 + level/70`, so XP income grows with the player's own power. HP scales
+    +50%/stage (boss +70%), bullet speed up to 1.5x, fire interval down to 0.55x. Enemies: **scout** (dart, a
+    few from stage 2 shoot one aimed bullet), **gunship** (hovers, aimed 3/5-way fans, leaves after 11 s),
+    **bomber** (hovers, radial rings + aimed triples), **boss** (three HP phases: aimed fan + side cannons,
+    then rotating spirals, then denser rings and a 7-way fan; summons scouts; immune while entering; clears
+    bullets on each phase change; its death clears the field and refunds a hull). Hurtbox is a tiny 6 px
+    circle drawn as a dot on the ship; ramming costs a hull too.
+  - **Art.** **Another exception to the no-external-assets rule:** the player ship, three enemy ships,
+    the boss and the nebula are **Meshy text-to-image** pictures (`src/aurora-barrage/*.webp`, ~290 KB; pipeline,
+    prompts and task ids in `experiments/aurora-barrage-art/`: `gen.py` generates, `bake.py` trims/resizes and
+    makes the nebula loop seamlessly after erasing its planet). Everything else is drawn in code at boot with
+    canvas textures: tiered laser beams (cyan/green/yellow/orange/magenta/white as the level climbs), enemy
+    bullets in four colours, XP orbs in four sizes, engine flame, rings, sparks, two star parallax layers.
+    Meshy gotcha: in the cloud sandbox the proxy authenticates `api.meshy.ai`, but the `meshy` CLI sends its own
+    bearer header (even with a dummy key) and gets 401, so the scripts use plain REST.
+  - **Feel / perf.** Pooled additive sprites (one `Pool` per laser tier / bullet kind / orb size, hidden not
+    destroyed); beams get slimmer and dimmer as the count grows so 100 of them read as light, not a white wall
+    (and a hit-flash that is a full-white fill on scouts/gunships but only an additive brighten on bombers and
+    the boss, because a beam wall hits them every frame and a fill would leave them white forever). If the
+    frame rate drops under ~44 with 260+ lasers up, every other laser is simply not drawn (`thin`; the
+    simulation is untouched). The fx list is capped at 70 live rings. Boss death: slow-mo, shake, chained
+    booms. Synth WebAudio (`Sfx`, created on the first tap; a mute chip next to pause).
+  - **Flow.** Title screen (a 46-beam showcase fan behind the logo, best line, "tap to launch") -> play
+    (pause chip, mute chip, hint) -> "SHIP LOST" panel (peak weapon, stage, bosses, kills, time, new-best
+    star) -> Fly Again / Fantasia Menu. Best `{score, level, stage}` in `localStorage` `aurora-barrage-best`.
+    `window.auroraBarrageGame` is a Phaser game (`destroy(true)`); headless handle:
+    `game.scene.getScene("AuroraScene")` with `.world` (the sim) and `.startRun()`; step the world yourself
+    in `page.evaluate` since SwiftShader renders at a few fps.
 - **Bark Quest** (`src/bark-quest.js`) — a Puzzle-Quest-style match-3 battler on
   menu page 1. Miles, a red doberman, faces an endless line of
   foes on a repeating three-foe rotation (`FOE_ORDER`): fox, squirrel, wolf,
@@ -1290,6 +1346,8 @@ src/game.js            Flappy Bird logic + procedural textures; window.launchFla
 src/annoyed-avians.js  Annoyed Avians slingshot (Matter physics); window.launchAnnoyedAvians()
 src/star-catcher.js    Star Catcher catch/dodge arcade; window.launchStarCatcher()
 src/arrow-rush.js      Arrow Rush archery game; window.launchArrowRush()
+src/aurora-barrage.js  Aurora Barrage vertical shooter, Phaser view/HUD/FX/audio; window.launchAuroraBarrage()
+src/aurora-barrage/    sim.js (pure seeded game logic, UMD, unit-tested) + the six Meshy-generated WebPs
 src/cosmic-dash.js     Cosmic Dash endless runner; window.launchCosmicDash()
 src/indie-grind.js     Indie Grind incremental dev-studio game; window.launchIndieGrind()
 src/gloom-hollow.js    Gloom Hollow isometric action RPG; window.launchGloomHollow()
@@ -1311,6 +1369,8 @@ src/tiny-haulers/models/ Meshy GLBs for Tiny Haulers (art not drawn at runtime)
 src/hollow-moon.js      Hollow Moon one-fight artistic ARPG (three.js, DOM HUD); window.launchHollowMoon()
 src/paper-airplane.js  Paper Airplane flick game (Phaser); window.launchPaperAirplane({level?})
 src/paper-airplane/    levels.js (10 levels' data, UMD), doodle.js (hand-drawn line/shape/paper helpers), marquee.svg (Featured card art), sfx/ (20 CC0 mp3s + CREDITS.md)
+experiments/aurora-barrage-art/  Meshy text-to-image gen.py + bake.py (trim/resize, seamless nebula loop), prompts and task ids
+experiments/aurora-barrage-balance/  bot.js: danger-field bot that plays the real sim at several skill levels (survival, level by minute, boss times)
 experiments/paper-airplane/  check-levels.js / check-preview.js / explore-level.js / search-level.js: level lint, physics sweeps, preview exactness, design aids (see Paper Airplane entry)
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 test/                  Node unit tests (node --test test/); not deployed
@@ -1457,7 +1517,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   style="--a:#…;--b:#…">Name<small>tagline</small></button>`. **Adding a game =
   one tile in the right shelf** (pick two gradient colours, keep the `btn-…` id
   the click handler binds to) plus the usual launcher/teardown wiring below.
-  The Arcade and Action & RPG tiles (10 so far) are `tile tile--art` with `--img:url(src/menu-art/<game>.webp)`:
+  The Arcade and Action & RPG tiles (11 so far) are `tile tile--art` with `--img:url(src/menu-art/<game>.webp)`:
   560x300 WebP stills (1-7 KB each) captured from real play in headless
   Chromium (autopilots for Flappy / Cosmic Dash, a held aim for Arrow Rush, a
   pulled-back throw on Paper Airplane's Pinball Desk, the Slopeman HUD hidden;
@@ -1478,7 +1538,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   auto-boots — each game file defines a `window.launch<Game>()`
   (`launchFlappyBird`, `launchAnnoyedAvians`, `launchStarCatcher`,
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
-  `launchGloomHollow3D`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
+  `launchGloomHollow3D`, `launchAuroraBarrage`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
   `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`,
   `launchTinyHaulers`, `launchHollowMoon`);
   the menu buttons
@@ -1486,7 +1546,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   create the chosen game (once) into `#game-container`, and
   `window.returnToMenu()` tears down whichever game is running (`window.game` /
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
-  `gloomGame` / `gloom3DGame` / `barkQuestGame` / `indieGrindGame` /
+  `gloomGame` / `gloom3DGame` / `auroraBarrageGame` / `barkQuestGame` / `indieGrindGame` /
   `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame` /
   `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
@@ -1531,6 +1591,6 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 - `node --check src/game.js` (syntax) and, for workflow edits,
   validate the YAML.
-- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation; the bare `node --test test/` form fails on Node 22).
+- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon and Aurora Barrage's sim; the bare `node --test test/` form fails on Node 22).
 - Prefer a quick headless render to confirm no runtime errors when you touch
   `src/game.js`.

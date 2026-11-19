@@ -633,6 +633,10 @@
               Cosmic Dash
               <small>Endless runner, double-jump</small>
             </button>
+            <button id="btn-aurorabarrage" class="tile tile--art" type="button" style="--img:url(src/menu-art/aurorabarrage.webp);--a:#2fb7e6;--b:#4a1a8a">
+              Aurora Barrage
+              <small>Every orb adds a beam</small>
+            </button>
             <button id="btn-slopeman" class="tile tile--art" type="button" style="--img:url(src/menu-art/slopeman.webp);--a:#5aa9d6;--b:#1d4f7a">
               The Abominable Slopeman
               <small>Dodge trees down the slope</small>
@@ -718,6 +722,9 @@
   <script src="src/star-catcher.js"></script>
   <script src="src/arrow-rush.js"></script>
   <script src="src/cosmic-dash.js"></script>
+  <!-- Aurora Barrage: the pure simulation (also unit-tested under Node), then the Phaser view. -->
+  <script src="src/aurora-barrage/sim.js"></script>
+  <script src="src/aurora-barrage.js"></script>
   <script src="src/indie-grind.js"></script>
   <script src="src/gloom-hollow.js"></script>
   <script src="src/bark-quest.js"></script>
@@ -773,6 +780,11 @@
       document.getElementById("btn-cosmicdash").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchCosmicDash === "function") window.launchCosmicDash();
+      });
+
+      document.getElementById("btn-aurorabarrage").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchAuroraBarrage === "function") window.launchAuroraBarrage();
       });
 
       document.getElementById("btn-novamerge").addEventListener("click", function () {
@@ -858,6 +870,7 @@
           if (window.starCatcherGame) { try { window.starCatcherGame.destroy(true); } catch (e) {} window.starCatcherGame = null; }
           if (window.arrowGame) { try { window.arrowGame.destroy(true); } catch (e) {} window.arrowGame = null; }
           if (window.cosmicDashGame) { try { window.cosmicDashGame.destroy(true); } catch (e) {} window.cosmicDashGame = null; }
+          if (window.auroraBarrageGame) { try { window.auroraBarrageGame.destroy(true); } catch (e) {} window.auroraBarrageGame = null; }
           if (window.gloomGame) { try { window.gloomGame.destroy(true); } catch (e) {} window.gloomGame = null; }
           if (window.barkQuestGame) { try { window.barkQuestGame.destroy(true); } catch (e) {} window.barkQuestGame = null; }
           if (window.novaMergeGame) { try { window.novaMergeGame.destroy(true); } catch (e) {} window.novaMergeGame = null; }
