@@ -1188,6 +1188,41 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     `g.paused = true` and drive `g.step(1/30)` then `g.render(0.03)`;
     `g.snapCam = true` snaps the camera; `g.begin()` starts the intro,
     `g.bossSet("leap")` stages an attack. `destroy()` takes no arguments.
+- **Hall of Blows** (`src/hallway-combat.js` + `src/hallway-combat/sim.js`) — **step one** of a
+  diorama-style action RPG, in the Action & RPG shelf. Deliberately the minimum viable loop: a knight
+  (Sir Cleave) walks down a torch-lit hallway, an orc **fades in** far down the corridor, the two close to
+  melee reach, and they trade **in-place swings on their own timers** with floating damage numbers; the knight is
+  overpowered, and when the orc falls he walks on and it repeats. No gap-closing or dashing by attacks, ever:
+  a swing only starts when the target is inside `range` (walking is the only thing that closes distance).
+  - **Split for testing.** `sim.js` is pure logic (UMD: `window.HallwayCombatSim` / `module.exports`;
+    `test/hallway-combat.test.js`, 6 tests: loop repeats, knight never near death, orc still lands hits, swings
+    only in range, dead orc never hits, determinism). `World.step(dt)` at a fixed 1/60, phases
+    `walk -> fight -> dying -> walk`, `drainEvents()` (`spawn`/`engage`/`swing`/`hit`/`heal`/`death`/`resume`)
+    for the view. **`CONFIG` is the one place to tune** (knight 100 hp, 14-22 dmg, 0.8s swings; orc 80 hp, 5-11
+    dmg, 1.5s swings; the knight heals 40% per kill). The test asserts the knight's hp stays > 40, so if you
+    toughen the orc, rerun it. The knight never moves in x: the sim scrolls the hallway (`scroll`) and walks the
+    standing orc toward him.
+  - **View** (three.js, imported on demand like Slopeman; DOM HUD: orc count + best in `localStorage`
+    `hall-of-blows-best`, health bars projected over heads, floating numbers = CSS-animated divs). The diorama is
+    a **cutaway slab**: thick stone floor with a brick front edge, back wall, no ceiling and no front wall, on a
+    dark tabletop under a 3/4 camera yawed so the corridor recedes to the right. Floor/wall textures are canvas
+    drawn (running-bond blocks + a red runner) and scrolled via `texture.offset`; pillars, torches, banners and
+    ceiling beams are 8 recycled props wrapped with `world.scroll`. Torch glow is a flat additive plane on the
+    wall, **not a billboard sprite** (a sprite slices into the wall at the camera angle and leaves a hard
+    diagonal edge). The camera frames a fixed width of hallway (so the orc's fade-in spot is on screen) and
+    tilts up to 26 degrees on a portrait phone.
+  - **Placeholder art, built to be swapped for Kenney models.** `buildKnight()` / `buildOrc()` are boxes,
+    spheres and cones behind one rig interface: `root`, `body` (pivot at the feet), `legs[2]`, `armW` (the
+    weapon arm, with the weapon parented to it), `armO`, `head`, `mats[]`. **`pose()` only touches those
+    pivots** (walk cycle, a three-part swing: raise, strike, recover, body lean, hit flash/recoil, topple), so a
+    real model with the same handful of pivots drops in without touching the animation or the sim. Local frame:
+    +x is facing, +y up; the orc is yawed pi to face -x, which is why its weapon arm sits on local -z (so it
+    ends up on the camera's side and the swing reads). Fading uses per-rig material `opacity`
+    (`setRigAlpha`, `transparent` only while < 1).
+  - **Next steps the user has in mind:** swap in Kenney models, then grow the game one step at a time.
+    `window.hallwayCombatGame` is a handle whose `destroy()` takes no arguments; `.game` is the live `Hall`
+    (`.world` is the sim). Headless: replace `g.frame` with a no-op and step `world.step(1/60)` then
+    `handleEvents()/syncScenery()/syncFighters()/renderer.render()` yourself (SwiftShader is a few fps).
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -1373,6 +1408,8 @@ experiments/aurora-barrage-art/  Meshy text-to-image gen.py + bake.py (trim/resi
 experiments/aurora-barrage-balance/  bot.js: danger-field bot that plays the real sim at several skill levels (survival, level by minute, boss times)
 experiments/paper-airplane/  check-levels.js / check-preview.js / explore-level.js / search-level.js: level lint, physics sweeps, preview exactness, design aids (see Paper Airplane entry)
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
+src/hallway-combat.js   Hall of Blows diorama hallway combat, view/HUD (three.js); window.launchHallwayCombat()
+src/hallway-combat/sim.js  Hall of Blows combat simulation (pure, also require()-able from Node)
 test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
@@ -1540,7 +1577,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchAuroraBarrage`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
   `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`,
-  `launchTinyHaulers`, `launchHollowMoon`);
+  `launchTinyHaulers`, `launchHollowMoon`, `launchHallwayCombat`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
@@ -1548,12 +1585,12 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `auroraBarrageGame` / `barkQuestGame` / `indieGrindGame` /
   `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame` /
-  `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame`) and
+  `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame` / `hallwayCombatGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
   see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
   `indieGrindGame`, `slopemanGame`, `greenlitGame`, `theButtonGame`,
-  `chibiCrawlGame`, `tinyHaulersGame` and `hollowMoonGame`, whose handles take a plain `destroy()`.
+  `chibiCrawlGame`, `tinyHaulersGame`, `hollowMoonGame` and `hallwayCombatGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
@@ -1591,6 +1628,6 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 - `node --check src/game.js` (syntax) and, for workflow edits,
   validate the YAML.
-- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon and Aurora Barrage's sim; the bare `node --test test/` form fails on Node 22).
+- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon, Aurora Barrage's sim and Hall of Blows' sim; the bare `node --test test/` form fails on Node 22).
 - Prefer a quick headless render to confirm no runtime errors when you touch
   `src/game.js`.
