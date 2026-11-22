@@ -666,6 +666,10 @@
               Chibi Crawl
               <small>Party auto-battler and trading</small>
             </button>
+            <button id="btn-hallwaycombat" class="tile tile--art" type="button" style="--img:url(src/menu-art/hallwaycombat.webp);--a:#d98a3d;--b:#5a2a12">
+              Hall of Blows
+              <small>A knight, a hallway, an orc</small>
+            </button>
           </div>
         </section>
         <section class="shelf">
@@ -734,6 +738,10 @@
   <script src="src/gloom-hollow-3d.js"></script>
   <!-- Also imports three.js on demand, same as gloom-hollow-3d.js. -->
   <script src="src/slopeman.js"></script>
+  <!-- Hall of Blows: the pure combat sim (unit-tested under Node), then the
+       three.js view, which imports three.js on demand like the others. -->
+  <script src="src/hallway-combat/sim.js"></script>
+  <script src="src/hallway-combat.js"></script>
   <script src="src/planetary-tycoon.js"></script>
   <script src="src/greenlit.js"></script>
   <script src="src/the-button.js"></script>
@@ -817,6 +825,11 @@
         if (typeof window.launchSlopeman === "function") window.launchSlopeman();
       });
 
+      document.getElementById("btn-hallwaycombat").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchHallwayCombat === "function") window.launchHallwayCombat();
+      });
+
       document.getElementById("btn-tycoon").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchPlanetaryTycoon === "function") window.launchPlanetaryTycoon();
@@ -885,6 +898,7 @@
           if (window.chibiCrawlGame) { try { window.chibiCrawlGame.destroy(); } catch (e) {} window.chibiCrawlGame = null; }
           if (window.greenlitGame) { try { window.greenlitGame.destroy(); } catch (e) {} window.greenlitGame = null; }
           if (window.tinyHaulersGame) { try { window.tinyHaulersGame.destroy(); } catch (e) {} window.tinyHaulersGame = null; }
+          if (window.hallwayCombatGame) { try { window.hallwayCombatGame.destroy(); } catch (e) {} window.hallwayCombatGame = null; }
           if (window.hollowMoonGame) { try { window.hollowMoonGame.destroy(); } catch (e) {} window.hollowMoonGame = null; }
           if (window.paperAirplaneGame) { try { window.paperAirplaneGame.destroy(true); } catch (e) {} window.paperAirplaneGame = null; }
         }, 0);
