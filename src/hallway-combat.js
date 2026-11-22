@@ -48,6 +48,7 @@
   const PERIOD = 6; // prop spacing along the hallway (also the texture tile width)
   const WRAP = PERIOD * 8; // props recycle inside a 48-unit window
   const FIGHT_Z = 0.1;
+  const CAM_AZIMUTH_DEG = 42; // camera yaw off the front-on view; 0 = side-on, 90 = straight down the hall
   const WALK_CYCLE = 8; // leg-swing rad/sec while walking
   const REST_ARM = 0.45; // weapon arm resting angle (rad about z, 0 = hanging down)
 
@@ -571,15 +572,17 @@
       this.camera.aspect = w / h;
       this.renderer.setSize(w, h);
 
-      // Frame a fixed width of hallway (so the orc's fade-in spot is always on
+      // Frame a fixed length of hallway (so the orc's fade-in spot is always on
       // screen) but never less than the slab's height, then park the camera on
-      // a 3/4 angle: yawed so the corridor recedes to the right.
+      // a steep yaw (CAM_AZIMUTH_DEG): the corridor runs diagonally across the
+      // screen and recedes to the right. The hallway axis only covers
+      // cos(az) of its length on screen, so the framing width shrinks to match.
       const tanV = Math.tan((this.camera.fov * Math.PI) / 360);
       const portrait = this.camera.aspect < 1;
-      const halfW = portrait ? 4.5 : 5.8;
+      const az = (CAM_AZIMUTH_DEG * Math.PI) / 180;
+      const halfW = (portrait ? 4.5 : 5.8) * Math.cos(az) + 1.3;
       const halfH = 4.0;
       const dist = Math.max(halfW / (tanV * this.camera.aspect), halfH / tanV);
-      const az = (16 * Math.PI) / 180;
       // a portrait phone has height to spare, so look down on the diorama more
       const pitch = ((portrait ? 26 : 17) * Math.PI) / 180;
       this.camera.position.set(

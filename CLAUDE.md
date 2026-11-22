@@ -1205,7 +1205,7 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   - **View** (three.js, imported on demand like Slopeman; DOM HUD: orc count + best in `localStorage`
     `hall-of-blows-best`, health bars projected over heads, floating numbers = CSS-animated divs). The diorama is
     a **cutaway slab**: thick stone floor with a brick front edge, back wall, no ceiling and no front wall, on a
-    dark tabletop under a 3/4 camera yawed so the corridor recedes to the right. Floor/wall textures are canvas
+    dark tabletop under a camera yawed `CAM_AZIMUTH_DEG` (42) degrees so the corridor runs diagonally and recedes to the right. Floor/wall textures are canvas
     drawn (running-bond blocks + a red runner) and scrolled via `texture.offset`; pillars, torches, banners and
     ceiling beams are 8 recycled props wrapped with `world.scroll`. Torch glow is a flat additive plane on the
     wall, **not a billboard sprite** (a sprite slices into the wall at the camera angle and leaves a hard
