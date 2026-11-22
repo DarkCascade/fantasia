@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hall of Blows — Hall Builder (mockup)</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #120e1a; --panel: #1d1827; --panel2: #2a2336; --line: #433a54;
+  --ink: #f3e9d2; --dim: #a79cb8; --gold: #f0c987; --gold2: #ffd45e;
+  --heal: #6ff08b; --bad: #ff5d5d; --knight: #9ec5ff; --orc: #6fae5a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; color: var(--ink);
+  font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: radial-gradient(ellipse at 50% 0%, #34304d 0%, #1a1626 45%, #0d0a14 100%) fixed, var(--bg);
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { display: block; }
+
+.app { max-width: 1120px; margin: 0 auto; padding: 14px 16px 170px; display: grid; gap: 12px; }
+.app.locked .strip, .app.locked .dock { pointer-events: none; }
+.app.locked .dock { opacity: .55; }
+
+/* ---------- top bar ---------- */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.title { margin-right: auto; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .28em; text-transform: uppercase; color: var(--gold); }
+h1 { margin: 2px 0 0; font-size: clamp(22px, 4.6vw, 30px); line-height: 1.1; font-weight: 800; }
+.badge { display: inline-block; vertical-align: middle; margin-left: 8px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em; color: #2a1608; background: var(--gold); }
+.chip { padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.28);
+  background: rgba(20,14,34,.62); font-weight: 700; font-size: 14px; }
+.chip:hover { background: rgba(60,40,96,.8); }
+.toggle { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.28); background: rgba(20,14,34,.62); font-weight: 700; font-size: 14px; user-select: none; }
+.toggle .sw { width: 30px; height: 18px; border-radius: 9px; background: #4a4258; position: relative; transition: background .15s; }
+.toggle .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; transition: transform .15s; }
+.toggle[aria-pressed="true"] .sw { background: #7a5ad0; }
+.toggle[aria-pressed="true"] .sw::after { transform: translateX(12px); }
+.go { padding: 11px 20px; border-radius: 999px; border: 0; font-weight: 800; font-size: 16px; letter-spacing: .02em;
+  background: linear-gradient(#ffd98f, #f0b04f); color: #2a1608; box-shadow: 0 3px 0 #9a6a26, 0 8px 22px rgba(240,176,79,.25); }
+.go:active { transform: translateY(2px); box-shadow: 0 1px 0 #9a6a26; }
+.go[data-run="1"] { background: linear-gradient(#ff9f95, #e0584b); box-shadow: 0 3px 0 #8e2e25; }
+
+/* ---------- oracle (forecast chart + verdict) ---------- */
+.panel { background: linear-gradient(var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 14px; }
+.oracle { display: grid; grid-template-columns: 1fr; gap: 0; overflow: hidden; }
+@media (min-width: 820px) { .oracle { grid-template-columns: 1fr 270px; } }
+.chartwrap { padding: 10px 12px 6px; min-width: 0; }
+.chartHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.chartHead b { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
+.chartHead span { font-size: 13px; color: var(--dim); }
+.chartHead span em { font-style: normal; color: var(--ink); font-weight: 800; }
+.chart { width: 100%; height: auto; }
+.chart text { font: 600 10px -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--dim); }
+.chart .hpnum { font-weight: 800; font-size: 11px; fill: var(--ink); }
+.silent { fill: var(--dim); font-size: 13px !important; font-weight: 600; text-anchor: middle; }
+.verdict { padding: 14px 16px; border-top: 1px solid var(--line); display: grid; align-content: center; gap: 6px; }
+@media (min-width: 820px) { .verdict { border-top: 0; border-left: 1px solid var(--line); } }
+.stars { font-size: 26px; letter-spacing: 4px; color: #4a4258; line-height: 1; }
+.stars i { font-style: normal; }
+.stars i.on { color: var(--gold2); text-shadow: 0 0 12px rgba(255,212,94,.55); }
+.verdict h2 { margin: 0; font-size: 18px; line-height: 1.15; }
+.verdict p { margin: 0; color: var(--dim); font-size: 13.5px; }
+.stats { display: flex; gap: 14px; margin-top: 2px; }
+.stats div { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.stats b { display: block; font-size: 20px; letter-spacing: 0; color: var(--ink); }
+
+/* ---------- the strip of segments ---------- */
+.stripHead { display: flex; justify-content: space-between; align-items: center; color: var(--dim); font-size: 12px;
+  letter-spacing: .14em; text-transform: uppercase; font-weight: 700; padding: 0 2px; }
+@media (max-width: 519px) { .stripHead span:nth-child(2) { display: none; } }
+.strip { position: relative; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 520px) { .strip { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 900px) { .strip { grid-template-columns: repeat(8, 1fr); } }
+
+.seg { position: relative; padding: 8px; border-radius: 12px; border: 1px solid var(--line);
+  background: linear-gradient(#2d2639, #1f1a2a); transition: box-shadow .15s, opacity .2s, border-color .15s; }
+.seg::before { /* the corridor's back wall glow */
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,154,60,.10), transparent 65%); }
+.seg.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(240,201,135,.35), 0 0 24px rgba(255,154,60,.25); }
+.seg.done { opacity: .62; }
+.seg.fell { border-color: var(--bad); background: linear-gradient(#3a1f2a, #241420); opacity: 1; }
+.sh { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; position: relative; }
+.sh b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px;
+  background: #3b3248; border: 1px solid #5a4e70; }
+.sc { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; color: #1a1020;
+  background: hsl(var(--h) 62% 62%); }
+
+.slot { position: relative; display: grid; place-items: center; text-align: center; border-radius: 10px;
+  touch-action: none; user-select: none; -webkit-user-select: none; }
+.enc { height: 96px; border: 2px dashed #5a4e70; background: rgba(10,6,20,.35); color: #6f6483; font-size: 11px;
+  font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.enc.filled { border-style: solid; border-color: #6b5c85; color: var(--ink);
+  background: radial-gradient(ellipse at 50% 85%, rgba(255,154,60,.18), rgba(10,6,20,.45) 70%); cursor: grab; }
+.enc.filled.foe { border-color: #6a8f5c; }
+.enc.filled.rest { border-color: #4fb98a; background: radial-gradient(ellipse at 50% 85%, rgba(111,240,139,.2), rgba(10,6,20,.45) 70%); }
+.enc svg { width: 52px; height: 52px; }
+.enc .nm { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-top: -2px; }
+.enc .plus { font-size: 24px; line-height: 1; opacity: .7; }
+
+.lane { margin-top: 8px; position: relative; }
+.lane .lbl { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: #7d7192; margin-bottom: 3px;
+  display: flex; justify-content: space-between; }
+.cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.cell { aspect-ratio: 1; border: 1.5px dashed #54496a; background: rgba(10,6,20,.35); color: #6f6483;
+  font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.cell.filled { border-style: solid; border-color: #7b6a99; background: rgba(60,48,84,.55); cursor: grab; }
+.cell svg { width: 70%; height: 70%; }
+.cell.stand::after { /* where the orc will be standing */
+  content: ""; position: absolute; inset: 3px; border-radius: 50%; border: 1.5px dashed rgba(111,174,90,.6); pointer-events: none; }
+.cell.filled.stand::after { inset: 1px; }
+
+.slot.target { border-color: var(--gold) !important; border-style: solid; animation: pulse 1s ease-in-out infinite; }
+.slot.over { background: rgba(240,201,135,.28) !important; transform: scale(1.04); }
+.slot.lifting { opacity: .25; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(240,201,135,.0); } 50% { box-shadow: 0 0 0 4px rgba(240,201,135,.28); } }
+
+.sf { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); font-size: 11.5px; color: var(--dim);
+  display: flex; justify-content: space-between; gap: 4px; min-height: 22px; }
+.sf em { font-style: normal; font-weight: 800; }
+.sf .lo { color: #ff9a8f; } .sf .hi { color: var(--heal); }
+
+.knight { position: absolute; z-index: 5; width: 38px; height: 38px; margin: -14px 0 0 -19px; pointer-events: none;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.6)); display: none; }
+.knight .hp { position: absolute; left: 50%; top: -18px; transform: translateX(-50%); font-size: 12px; font-weight: 900;
+  color: var(--heal); -webkit-text-stroke: 3px rgba(20,8,30,.9); paint-order: stroke fill; white-space: nowrap; }
+.knight.dead .hp { color: var(--bad); }
+
+/* ---------- the hand dock ---------- */
+.dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(rgba(18,14,26,.86), rgba(13,10,20,.97)); border-top: 1px solid var(--line);
+  backdrop-filter: blur(6px); transition: background .15s; }
+.dock.over { background: linear-gradient(rgba(70,40,60,.9), rgba(40,18,36,.98)); }
+.dockIn { max-width: 1120px; margin: 0 auto; display: grid; gap: 6px; }
+.hint { min-height: 20px; font-size: 13px; color: var(--dim); display: flex; gap: 8px; align-items: center; }
+.hint b { color: var(--gold); }
+.hint .x { margin-left: auto; padding: 2px 10px; border-radius: 999px; border: 1px solid #5a4e70; background: transparent;
+  font-size: 12px; font-weight: 700; color: var(--dim); }
+.groups { display: flex; gap: 14px; align-items: flex-end; justify-content: center; }
+.group { display: grid; gap: 3px; }
+.group > small { font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: #8a7ea0; font-weight: 700; padding-left: 2px; }
+.tiles { display: flex; gap: 6px; }
+.sep { align-self: stretch; width: 1px; background: var(--line); margin-bottom: 2px; }
+.tile { position: relative; width: 62px; padding: 6px 2px 4px; border-radius: 10px; border: 1.5px solid #5a4e70;
+  background: linear-gradient(#352d45, #261f33); text-align: center; touch-action: none; user-select: none;
+  -webkit-user-select: none; cursor: grab; transition: transform .1s, border-color .1s; }
+.tile svg { width: 34px; height: 34px; margin: 0 auto; }
+.tile .nm { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; margin-top: 1px; }
+.tile .ct { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  display: grid; place-items: center; font-size: 11px; font-weight: 900; background: var(--gold); color: #2a1608;
+  border: 2px solid #120e1a; }
+.tile.armed { border-color: var(--gold); transform: translateY(-4px); box-shadow: 0 0 0 2px rgba(240,201,135,.4), 0 8px 18px rgba(0,0,0,.4); }
+.tile.none { opacity: .38; cursor: default; filter: grayscale(.6); }
+.tile.none .ct { background: #5a4e70; color: #ddd; }
+@media (max-width: 460px) {
+  .groups { gap: 8px; } .tiles { gap: 4px; } .tile { width: 49px; padding: 5px 0 3px; }
+  .tile svg { width: 28px; height: 28px; } .tile .nm { font-size: 9px; letter-spacing: 0; }
+}
+
+.ghost { position: fixed; z-index: 99; pointer-events: none; width: 60px; height: 60px; margin: -42px 0 0 -30px;
+  filter: drop-shadow(0 10px 10px rgba(0,0,0,.55)); transform: rotate(-6deg); }
+.foot { text-align: center; color: #7d7192; font-size: 12px; padding: 4px 8px; }
+.foot code { color: var(--dim); }
+@media (prefers-reduced-motion: reduce) { .slot.target { animation: none; } }
+</style>
+</head>
+<body>
+
+<!-- icon sprites: drawn in code, same spirit as the rest of Fantasia -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-orc" viewBox="0 0 48 48">
+    <path d="M9 21 L1 11 L15 16Z M39 21 L47 11 L33 16Z" fill="#558f45"/>
+    <ellipse cx="24" cy="26" rx="14.5" ry="15.5" fill="#6fae5a"/>
+    <path d="M11 21 Q24 13 37 21 L37 24.5 Q24 18 11 24.5Z" fill="#3f6b33"/>
+    <circle cx="18" cy="25" r="2.4" fill="#ffe27a"/><circle cx="30" cy="25" r="2.4" fill="#ffe27a"/>
+    <circle cx="18" cy="25" r="1" fill="#2a1608"/><circle cx="30" cy="25" r="1" fill="#2a1608"/>
+    <path d="M16 35 Q24 39 32 35" stroke="#2d4a24" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M17.5 35.5 L15.5 42 L21 36.5Z M30.5 35.5 L32.5 42 L27 36.5Z" fill="#f4ecd8"/>
+  </symbol>
+  <symbol id="i-brute" viewBox="0 0 48 48">
+    <path d="M7 19 L1 5 L17 13Z M41 19 L47 5 L31 13Z" fill="#eadfc4"/>
+    <ellipse cx="24" cy="27" rx="18" ry="17" fill="#8c6a4a"/>
+    <path d="M6 24 Q24 4 42 24 L42 19 Q24 -1 6 19Z" fill="#59595f"/>
+    <path d="M9 22 Q24 11 39 22 L39 27 Q24 17 9 27Z" fill="#3d2a1c"/>
+    <circle cx="17.5" cy="27" r="2.6" fill="#ff7a5c"/><circle cx="30.5" cy="27" r="2.6" fill="#ff7a5c"/>
+    <path d="M14 20 L21 24 M34 20 L27 24" stroke="#1c120a" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M30 33 L36 41" stroke="#4a2c26" stroke-width="2" stroke-linecap="round"/>
+    <path d="M15 37 Q24 42 33 37" stroke="#2a1a10" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M17 37.5 L15 44 L21 39Z M31 37.5 L33 44 L27 39Z" fill="#f4ecd8"/>
+  </symbol>
+  <symbol id="i-shrine" viewBox="0 0 48 48">
+    <path d="M7 44 V24 Q7 5 24 5 Q41 5 41 24 V44Z" fill="#4d4560"/>
+    <path d="M7 44 V24 Q7 5 24 5" fill="none" stroke="#6b6082" stroke-width="2"/>
+    <path d="M14 44 V25 Q14 14 24 14 Q34 14 34 25 V44Z" fill="#1b1625"/>
+    <circle cx="24" cy="32" r="11" fill="#6ff08b" opacity=".22"/>
+    <path d="M24 41 C16 35 19 28 24 21 C29 28 32 35 24 41Z" fill="#7ff0b8"/>
+    <path d="M24 38 C20 34 22 30 24 27 C26 30 28 34 24 38Z" fill="#e8fff2"/>
+  </symbol>
+  <symbol id="i-potion" viewBox="0 0 48 48">
+    <path d="M19 7 h10 v10 l10 18 q3.5 9 -5 11 h-20 q-8.5 -2 -5 -11 l10 -18Z" fill="#cfd8ea" fill-opacity=".18" stroke="#cfd8ea" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M13.5 33 h21 l3 5.5 q2.4 6 -4 6.5 h-19 q-6.4 -.5 -4 -6.5z" fill="#ff5d73"/>
+    <circle cx="20" cy="38" r="1.8" fill="#ffd0d8" opacity=".8"/><circle cx="28" cy="41" r="1.2" fill="#ffd0d8" opacity=".8"/>
+    <rect x="18" y="3" width="12" height="6" rx="2" fill="#a8743f"/>
+  </symbol>
+  <symbol id="i-whet" viewBox="0 0 48 48">
+    <path d="M5 31 L33 17 L43 23 L15 38Z" fill="#7b7989"/>
+    <path d="M5 31 L33 17 L36 19 L8 33Z" fill="#b9b7c6"/>
+    <path d="M15 38 L43 23 L43 27 L15 42Z" fill="#5d5b6b"/>
+    <path d="M36 4 l2.2 5.6 5.6 2.2 -5.6 2.2 -2.2 5.6 -2.2 -5.6 -5.6 -2.2 5.6 -2.2z" fill="#ffd45e"/>
+    <path d="M14 25 l1 2.4 2.4 1 -2.4 1 -1 2.4 -1 -2.4 -2.4 -1 2.4 -1z" fill="#fff3c4"/>
+  </symbol>
+  <symbol id="i-spikes" viewBox="0 0 48 48">
+    <path d="M4 36 H44 L41 44 H7Z" fill="#4d4560"/>
+    <path d="M8 37 L14 12 L20 37Z M18 37 L24 7 L30 37Z M28 37 L34 12 L40 37Z" fill="#cbd0dc"/>
+    <path d="M14 12 L12 22 H16Z M24 7 L21.5 19 H26.5Z M34 12 L32 22 H36Z" fill="#d94b4b"/>
+  </symbol>
+  <symbol id="i-knight" viewBox="0 0 48 48">
+    <path d="M24 9 Q38 -1 45 9 Q35 7 25 14Z" fill="#d94b4b"/>
+    <path d="M10 44 V23 Q10 8 24 8 Q38 8 38 23 V44Z" fill="#a9b3cc"/>
+    <path d="M10 44 V23 Q10 8 24 8" fill="none" stroke="#e1e7f5" stroke-width="2.5"/>
+    <rect x="12" y="22" width="24" height="5" rx="1.5" fill="#14101c"/>
+    <path d="M24 8 V44" stroke="#7b86a3" stroke-width="2"/>
+  </symbol>
+</svg>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="title">
+      <div class="eyebrow">Hall of Blows</div>
+      <h1>Build the hall <span class="badge">MOCKUP</span></h1>
+    </div>
+    <button class="toggle" id="oracleBtn" aria-pressed="true" title="Show the forecast of Sir Cleave's life as you build"><span class="sw"></span>Oracle</button>
+    <button class="chip" id="exampleBtn">Example</button>
+    <button class="chip" id="clearBtn">Clear</button>
+    <button class="go" id="runBtn">Send Sir Cleave &#9654;</button>
+  </header>
+
+  <section class="panel oracle" id="oracle">
+    <div class="chartwrap">
+      <div class="chartHead"><b>Sir Cleave's life</b><span id="chartNote"></span></div>
+      <svg class="chart" id="chart" viewBox="0 0 800 170" role="img" aria-label="Forecast of Sir Cleave's life down the hall"></svg>
+    </div>
+    <div class="verdict" id="verdict"></div>
+  </section>
+
+  <div class="stripHead"><span>&#9654; Entrance</span><span>Segments walk in order</span><span>Exit &#9632;</span></div>
+  <section class="strip" id="strip"></section>
+  <div class="foot">Forecast = average damage, foes scale <code>&times;(1 + 0.08 &middot; segment)</code>. Not wired to <code>sim.js</code> yet.</div>
+</div>
+
+<div class="dock" id="dock">
+  <div class="dockIn">
+    <div class="hint" id="hint"></div>
+    <div class="groups" id="groups"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Hall Builder mockup. Pure UI + a tiny average-case forecast.
+   ============================================================ */
+const N = 8;                    // segments in a hall
+const SCALE_PER_SEG = 0.08;     // foes toughen with depth (swept: 0.18 killed even the example hall)
+const KNIGHT = { max: 100, dmg: 18, interval: 0.8, hitAt: 0.28, healOnKill: 40 };
+const ORC_OPEN = 0.6;           // orc's first swing starts this far into a fight (CONFIG.orcOpenDelay)
+
+const ENC = {
+  orc:    { kind: "enc", type: "foe",  name: "Orc",    icon: "i-orc",    hp: 80,  dmg: [5, 11],  interval: 1.5, hitAt: 0.5,
+            tip: "A plain orc. Fights from where it stands, and gets tougher the deeper it is." },
+  brute:  { kind: "enc", type: "foe",  name: "Brute",  icon: "i-brute",  hp: 150, dmg: [8, 16],  interval: 1.9, hitAt: 0.5,
+            tip: "Nearly twice the bulk and a heavier swing, but slower." },
+  shrine: { kind: "enc", type: "rest", name: "Shrine", icon: "i-shrine", heal: 30,
+            tip: "Sir Cleave stops to pray: +30 life. A breather, not a fight." },
+};
+const FLR = {
+  potion: { kind: "floor", name: "Potion",    icon: "i-potion", tip: "Sir Cleave walks over it: +18 life." },
+  whet:   { kind: "floor", name: "Whetstone", icon: "i-whet",   tip: "He sharpens in passing: +5 damage on his next fight." },
+  spikes: { kind: "floor", name: "Spikes",    icon: "i-spikes", tip: "Hurts whoever stands on it. Near or mid: -10 for Sir Cleave. Far cell (where the orc stands): -22 for the orc." },
+};
+const ALL = Object.assign({}, ENC, FLR);
+const HAND = { orc: 5, brute: 2, shrine: 2, potion: 3, whet: 2, spikes: 3 };
+const CELL_NAMES = ["near", "mid", "far"];
+
+const blank = () => Array.from({ length: N }, () => ({ enc: null, floor: [null, null, null] }));
+let slots = blank();
+let armed = null;                       // { kind, id } or null
+let oracleOn = true;
+let view = { mode: "idle", progress: 0, hpNow: KNIGHT.max, seg: -1 };   // idle | running | done
+
+const $ = (s) => document.querySelector(s);
+const icon = (id) => '<svg viewBox="0 0 48 48"><use href="#' + ALL[id].icon + '"/></svg>';
+
+/* ---------- the forecast ---------- */
+function simulate(layout) {
+  let hp = KNIGHT.max, buff = 0, kills = 0, minHp = KNIGHT.max, dead = null;
+  const pts = [{ x: 0, hp }];
+  const seg = [];
+  const push = (x) => { const v = Math.max(0, hp); pts.push({ x, hp: v }); minHp = Math.min(minHp, v); };
+  const heal = (a) => { hp = Math.min(KNIGHT.max, hp + a); };
+  for (let i = 0; i < layout.length; i++) {
+    const s = layout[i], enc = s.enc && ENC[s.enc], foe = enc && enc.type === "foe";
+    const info = { trough: null, end: null, reached: false };
+    seg.push(info);
+    if (dead) continue;
+    info.reached = true;
+    const walk = (c) => {
+      const f = s.floor[c];
+      if (f === "potion") heal(18); else if (f === "whet") buff += 5; else if (f === "spikes") hp -= 10;
+    };
+    walk(0); walk(1);
+    push(i + 0.2);
+    if (hp <= 0) { dead = i; info.trough = 0; info.end = 0; continue; }
+    if (foe) {
+      const scale = 1 + SCALE_PER_SEG * i;
+      let oHp = enc.hp * scale - (s.floor[2] === "spikes" ? 22 : 0);
+      const od = ((enc.dmg[0] + enc.dmg[1]) / 2) * scale, kd = KNIGHT.dmg + buff;
+      buff = 0;
+      let tk = KNIGHT.hitAt, to = ORC_OPEN + enc.hitAt, killed = false;
+      for (;;) {
+        if (tk <= to) { oHp -= kd; if (oHp <= 0) { killed = true; break; } tk += KNIGHT.interval; }
+        else { hp -= od; if (hp <= 0) break; to += enc.interval; }
+      }
+      push(i + 0.55);
+      info.trough = Math.max(0, hp);
+      if (!killed) { dead = i; info.end = 0; continue; }
+      kills++; heal(KNIGHT.healOnKill); push(i + 0.72);
+      const f = s.floor[2];
+      if (f === "potion") heal(18); else if (f === "whet") buff += 5;
+    } else {
+      if (enc && enc.type === "rest") heal(enc.heal);
+      walk(2);
+      if (hp <= 0) { dead = i; info.trough = 0; info.end = 0; push(i + 0.9); continue; }
+    }
+    push(i + 1);
+    info.end = hp;
+    if (info.trough == null) info.trough = hp;
+  }
+  return { pts, seg, dead, kills, minHp, endHp: dead == null ? hp : 0 };
+}
+
+function judge(r) {
+  const placed = slots.some((s) => s.enc || s.floor.some(Boolean));
+  if (!placed) return { stars: 0, title: "An empty hall", line: "Place tiles from your hand, then send Sir Cleave down it." };
+  if (r.dead != null) return { stars: 0, title: "Sir Cleave falls in segment " + (r.dead + 1), line: "Too cruel, or too cruel too soon. Add a shrine or a potion before the wall." };
+  if (r.kills === 0) return { stars: 0, title: "A quiet stroll", line: "Nothing to fight. Give him an orc." };
+  let stars = 1;
+  if (r.kills >= 4) stars++;
+  if (r.minHp <= 35) stars++;
+  const t = ["", "He walked it", "A decent night's work", "Spectacular"][stars];
+  const l = stars === 3 ? "He staggers out with " + Math.round(r.endHp) + " life after dipping to " + Math.round(r.minHp) + "."
+    : stars === 2 ? (r.kills >= 4 ? "Plenty of orcs, but he never sweated. Push him harder." : "A close call, but only " + r.kills + " kills. Give him more to hit.")
+    : "Safe and forgettable. More orcs, or less mercy.";
+  return { stars, title: t, line: l };
+}
+
+/* ---------- rendering ---------- */
+function remaining(id) {
+  let used = 0;
+  for (const s of slots) { if (s.enc === id) used++; for (const f of s.floor) if (f === id) used++; }
+  return HAND[id] - used;
+}
+
+function renderStrip() {
+  const r = simulate(slots);
+  const showFx = oracleOn || view.mode === "done";
+  $("#strip").innerHTML = slots.map((s, i) => {
+    const t = i / (N - 1), enc = s.enc && ENC[s.enc], info = r.seg[i];
+    const cls = ["seg"];
+    if (view.mode === "running" && view.seg === i) cls.push("active");
+    if (view.mode !== "idle" && view.seg > i) cls.push("done");
+    if (view.mode !== "idle" && r.dead === i && (view.mode === "done" || view.seg >= i)) cls.push("fell");
+    const encHtml = enc
+      ? '<div class="slot enc filled ' + enc.type + '" data-slot data-kind="enc" data-seg="' + i + '" data-tile data-src="slot" data-id="' + s.enc + '">' +
+        icon(s.enc) + '<span class="nm">' + enc.name + "</span></div>"
+      : '<div class="slot enc" data-slot data-kind="enc" data-seg="' + i + '"><span class="plus">+</span><span>encounter</span></div>';
+    const cells = s.floor.map((f, c) => {
+      const stand = c === 2 && enc && enc.type === "foe" ? " stand" : "";
+      return f
+        ? '<div class="slot cell filled' + stand + '" data-slot data-kind="floor" data-seg="' + i + '" data-cell="' + c + '" data-tile data-src="slot" data-id="' + f + '" title="' + ALL[f].name + '">' + icon(f) + "</div>"
+        : '<div class="slot cell' + stand + '" data-slot data-kind="floor" data-seg="' + i + '" data-cell="' + c + '">' + CELL_NAMES[c] + "</div>";
+    }).join("");
+    let foot = '<span style="opacity:.5">&mdash;</span>';
+    if (showFx && info.reached) {
+      const lo = Math.round(info.trough), end = Math.round(info.end);
+      foot = r.dead === i ? '<em class="lo">falls &#10005;</em>'
+        : '<span>low <em class="' + (lo <= 35 ? "lo" : "") + '">' + lo + '</em></span><span>out <em class="' + (end >= info.trough + 25 ? "hi" : "") + '">' + end + "</em></span>";
+    }
+    return '<div class="' + cls.join(" ") + '" data-seg="' + i + '">' +
+      '<div class="sh"><b>' + (i + 1) + '</b><span class="sc" style="--h:' + Math.round(150 - 150 * t) + '" title="Foes in this segment are this much tougher">&times;' + (1 + SCALE_PER_SEG * i).toFixed(2) + "</span></div>" +
+      encHtml +
+      '<div class="lane"><div class="lbl"><span>floor</span><span>walk &rarr;</span></div><div class="cells">' + cells + "</div></div>" +
+      '<div class="sf">' + foot + "</div></div>";
+  }).join("") + '<div class="knight" id="knight"><svg viewBox="0 0 48 48"><use href="#i-knight"/></svg><span class="hp"></span></div>';
+  markTargets();
+}
+
+function chartSvg(r) {
+  const cw = $("#chart").clientWidth;           // 1 SVG unit = 1 CSS px, so labels stay readable on a phone
+  const W = Math.max(300, cw || 800), H = W < 520 ? 150 : 170, L = 28, R = 8, T = 12, B = 22;
+  $("#chart").setAttribute("viewBox", "0 0 " + W + " " + H);
+  const X = (x) => L + (x / N) * (W - L - R);
+  const Y = (hp) => T + (1 - hp / 100) * (H - T - B);
+  const path = (pts) => pts.map((p, i) => (i ? "L" : "M") + X(p.x).toFixed(1) + " " + Y(p.hp).toFixed(1)).join(" ");
+  let g = '<defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd45e" stop-opacity=".30"/><stop offset="1" stop-color="#ffd45e" stop-opacity="0"/></linearGradient>' +
+    '<clipPath id="clip"><rect x="0" y="0" width="' + X(view.mode === "running" ? view.progress : N).toFixed(1) + '" height="' + H + '"/></clipPath></defs>';
+  g += '<rect x="' + L + '" y="' + Y(25) + '" width="' + (W - L - R) + '" height="' + (Y(0) - Y(25)) + '" fill="#ff5d5d" opacity=".12"/>';
+  [0, 25, 50, 75, 100].forEach((v) => {
+    g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#fff" stroke-opacity="' + (v === 25 ? ".22" : ".07") + '" ' + (v === 25 ? 'stroke-dasharray="4 4"' : "") + "/>";
+    g += '<text x="' + (L - 6) + '" y="' + (Y(v) + 3) + '" text-anchor="end">' + v + "</text>";
+  });
+  for (let i = 0; i < N; i++) {
+    g += '<line x1="' + X(i) + '" x2="' + X(i) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="#fff" stroke-opacity=".07"/>';
+    g += '<text x="' + X(i + 0.5) + '" y="' + (H - 6) + '" text-anchor="middle">' + (i + 1) + "</text>";
+  }
+  const hasRun = view.mode !== "idle";
+  if (!oracleOn && !hasRun) {
+    return g + '<text class="silent" x="' + W / 2 + '" y="' + (H / 2) + '">The Oracle is silent. Send Sir Cleave to find out.</text>';
+  }
+  const area = path(r.pts) + " L" + X(r.pts[r.pts.length - 1].x) + " " + Y(0) + " L" + X(0) + " " + Y(0) + "Z";
+  if (hasRun) {
+    if (oracleOn) g += '<path d="' + path(r.pts) + '" fill="none" stroke="#ffd45e" stroke-opacity=".25" stroke-width="2" stroke-dasharray="5 5"/>';
+    g += '<g clip-path="url(#clip)"><path d="' + area + '" fill="url(#fill)"/><path d="' + path(r.pts) + '" fill="none" stroke="#ffd45e" stroke-width="3" stroke-linejoin="round"/></g>';
+  } else {
+    g += '<path d="' + area + '" fill="url(#fill)" opacity=".6"/><path d="' + path(r.pts) + '" fill="none" stroke="#ffd45e" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="6 5"/>';
+  }
+  r.pts.forEach((p) => {
+    if (p.x % 1 > 0.5 && p.x % 1 < 0.6 && (!hasRun || view.mode === "done" || p.x <= view.progress)) {
+      g += '<circle cx="' + X(p.x) + '" cy="' + Y(p.hp) + '" r="4.5" fill="' + (p.hp <= 25 ? "#ff5d5d" : "#ffd45e") + '" stroke="#120e1a" stroke-width="2"/>';
+    }
+  });
+  if (r.dead != null && (!hasRun || view.mode === "done")) {
+    const last = r.pts[r.pts.length - 1];
+    g += '<text x="' + X(last.x) + '" y="' + (Y(0) - 8) + '" text-anchor="middle" style="fill:#ff5d5d;font-size:16px;font-weight:900">&#10005;</text>';
+  }
+  if (view.mode === "running") g += '<line x1="' + X(view.progress) + '" x2="' + X(view.progress) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="#fff" stroke-opacity=".5"/>';
+  return g;
+}
+
+function renderOracle() {
+  const r = simulate(slots);
+  $("#chart").innerHTML = chartSvg(r);
+  $("#chartNote").innerHTML = view.mode === "running"
+    ? "Sir Cleave <em>" + Math.round(view.hpNow) + "</em> / 100"
+    : oracleOn ? "forecast &middot; average rolls" : "";
+  const v = $("#verdict");
+  const hasRun = view.mode === "done";
+  if (!oracleOn && !hasRun) {
+    v.innerHTML = '<div class="stars"><i>&#9733;</i><i>&#9733;</i><i>&#9733;</i></div><h2>Verdict hidden</h2><p>Turn the Oracle on to see how the hall will play before you send him.</p>';
+    return;
+  }
+  if (view.mode === "running") {
+    v.innerHTML = '<div class="stars"><i>&#9733;</i><i>&#9733;</i><i>&#9733;</i></div><h2>Sir Cleave is walking&hellip;</h2><p>Segment ' + Math.max(1, view.seg + 1) + " of " + N + ".</p>";
+    return;
+  }
+  const j = judge(r);
+  v.innerHTML = '<div class="stars">' + [1, 2, 3].map((n) => "<i" + (n <= j.stars ? ' class="on"' : "") + ">&#9733;</i>").join("") + "</div>" +
+    "<h2>" + j.title + "</h2><p>" + j.line + "</p>" +
+    '<div class="stats"><div>Kills<b>' + r.kills + '</b></div><div>Lowest<b>' + Math.round(r.minHp) + '</b></div><div>Ends with<b>' + (r.dead != null ? "&mdash;" : Math.round(r.endHp)) + "</b></div></div>";
+}
+
+function renderDock() {
+  const grp = (label, kind) =>
+    '<div class="group"><small>' + label + '</small><div class="tiles">' +
+    Object.keys(ALL).filter((id) => ALL[id].kind === kind).map((id) => {
+      const n = remaining(id);
+      return '<div class="tile' + (n <= 0 ? " none" : "") + '" data-tile data-src="hand" data-kind="' + kind + '" data-id="' + id + '">' +
+        '<span class="ct">' + Math.max(0, n) + "</span>" + icon(id) + '<span class="nm">' + ALL[id].name + "</span></div>";
+    }).join("") + "</div></div>";
+  $("#groups").innerHTML = grp("Encounter", "enc") + '<div class="sep"></div>' + grp("Floor", "floor");
+  renderHint();
+  markTargets();
+}
+
+function renderHint(hover) {
+  const h = $("#hint");
+  const id = armed ? armed.id : hover;
+  if (armed) {
+    h.innerHTML = "<span>Placing <b>" + ALL[armed.id].name + "</b>: " + ALL[armed.id].tip + "</span>" +
+      "<button class=\"x\" id=\"cancelBtn\">Put down (Esc)</button>";
+  } else if (hover) {
+    h.innerHTML = "<span><b>" + ALL[hover].name + "</b>: " + ALL[hover].tip + "</span>";
+  } else {
+    h.innerHTML = "<span>Tap a tile, then a slot, or drag it. Tap a placed tile to lift it.</span>";
+  }
+}
+
+function markTargets() {
+  document.querySelectorAll("[data-slot]").forEach((el) => el.classList.toggle("target", !!armed && armed.kind === el.dataset.kind));
+  document.querySelectorAll('.tile[data-src="hand"]').forEach((el) => el.classList.toggle("armed", !!armed && armed.id === el.dataset.id));
+}
+
+function renderAll() { renderStrip(); renderDock(); renderOracle(); }
+
+/* ---------- editing ---------- */
+function getSlot(seg, cell, kind) { return kind === "enc" ? slots[seg].enc : slots[seg].floor[cell]; }
+function setSlot(seg, cell, kind, id) { if (kind === "enc") slots[seg].enc = id; else slots[seg].floor[cell] = id; }
+function invalidate() { view = { mode: "idle", progress: 0, hpNow: KNIGHT.max, seg: -1 }; }
+
+function place(el) {   // put the armed tile into the slot element
+  if (!armed || armed.kind !== el.dataset.kind) return false;
+  const seg = +el.dataset.seg, cell = +(el.dataset.cell || 0);
+  setSlot(seg, cell, armed.kind, null);                   // a replaced tile simply returns to the hand
+  if (remaining(armed.id) <= 0) return false;
+  setSlot(seg, cell, armed.kind, armed.id);
+  invalidate();
+  if (remaining(armed.id) <= 0) armed = null;
+  return true;
+}
+
+/* pointer handling: tap = arm / place / pick up, drag = carry a ghost */
+let down = null, ghost = null;
+document.addEventListener("pointerdown", (e) => {
+  if ($("#app").classList.contains("locked") || e.button > 0) return;
+  const t = e.target.closest("[data-tile]");
+  if (!t) return;
+  down = { x: e.clientX, y: e.clientY, el: t, src: t.dataset.src, kind: t.dataset.kind, id: t.dataset.id, dragging: false };
+});
+document.addEventListener("pointermove", (e) => {
+  if (!down) {
+    const t = e.target.closest && e.target.closest('.tile[data-src="hand"]');
+    if (!armed && e.pointerType === "mouse") renderHint(t ? t.dataset.id : null);
+    return;
+  }
+  if (!down.dragging && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 7) {
+    if (down.src === "hand" && remaining(down.id) <= 0) { down = null; return; }
+    down.dragging = true;
+    armed = { kind: down.kind, id: down.id };
+    if (down.src === "slot") {
+      const d = down.el.dataset;
+      setSlot(+d.seg, +(d.cell || 0), d.kind, null);
+      down.el.classList.add("lifting");
+    }
+    ghost = document.createElement("div");
+    ghost.className = "ghost";
+    ghost.innerHTML = icon(armed.id);
+    document.body.appendChild(ghost);
+    markTargets();
+    renderHint();
+  }
+  if (down.dragging) {
+    ghost.style.left = e.clientX + "px";
+    ghost.style.top = e.clientY + "px";
+    document.querySelectorAll(".over").forEach((n) => n.classList.remove("over"));
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const slot = under && under.closest("[data-slot]");
+    if (slot && slot.dataset.kind === armed.kind) slot.classList.add("over");
+    $("#dock").classList.toggle("over", !!(under && under.closest("#dock")));
+  }
+});
+function endPointer(e) {
+  if (!down) return;
+  const d = down; down = null;
+  if (ghost) { ghost.remove(); ghost = null; }
+  $("#dock").classList.remove("over");
+  document.querySelectorAll(".over").forEach((n) => n.classList.remove("over"));
+  if (d.dragging) {
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const slot = under && under.closest("[data-slot]");
+    if (e.type === "pointerup" && slot && slot.dataset.kind === armed.kind) place(slot);
+    armed = null;                       // dropped on the dock or in empty space: back to the hand
+    invalidate(); renderAll();
+    return;
+  }
+  if (e.type === "pointercancel") return;
+  // a tap
+  if (d.src === "hand") {
+    armed = armed && armed.id === d.id ? null : remaining(d.id) > 0 ? { kind: d.kind, id: d.id } : armed;
+  } else {
+    const dd = d.el.dataset;
+    if (armed && armed.kind === d.kind) place(d.el);
+    else { setSlot(+dd.seg, +(dd.cell || 0), dd.kind, null); armed = { kind: d.kind, id: d.id }; invalidate(); }
+  }
+  renderAll();
+}
+document.addEventListener("pointerup", endPointer);
+document.addEventListener("pointercancel", endPointer);
+
+// empty slots are plain taps
+document.addEventListener("click", (e) => {
+  if ($("#app").classList.contains("locked")) return;
+  const el = e.target.closest("[data-slot]");
+  if (!el || el.hasAttribute("data-tile") || !armed) return;
+  if (place(el)) renderAll();
+});
+document.addEventListener("click", (e) => { if (e.target.id === "cancelBtn") { armed = null; renderAll(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && armed) { armed = null; renderAll(); } });
+
+/* ---------- buttons ---------- */
+function setOracle(on) { oracleOn = on; $("#oracleBtn").setAttribute("aria-pressed", String(on)); renderAll(); }
+$("#oracleBtn").addEventListener("click", () => setOracle(!oracleOn));
+$("#clearBtn").addEventListener("click", () => { slots = blank(); armed = null; invalidate(); renderAll(); });
+$("#exampleBtn").addEventListener("click", () => { slots = example(); armed = null; invalidate(); renderAll(); });
+
+function example() {
+  const s = blank();
+  s[0].enc = "orc";
+  s[1].floor = ["potion", null, null];
+  s[2].enc = "orc"; s[2].floor = [null, "whet", "spikes"];
+  s[3].enc = "shrine";
+  s[4].enc = "orc"; s[4].floor = [null, null, "potion"];
+  s[5].enc = "brute"; s[5].floor = ["spikes", null, "spikes"];
+  s[6].enc = "orc";
+  return s;
+}
+
+/* ---------- the run (a preview of what the sim would play) ---------- */
+let raf = 0;
+function stopRun(done) {
+  cancelAnimationFrame(raf);
+  $("#app").classList.remove("locked");
+  const b = $("#runBtn"); b.textContent = "Send Sir Cleave ▶"; b.removeAttribute("data-run");
+  if (done) view.mode = "done"; else invalidate();
+  renderAll();
+}
+function hpAt(r, x) {
+  const p = r.pts;
+  if (x <= 0) return p[0].hp;
+  for (let i = 1; i < p.length; i++) if (x <= p[i].x) { const a = p[i - 1], b = p[i], k = (x - a.x) / Math.max(1e-6, b.x - a.x); return a.hp + (b.hp - a.hp) * k; }
+  return p[p.length - 1].hp;
+}
+$("#runBtn").addEventListener("click", () => {
+  if (view.mode === "running") { stopRun(false); return; }
+  armed = null;
+  const r = simulate(slots);
+  const endX = r.dead != null ? r.pts[r.pts.length - 1].x : N;
+  view = { mode: "running", progress: 0, hpNow: KNIGHT.max, seg: 0 };
+  $("#app").classList.add("locked");
+  const b = $("#runBtn"); b.textContent = "Stop ■"; b.setAttribute("data-run", "1");
+  renderAll();
+  const knight = $("#knight"); knight.style.display = "block";
+  const t0 = performance.now(), SEG_MS = 1100;
+  let lastSeg = -1;
+  const tick = (now) => {
+    const x = Math.min(endX, ((now - t0) / SEG_MS));
+    view.progress = x; view.hpNow = hpAt(r, x); view.seg = Math.min(N - 1, Math.floor(x));
+    if (view.seg !== lastSeg) { lastSeg = view.seg; renderStrip(); renderOracle(); }
+    const k = $("#knight"), card = document.querySelector('.seg[data-seg="' + view.seg + '"]');
+    if (k && card) {
+      const sr = $("#strip").getBoundingClientRect(), cr = card.getBoundingClientRect(), lr = card.querySelector(".cells").getBoundingClientRect();
+      k.style.display = "block";
+      k.style.left = cr.left - sr.left + 12 + (cr.width - 24) * (x - view.seg) + "px";
+      k.style.top = lr.top - sr.top + lr.height / 2 + "px";
+      k.classList.toggle("dead", view.hpNow <= 0.5);
+      k.querySelector(".hp").textContent = Math.round(view.hpNow);
+    }
+    $("#chart").innerHTML = chartSvg(r);
+    $("#chartNote").innerHTML = "Sir Cleave <em>" + Math.round(view.hpNow) + "</em> / 100";
+    if (x >= endX) { setTimeout(() => stopRun(true), 450); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+});
+
+// handy for headless checks
+window.__hall = { simulate, judge, get slots() { return slots; }, set slots(v) { slots = v; renderAll(); }, example, N };
+
+slots = example();
+renderAll();
+window.addEventListener("resize", () => { if (view.mode !== "running") renderOracle(); });
+</script>
+</body>
+</html>
