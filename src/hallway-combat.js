@@ -1,10 +1,12 @@
 /*
- * Hall of Blows — step one of a diorama-style action RPG.
+ * Hall of Blows — a diorama-style action RPG, now a roguelike deck-builder.
  *
- * A knight walks down a torch-lit hallway. An orc fades in far down the
- * corridor, the two close to melee reach, and they trade in-place swings on
- * their own timers with floating damage numbers. The knight is overpowered;
- * when the orc falls he walks on and the loop repeats.
+ * A knight walks an endless torch-lit hallway and trades in-place swings with
+ * whatever he meets. The player never steers him: three room cards are always
+ * on offer, and the one you pick appears straight ahead of him. Risky rooms pay
+ * more points and add better cards to your deck; if Sir Cleave falls, the run
+ * is over. (The sim's classic orc-after-orc loop still exists; this view runs
+ * the sim in deck mode.)
  *
  * The rules live in src/hallway-combat/sim.js (pure, unit-tested). This file
  * is the view: three.js imported on demand (like Slopeman / Gloom Hollow 3D)
@@ -36,7 +38,7 @@
   var THREE = null;
 
   const Sim = window.HallwayCombatSim;
-  const BEST_KEY = "hall-of-blows-best";
+  const BEST_KEY = "hall-of-blows-deck-best"; // best score (the old key counted kills)
   const STEP = 1 / 60;
 
   /* ---------- layout / look ---------- */
@@ -109,16 +111,107 @@
   .hc-dmg { font-size: 24px; }
   .hc-dmg--knight { font-size: 21px; }
 }
-@media (prefers-reduced-motion: reduce) { .hc-dmg { animation-duration: 1.4s; } }
+.hc-dmg--score { color: #ffd45e; font-size: 24px; }
+.hc-dmg--boon { color: #8fd4ff; font-size: 22px; }
+.hc-sub { font-size: 13px; font-weight: 600; opacity: 0.8; letter-spacing: 0.04em; }
+.hc-tray { position: absolute; left: 0; right: 0; bottom: max(10px, env(safe-area-inset-bottom)); display: flex;
+  flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+.hc-cards { display: flex; gap: 10px; justify-content: center; pointer-events: auto; }
+.hc-card { position: relative; width: min(31vw, 134px); padding: 22px 6px 9px; border-radius: 14px; cursor: pointer;
+  border: 2px solid #6b5c85; background: linear-gradient(#3b3252, #241d34); color: #fff; text-align: center;
+  font: inherit; box-shadow: 0 8px 20px rgba(0,0,0,0.45); animation: hc-deal 0.3s ease-out backwards;
+  transition: transform 0.12s, border-color 0.12s; touch-action: manipulation; }
+.hc-card:hover, .hc-card:focus-visible { transform: translateY(-7px); border-color: #f0c987; outline: none; }
+.hc-card:active { transform: translateY(-2px) scale(0.98); }
+.hc-card[data-kind="foe"] { border-color: #6f9a5f; }
+.hc-card[data-kind="rest"] { border-color: #4fb98a; }
+.hc-card[data-kind="boon"] { border-color: #5aa0d8; }
+.hc-card .k { position: absolute; top: 5px; left: 9px; font-size: 11px; font-weight: 800; opacity: 0.5; }
+.hc-card .ico { width: 46px; height: 46px; margin: 0 auto 2px; display: block; }
+.hc-card .n { font-size: 13px; font-weight: 800; letter-spacing: 0.03em; line-height: 1.1; }
+.hc-card .d { display: flex; justify-content: center; gap: 3px; margin: 5px 0 4px; height: 8px; }
+.hc-pip { width: 8px; height: 8px; border-radius: 50%; background: #ff5d5d; box-shadow: 0 0 6px rgba(255,93,93,0.7); }
+.hc-pip.off { background: #4a4258; box-shadow: none; }
+.hc-card .r { font-size: 14px; font-weight: 900; color: #ffd45e; }
+.hc-card .r.safe { color: #7fe8b0; font-size: 12.5px; }
+.hc-card .x { font-size: 11px; font-weight: 700; color: #b9a8d8; }
+.hc-card .b { font-size: 10.5px; opacity: 0.7; line-height: 1.2; margin-top: 3px; }
+@keyframes hc-deal { from { opacity: 0; transform: translateY(26px) rotate(-3deg); } }
+.hc-ico--frenzied { filter: hue-rotate(-95deg) saturate(1.7); }
+.hc-timer { width: min(94vw, 410px); height: 5px; border-radius: 3px; background: rgba(8,5,16,0.7); overflow: hidden; }
+.hc-timer i { display: block; height: 100%; width: 100%; background: linear-gradient(#ffd98f, #f0b04f); }
+.hc-next { display: none; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; font-size: 14px;
+  font-weight: 700; background: rgba(20,14,34,0.74); border: 1px solid rgba(255,255,255,0.28); color: #fff;
+  animation: hc-deal 0.25s ease-out; }
+.hc-next svg { width: 24px; height: 24px; }
+.hc-toast { position: absolute; left: 50%; bottom: 220px; transform: translateX(-50%); white-space: nowrap; font-weight: 800;
+  font-size: 15px; color: #fff; padding: 6px 14px; border-radius: 999px; background: rgba(60,36,100,0.85);
+  border: 1px solid #b9a8d8; animation: hc-toast 2.2s ease-out forwards; }
+@keyframes hc-toast { 0% { opacity: 0; margin-bottom: -10px; } 12% { opacity: 1; margin-bottom: 0; }
+  80% { opacity: 1; } 100% { opacity: 0; margin-bottom: 26px; } }
+.hc-over { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(8,4,16,0.6); pointer-events: auto; animation: hc-fade 0.5s ease-out; }
+.hc-over[hidden] { display: none; }
+@keyframes hc-fade { from { opacity: 0; } }
+.hc-over-card { width: min(92vw, 340px); text-align: center; color: #fff; padding: 22px 20px 20px; border-radius: 18px;
+  background: linear-gradient(#352d4a, #1d1729); border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+.hc-over-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; color: #f0c987; }
+.hc-over-card h2 { margin: 4px 0 6px; font-size: 24px; }
+.hc-over-card p { margin: 0 0 12px; font-size: 14px; opacity: 0.8; }
+.hc-over-stats { display: flex; justify-content: center; gap: 22px; margin-bottom: 8px; }
+.hc-over-stats div { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
+.hc-over-stats b { display: block; font-size: 24px; letter-spacing: 0; }
+.hc-over-best { min-height: 20px; font-size: 14px; font-weight: 800; color: #ffd45e; margin-bottom: 12px; }
+.hc-btn { padding: 10px 18px; border-radius: 999px; border: 0; cursor: pointer; font: inherit; font-weight: 800; font-size: 15px;
+  background: #f0c987; color: #2a1608; margin: 0 4px; }
+.hc-btn--ghost { background: rgba(255,255,255,0.14); color: #fff; }
+@media (max-width: 600px) { .hc-card .b { display: none; } .hc-card { padding-top: 20px; } .hc-toast { bottom: 190px; font-size: 13px; } }
+@media (prefers-reduced-motion: reduce) { .hc-dmg { animation-duration: 1.4s; } .hc-card, .hc-next { animation: none; } }
 `;
+
+  // room-card art, drawn in code (shared by the tray and the "next room" chip)
+  const HUD_ICONS =
+    '<svg width="0" height="0" style="position:absolute" aria-hidden="true">' +
+    '<symbol id="hc-i-orc" viewBox="0 0 48 48"><path d="M9 21 L1 11 L15 16Z M39 21 L47 11 L33 16Z" fill="#558f45"/>' +
+    '<ellipse cx="24" cy="26" rx="14.5" ry="15.5" fill="#6fae5a"/><path d="M11 21 Q24 13 37 21 L37 24.5 Q24 18 11 24.5Z" fill="#3f6b33"/>' +
+    '<circle cx="18" cy="25" r="2.4" fill="#ffe27a"/><circle cx="30" cy="25" r="2.4" fill="#ffe27a"/>' +
+    '<circle cx="18" cy="25" r="1" fill="#2a1608"/><circle cx="30" cy="25" r="1" fill="#2a1608"/>' +
+    '<path d="M16 35 Q24 39 32 35" stroke="#2d4a24" stroke-width="2.2" fill="none" stroke-linecap="round"/>' +
+    '<path d="M17.5 35.5 L15.5 42 L21 36.5Z M30.5 35.5 L32.5 42 L27 36.5Z" fill="#f4ecd8"/></symbol>' +
+    '<symbol id="hc-i-brute" viewBox="0 0 48 48"><path d="M7 19 L1 5 L17 13Z M41 19 L47 5 L31 13Z" fill="#eadfc4"/>' +
+    '<ellipse cx="24" cy="27" rx="18" ry="17" fill="#8c6a4a"/><path d="M6 24 Q24 4 42 24 L42 19 Q24 -1 6 19Z" fill="#59595f"/>' +
+    '<path d="M9 22 Q24 11 39 22 L39 27 Q24 17 9 27Z" fill="#3d2a1c"/>' +
+    '<circle cx="17.5" cy="27" r="2.6" fill="#ff7a5c"/><circle cx="30.5" cy="27" r="2.6" fill="#ff7a5c"/>' +
+    '<path d="M14 20 L21 24 M34 20 L27 24" stroke="#1c120a" stroke-width="2.4" stroke-linecap="round"/>' +
+    '<path d="M15 37 Q24 42 33 37" stroke="#2a1a10" stroke-width="2.4" fill="none" stroke-linecap="round"/>' +
+    '<path d="M17 37.5 L15 44 L21 39Z M31 37.5 L33 44 L27 39Z" fill="#f4ecd8"/></symbol>' +
+    '<symbol id="hc-i-warchief" viewBox="0 0 48 48"><use href="#hc-i-brute"/>' +
+    '<path d="M13 13 L14 3 L19 9 L24 1 L29 9 L34 3 L35 13Z" fill="#f2c14e" stroke="#a8761f" stroke-width="1"/></symbol>' +
+    '<symbol id="hc-i-shrine" viewBox="0 0 48 48"><path d="M7 44 V24 Q7 5 24 5 Q41 5 41 24 V44Z" fill="#4d4560"/>' +
+    '<path d="M14 44 V25 Q14 14 24 14 Q34 14 34 25 V44Z" fill="#1b1625"/><circle cx="24" cy="32" r="11" fill="#6ff08b" opacity=".22"/>' +
+    '<path d="M24 41 C16 35 19 28 24 21 C29 28 32 35 24 41Z" fill="#7ff0b8"/>' +
+    '<path d="M24 38 C20 34 22 30 24 27 C26 30 28 34 24 38Z" fill="#e8fff2"/></symbol>' +
+    '<symbol id="hc-i-whet" viewBox="0 0 48 48"><path d="M5 31 L33 17 L43 23 L15 38Z" fill="#7b7989"/>' +
+    '<path d="M5 31 L33 17 L36 19 L8 33Z" fill="#b9b7c6"/><path d="M15 38 L43 23 L43 27 L15 42Z" fill="#5d5b6b"/>' +
+    '<path d="M36 4 l2.2 5.6 5.6 2.2 -5.6 2.2 -2.2 5.6 -2.2 -5.6 -5.6 -2.2 5.6 -2.2z" fill="#ffd45e"/></symbol>' +
+    "</svg>";
 
   const HUD_HTML =
     '<div class="hc-hud">' +
+    HUD_ICONS +
     '<div class="hc-vignette"></div>' +
     '<div class="hc-overlay" data-hc="overlay"></div>' +
     '<div class="hc-stats"><div class="hc-title">Hall of Blows</div>' +
-    '<div class="hc-count"><span data-hc="kills">0</span><small>orcs slain &middot; best <span data-hc="best">0</span></small></div></div>' +
+    '<div class="hc-count"><span data-hc="score">0</span><small>room <span data-hc="rooms">0</span> &middot; deck <span data-hc="deck">0</span> &middot; best <span data-hc="best">0</span></small></div></div>' +
     '<button class="hc-menu" type="button" data-hc="menu">&#8801; Menu</button>' +
+    '<div class="hc-tray"><div class="hc-cards" data-hc="cards"></div>' +
+    '<div class="hc-timer" data-hc="timerWrap"><i data-hc="timer"></i></div><div class="hc-next" data-hc="next"></div></div>' +
+    '<div class="hc-over" data-hc="over" hidden><div class="hc-over-card">' +
+    '<div class="hc-over-eyebrow">The run is over</div><h2>Sir Cleave has fallen</h2><p data-hc="oLine"></p>' +
+    '<div class="hc-over-stats"><div>Score<b data-hc="oScore">0</b></div><div>Rooms<b data-hc="oRooms">0</b></div><div>Deck<b data-hc="oDeck">0</b></div></div>' +
+    '<div class="hc-over-best" data-hc="oBest"></div>' +
+    '<button class="hc-btn" type="button" data-hc="again">Descend again</button>' +
+    '<button class="hc-btn hc-btn--ghost" type="button" data-hc="menu2">Menu</button></div></div>' +
     "</div>";
 
   function readBest() {
@@ -486,6 +579,11 @@
     r.root.visible = a > 0.003;
   }
 
+  // A big foe's body is wider than the orc's, so it is drawn a little further
+  // down the hall to keep it from sitting inside Sir Cleave. Purely visual: the
+  // sim's distances are untouched.
+  const foeOff = (o) => ((o.size || 1) - 1) * 0.9;
+
   /* ---------- the game ---------- */
 
   class Hall {
@@ -505,16 +603,31 @@
       this.acc = 0;
       this.last = 0;
       this.best = readBest();
-      this.world = new Sim.World({ seed: (Math.random() * 1e9) | 0 });
+      this.bestAtStart = this.best;
+      this.trayKey = "";
+      this.overPending = null;
+      this.overT = 0;
+      this.feat = null;
+      this.world = this.newWorld();
 
       this.setupRenderer();
       this.buildHall();
       this.buildFighters();
       this.buildBars();
 
-      this.el.best.textContent = this.best;
-      this.listen(this.el.menu, "click", () => {
+      this.resetHud();
+      const toMenu = () => {
         if (typeof window.returnToMenu === "function") window.returnToMenu();
+      };
+      this.listen(this.el.menu, "click", toMenu);
+      this.listen(this.el.menu2, "click", toMenu);
+      this.listen(this.el.again, "click", () => this.restart());
+      this.listen(this.el.cards, "click", (e) => {
+        const b = e.target.closest("[data-slot]");
+        if (b) this.pick(+b.dataset.slot);
+      });
+      this.listen(window, "keydown", (e) => {
+        if (e.key >= "1" && e.key <= "3") this.pick(+e.key - 1);
       });
       this.frame = this.frame.bind(this);
       this.raf = requestAnimationFrame(this.frame);
@@ -523,6 +636,183 @@
     listen(target, type, fn, opts) {
       target.addEventListener(type, fn, opts);
       this.listeners.push([target, type, fn, opts]);
+    }
+
+    newWorld() {
+      return new Sim.World({ seed: (Math.random() * 1e9) | 0, deck: true });
+    }
+
+    pick(i) {
+      this.world.choose(i);
+    }
+
+    resetHud() {
+      this.el.score.textContent = "0";
+      this.el.rooms.textContent = "0";
+      this.el.deck.textContent = this.world.deckSize();
+      this.el.best.textContent = this.best;
+    }
+
+    restart() {
+      this.el.overlay.innerHTML = "";
+      for (const sp of this.sparks) this.scene.remove(sp.mesh);
+      this.sparks = [];
+      this.dropFeature();
+      this.world = this.newWorld();
+      for (const r of [this.knightRig, this.orcRig]) {
+        r.flash = 0;
+        r.recoil = 0;
+      }
+      this.orcRig.root.visible = false;
+      this.orcRig.blob.visible = false;
+      this.barO.el.style.opacity = "0";
+      this.el.over.hidden = true;
+      this.overPending = null;
+      this.bestAtStart = this.best;
+      this.trayKey = "";
+      this.resetHud();
+    }
+
+    /* ----- the card tray ----- */
+
+    cardIcon(id, cls) {
+      const sym = { frenzied: "orc", armory: "whet" }[id] || id;
+      return '<svg class="' + cls + " hc-ico--" + id + '" viewBox="0 0 48 48"><use href="#hc-i-' + sym + '"/></svg>';
+    }
+
+    cardEl(id, i) {
+      const c = Sim.CARDS[id];
+      const depth = 1 + this.world.cfg.run.depthScale * this.world.rooms;
+      let pips = "";
+      for (let n = 0; n < 5; n++) pips += '<i class="hc-pip' + (n < c.danger ? "" : " off") + '"></i>';
+      const reward =
+        c.kind === "foe"
+          ? '<div class="r">+' + Math.round(c.reward * depth) + "</div>" +
+            (c.drops ? '<div class="x">+' + c.drops + " card" + (c.drops > 1 ? "s" : "") + "</div>" : "")
+          : '<div class="r safe">' + c.tag + "</div>";
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "hc-card";
+      b.dataset.kind = c.kind;
+      b.dataset.slot = i;
+      b.style.animationDelay = i * 60 + "ms";
+      b.innerHTML =
+        '<span class="k">' + (i + 1) + "</span>" + this.cardIcon(id, "ico") +
+        '<div class="n">' + c.name + '</div><div class="d">' + pips + "</div>" + reward +
+        '<div class="b">' + c.blurb + "</div>";
+      return b;
+    }
+
+    renderTray() {
+      const w = this.world;
+      this.el.cards.innerHTML = "";
+      this.el.next.style.display = "none";
+      if (w.phase === "over") return;
+      if (w.offer) {
+        w.offer.forEach((id, i) => this.el.cards.appendChild(this.cardEl(id, i)));
+      } else if (w.queued) {
+        this.el.next.innerHTML = this.cardIcon(w.queued, "") + "Next room: " + Sim.CARDS[w.queued].name;
+        this.el.next.style.display = "flex";
+      }
+    }
+
+    syncTray() {
+      const w = this.world;
+      const key = [w.offer ? w.offer.join(",") : "-", w.queued || "-", w.rooms, w.phase === "over"].join("|");
+      if (key !== this.trayKey) {
+        this.trayKey = key;
+        this.renderTray();
+      }
+      // an empty hall with cards waiting: the clock is running
+      const waiting = !!w.offer && !w.roomCard && w.phase !== "over";
+      this.el.timerWrap.style.visibility = waiting ? "visible" : "hidden";
+      if (waiting) this.el.timer.style.width = Math.max(0, 100 * (1 - w.offerAge / w.cfg.run.pickTime)).toFixed(1) + "%";
+    }
+
+    toast(text) {
+      const d = document.createElement("div");
+      d.className = "hc-toast";
+      d.textContent = text;
+      d.addEventListener("animationend", () => d.remove());
+      setTimeout(() => d.remove(), 2600);
+      this.el.overlay.appendChild(d);
+    }
+
+    showOver(e) {
+      const by = e.by ? Sim.CARDS[e.by].name : "the dark";
+      this.el.oLine.textContent = "Felled by " + (/^[AEIOU]/i.test(by) ? "an " : "a ") + by + " in room " + (e.rooms + 1) + ".";
+      this.el.oScore.textContent = e.score;
+      this.el.oRooms.textContent = e.rooms;
+      this.el.oDeck.textContent = e.deck;
+      this.el.oBest.textContent = e.score > this.bestAtStart ? "\u2605 New best!" : "Best: " + this.best;
+      this.el.over.hidden = false;
+    }
+
+    /* ----- shrine / armory props ----- */
+
+    makeFeature(id) {
+      this.dropFeature();
+      const g = new THREE.Group();
+      const mats = [];
+      const gold = id === "armory";
+      const glowMat = new THREE.MeshBasicMaterial({
+        map: makeGlowTexture(gold ? "rgba(255,210,110,0.85)" : "rgba(120,255,170,0.85)", "rgba(0,0,0,0)"),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+      });
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), glowMat);
+      glow.scale.set(3.2, 3.2, 1);
+      glow.position.set(0, 1.5, -0.1);
+      g.add(glow);
+      if (!gold) {
+        const stone = 0x7b7490;
+        boxAt(g, mats, 2.1, 0.26, 0.95, 0x4a4458, 0, 0.13, 0);
+        for (const x of [-0.8, 0.8]) boxAt(g, mats, 0.3, 2.2, 0.3, stone, x, 1.36, 0);
+        boxAt(g, mats, 2.2, 0.32, 0.5, stone, 0, 2.62, 0);
+        boxAt(g, mats, 0.5, 0.7, 0.5, 0x5a5470, 0, 0.6, 0.1);
+        ballAt(g, mats, 0.3, 0x7ff0b8, 0, 1.35, 0.1, { emissive: 0x3fe08a, emissiveIntensity: 1.5 });
+      } else {
+        const wood = 0x5a3b22;
+        boxAt(g, mats, 2.2, 1.7, 0.14, wood, 0, 1.45, -0.2);
+        boxAt(g, mats, 2.4, 0.16, 0.5, 0x3a2616, 0, 0.5, 0.0);
+        for (const x of [-0.7, 0, 0.7]) {
+          boxAt(g, mats, 0.12, 1.2, 0.05, 0xe3ecf5, x, 1.5, 0.0, { metalness: 0.55, roughness: 0.3 });
+          boxAt(g, mats, 0.42, 0.08, 0.1, 0xf2c14e, x, 0.95, 0.0);
+        }
+        boxAt(g, mats, 0.6, 0.6, 0.08, 0x9c2a35, 0, 0.9, 0.35).rotation.z = Math.PI / 4;
+      }
+      g.position.set(0, 0, -1.25);
+      this.scene.add(g);
+      this.feat = { id: id, group: g, mats: mats, glow: glowMat };
+    }
+
+    dropFeature() {
+      const f = this.feat;
+      if (!f) return;
+      this.scene.remove(f.group);
+      f.group.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+      });
+      f.mats.forEach((m) => m.dispose());
+      f.glow.map.dispose();
+      f.glow.dispose();
+      this.feat = null;
+    }
+
+    syncFeature() {
+      const wf = this.world.feature;
+      if (!wf) return this.dropFeature();
+      const f = this.feat;
+      if (!f) return;
+      f.group.position.x = wf.x;
+      const a = wf.alpha;
+      for (const m of f.mats) {
+        m.transparent = a < 0.999;
+        m.opacity = a;
+      }
+      f.glow.opacity = a * (0.7 + 0.25 * Math.sin(this.time * 4));
+      f.group.visible = a > 0.003;
     }
 
     /* ----- renderer ----- */
@@ -774,6 +1064,7 @@
       S.add(this.knightRig.root);
 
       this.orcRig = buildOrc();
+      this.orcRig.baseColors = this.orcRig.mats.map((m) => m.color.clone()); // so a card's tint can be undone
       this.orcRig.root.rotation.y = Math.PI; // faces -x, toward the knight
       this.orcRig.blob = mkBlob(1.25);
       S.add(this.orcRig.root);
@@ -786,6 +1077,8 @@
         new THREE.MeshBasicMaterial({ color: 0xffe9a8 }),
         new THREE.MeshBasicMaterial({ color: 0xff9a3c }),
       ];
+      this.healMats = [new THREE.MeshBasicMaterial({ color: 0xb8ffd0 }), new THREE.MeshBasicMaterial({ color: 0x4fe08a })];
+      this.boonMats = [new THREE.MeshBasicMaterial({ color: 0xfff0b0 }), new THREE.MeshBasicMaterial({ color: 0xffc23c })];
     }
 
     /* ----- HUD bits ----- */
@@ -827,9 +1120,10 @@
       this.el.overlay.appendChild(d);
     }
 
-    burst(x, y, z) {
+    burst(x, y, z, palette) {
+      const mats = palette || this.sparkMats;
       for (let i = 0; i < 10; i++) {
-        const m = new THREE.Mesh(this.sparkGeo, this.sparkMats[i % 2]);
+        const m = new THREE.Mesh(this.sparkGeo, mats[i % 2]);
         m.position.set(x, y, z);
         this.scene.add(m);
         const a = Math.random() * Math.PI * 2;
@@ -853,26 +1147,51 @@
           const toOrc = e.to === "orc";
           const rig = toOrc ? this.orcRig : this.knightRig;
           const f = toOrc ? w.orc || { x: 0 } : w.knight;
+          const fx = toOrc ? f.x + foeOff(f) : f.x;
           rig.flash = 1;
           rig.recoil = 1;
-          const hy = toOrc ? 2.0 : 1.5;
-          this.floatNumber(String(e.dmg), toOrc ? "hc-dmg--orc" : "hc-dmg--knight", f.x, hy + 0.9, FIGHT_Z);
-          this.burst(f.x, hy, FIGHT_Z + 0.4);
+          const hy = (toOrc ? 2.0 : 1.5) * (toOrc && f.size ? f.size : 1);
+          this.floatNumber(String(e.dmg), toOrc ? "hc-dmg--orc" : "hc-dmg--knight", fx, hy + 0.9, FIGHT_Z);
+          this.burst(fx, hy, FIGHT_Z + 0.4);
         } else if (e.type === "heal") {
           this.floatNumber("+" + e.amount, "hc-dmg--heal", w.knight.x, 2.6, FIGHT_Z);
-        } else if (e.type === "death") {
-          this.el.kills.textContent = e.kills;
-          if (e.kills > this.best) {
-            this.best = e.kills;
-            this.el.best.textContent = this.best;
-            writeBest(this.best);
-          }
+          this.burst(w.knight.x, 1.6, FIGHT_Z + 0.4, this.healMats);
+        } else if (e.type === "boon") {
+          this.floatNumber(e.text, "hc-dmg--boon", w.knight.x, 3.1, FIGHT_Z);
+          this.burst(w.knight.x, 1.6, FIGHT_Z + 0.4, this.boonMats);
         } else if (e.type === "spawn") {
-          // fresh orc: reset its rig so nothing carries over from the last corpse
+          // fresh foe: reset its rig so nothing carries over from the last corpse, then dress it as its card
+          const o = w.orc;
           const r = this.orcRig;
           r.flash = 0;
           r.recoil = 0;
           r.wp = 0;
+          r.root.scale.setScalar(o.size);
+          const tint = o.tint == null ? null : new THREE.Color(o.tint);
+          r.mats.forEach((m, i) => {
+            m.color.copy(r.baseColors[i]);
+            if (tint && m.userData.baseEmissive.getHex() === 0) m.color.lerp(tint, 0.5); // leave the glowing eyes red
+          });
+          r.blob.scale.setScalar(1.25 * o.size);
+          this.barO.el.firstChild.textContent = o.name;
+        } else if (e.type === "featurespawn") {
+          this.makeFeature(e.card);
+        } else if (e.type === "roomclear") {
+          this.el.score.textContent = e.score;
+          this.el.rooms.textContent = e.rooms;
+          if (e.score > this.best) {
+            this.best = e.score;
+            this.el.best.textContent = this.best;
+            writeBest(this.best);
+          }
+          if (e.reward > 0) this.floatNumber("+" + e.reward, "hc-dmg--score", w.knight.x + 1.9, 3.2, FIGHT_Z);
+        } else if (e.type === "reward") {
+          this.el.deck.textContent = e.deck;
+          const names = e.ids.map((id) => Sim.CARDS[id].name);
+          this.toast("+ " + names.join(", ") + (names.length > 1 ? " added to your deck" : " card added to your deck"));
+        } else if (e.type === "knightdeath") {
+          this.overPending = e;
+          this.overT = 0;
         }
       }
     }
@@ -907,7 +1226,7 @@
       kr.root.position.set(k.x, 0, FIGHT_Z);
       pose(
         kr,
-        { walking: w.phase === "walk", swing: k.swing, hitAt: k.hitAt, dur: k.swingDur, fall: 0 },
+        { walking: w.phase === "walk", swing: k.swing, hitAt: k.hitAt, dur: k.swingDur, fall: k.fall },
         dt,
         this.time
       );
@@ -916,11 +1235,11 @@
       const o = w.orc;
       const or = this.orcRig;
       if (o) {
-        or.root.position.set(o.x, 0, FIGHT_Z);
+        or.root.position.set(o.x + foeOff(o), 0, FIGHT_Z);
         pose(or, { walking: false, swing: o.swing, hitAt: o.hitAt, dur: o.swingDur, fall: o.fall }, dt, this.time);
         setRigAlpha(or, o.alpha);
         or.blob.visible = o.alpha > 0.003;
-        or.blob.position.set(o.x - o.fall * 0.9, 0.012, FIGHT_Z);
+        or.blob.position.set(o.x + foeOff(o) - o.fall * 0.9, 0.012, FIGHT_Z);
         or.blob.material.opacity = o.alpha;
       } else {
         or.root.visible = false;
@@ -931,7 +1250,7 @@
       const kp = this.toScreen(k.x, kr.headY, FIGHT_Z);
       this.placeBar(this.barK, kp, k.hp / k.maxHp, 1);
       if (o && o.alive) {
-        const op = this.toScreen(o.x, or.headY, FIGHT_Z);
+        const op = this.toScreen(o.x + foeOff(o), or.headY * (o.size || 1), FIGHT_Z);
         this.placeBar(this.barO, op, o.hp / o.maxHp, o.alpha);
       } else {
         this.barO.el.style.opacity = "0";
@@ -978,6 +1297,13 @@
       this.handleEvents();
       this.syncScenery(dt);
       this.syncFighters(dt);
+      this.syncFeature();
+      this.syncTray();
+      this.el.deck.textContent = this.world.deckSize();
+      if (this.overPending && (this.overT += dt) > 1.1) {
+        this.showOver(this.overPending);
+        this.overPending = null;
+      }
       this.stepSparks(dt);
       this.renderer.render(this.scene, this.camera);
     }
@@ -1005,6 +1331,7 @@
           m.dispose();
         });
       });
+      this.dropFeature();
       if (typeof this.renderer.forceContextLoss === "function") this.renderer.forceContextLoss();
       this.renderer.dispose();
     }

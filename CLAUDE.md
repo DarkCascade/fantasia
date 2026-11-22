@@ -1188,8 +1188,9 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     `g.paused = true` and drive `g.step(1/30)` then `g.render(0.03)`;
     `g.snapCam = true` snaps the camera; `g.begin()` starts the intro,
     `g.bossSet("leap")` stages an attack. `destroy()` takes no arguments.
-- **Hall of Blows** (`src/hallway-combat.js` + `src/hallway-combat/sim.js`) — **step one** of a
-  diorama-style action RPG, in the Action & RPG shelf. Deliberately the minimum viable loop: a knight
+- **Hall of Blows** (`src/hallway-combat.js` + `src/hallway-combat/sim.js`) — a diorama-style action RPG
+  in the Action & RPG shelf, now a **roguelike deck-builder** (see *Deck mode* below; the paragraph that
+  follows describes the original step-one loop, which the sim still runs when `deck` is off). Deliberately the minimum viable loop: a knight
   (Sir Cleave) walks down a torch-lit hallway, an orc **fades in** far down the corridor, the two close to
   melee reach, and they trade **in-place swings on their own timers** with floating damage numbers; the knight is
   overpowered, and when the orc falls he walks on and it repeats. No gap-closing or dashing by attacks, ever:
@@ -1219,6 +1220,36 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     +x is facing, +y up; the orc is yawed pi to face -x, which is why its weapon arm sits on local -z (so it
     ends up on the camera's side and the swing reads). Fading uses per-rig material `opacity`
     (`setRigAlpha`, `transparent` only while < 1).
+  - **Deck mode (what the game now runs).** `new World({ deck: true })`; the player still never steers Sir
+    Cleave. The hallway is endless and there is **always an `offer` of three room cards**; `choose(i)` (tap a
+    card or press 1/2/3) spawns that room straight ahead of him, and a pick made while he is still busy is
+    **queued** (`world.queued`, shown as a "Next room" chip) and appears the moment he finishes, with the next
+    offer drawn as soon as a room starts, so you are always choosing one room ahead. If the hall is empty and
+    the offer sits for `run.pickTime` (7s) the hall picks for you (the timer bar under the cards; it only runs
+    on an empty hall). `CARDS` are `orc`, `frenzied` (fast), `brute`, `warchief` (danger 5, can end the run on
+    the spot), `shrine` (heal 30%) and `armory` (+3 damage, permanent); a foe card multiplies the base orc and
+    tells the view its size/tint, a shrine/armory is a prop (`world.feature`) he walks up to. The **`Deck`**
+    (draw + discard; played and passed-over cards both rest, reshuffled when dry) starts at 9 cards
+    (`run.startDeck`); clearing a foe room scores `reward x (1 + depthScale x rooms)` and **adds `drops` cards
+    to the deck drawn from that card's `pool`** (a Brute can drop a Warchief, a Warchief can drop an Armory).
+    **Risk is the point:** foes grow `run.depthScale` (4%) per room cleared, the knight no longer has a
+    1-hp floor, and `knightDie()` ends the run (`phase "over"`, `knightdeath` event, panel with score / rooms /
+    deck and "Descend again"). Best **score** is `localStorage` `hall-of-blows-deck-best` (the old key counted
+    kills). The view's tray is DOM (`.hc-cards`), the room icons are an inline SVG sprite (`HUD_ICONS`), a big
+    foe is drawn `foeOff` further down the hall so it doesn't sit inside the knight (visual only).
+    **Balance** is measured, not guessed: `node experiments/hallway-combat-balance/bot.js [seeds] [policy]`
+    plays the real sim with `random` / `coward` / `reckless` / `smart` policies (`DEPTH=` / `HEAL=` env
+    override the two knobs). Last measured (60 seeds): reckless dies in ~1 min (median score 245), random ~2 min
+    (311), a careful bot that only takes what its life total can afford ~2.3 min (619, best run 1958), and a bot
+    that only ever picks orcs/shrines/armories grinds ~4.5 min to 535 and still dies to depth in the end.
+    **Known weakness:** the safe grind is nearly as good as risk at the median (risk mostly buys the ceiling);
+    if the format is kept, raise reward for danger or make safe rooms pay less the more you take them.
+    Tests: `test/hallway-combat.test.js` (the original 6 plus 8 deck tests: offer/choose, queue, auto-pick,
+    busy hall has no clock, rewards + depth scaling, shrine/armory never mutate `CONFIG`, death ends the run,
+    card conservation + determinism). Headless: stop `g.frame`, set `w.offer = [...]` to stage cards, step
+    `w.step(1/60)` then `g.handleEvents(); g.syncScenery(); g.syncFighters(); g.syncFeature(); g.syncTray()`.
+    `experiments/hall-of-blows-builder/` is the earlier *static* mockup (place a whole 8-segment hall in advance,
+    with a forecast chart); deck mode is the real-time answer to it and the mockup is kept for reference.
   - **Next steps the user has in mind:** swap in Kenney models, then grow the game one step at a time.
     `window.hallwayCombatGame` is a handle whose `destroy()` takes no arguments; `.game` is the live `Hall`
     (`.world` is the sim). Headless: replace `g.frame` with a no-op and step `world.step(1/60)` then
@@ -1409,7 +1440,7 @@ experiments/aurora-barrage-balance/  bot.js: danger-field bot that plays the rea
 experiments/paper-airplane/  check-levels.js / check-preview.js / explore-level.js / search-level.js: level lint, physics sweeps, preview exactness, design aids (see Paper Airplane entry)
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 src/hallway-combat.js   Hall of Blows diorama hallway combat, view/HUD (three.js); window.launchHallwayCombat()
-src/hallway-combat/sim.js  Hall of Blows combat simulation (pure, also require()-able from Node)
+src/hallway-combat/sim.js  Hall of Blows combat + deck-mode simulation (pure, also require()-able from Node)
 test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
@@ -1425,6 +1456,8 @@ experiments/chibi-hero-art/  Chibi Crawl's rigged Meshy heroes: prompts, task id
 experiments/hollow-moon-art/  Hollow Moon's Meshy prompts, task ids, credit tally and bake.py
 experiments/greenlit-balance/  Node balance sweep that drives Greenlit's real model (node experiments/greenlit-balance/sweep.js)
 experiments/starship-ui/  Starship UI: nine mockups (Hologlass / Atomic Age / Pixel Bridge x ship / trade hub / exploration) for a sci-fi crew+trade+exploration management game; shared state, SVG + canvas skins, shoot.js regenerates shots; not deployed
+experiments/hallway-combat-balance/  bot.js: card-policy bots that play Hall of Blows' real deck-mode sim (survival, score, killers)
+experiments/hall-of-blows-builder/  static Hall Builder mockup (place a hall of 8 segments + floor items, forecast chart); superseded by deck mode; not deployed
 experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowing glass-orb spray with flame tails (see its README); not deployed
 .github/workflows/deploy.yml   Build + deploy to GitHub Pages
 ```
@@ -1628,6 +1661,6 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 - `node --check src/game.js` (syntax) and, for workflow edits,
   validate the YAML.
-- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon, Aurora Barrage's sim and Hall of Blows' sim; the bare `node --test test/` form fails on Node 22).
+- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon, Aurora Barrage's sim and Hall of Blows' sim incl. deck mode; the bare `node --test test/` form fails on Node 22).
 - Prefer a quick headless render to confirm no runtime errors when you touch
   `src/game.js`.
