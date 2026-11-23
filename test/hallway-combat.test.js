@@ -103,8 +103,18 @@ test("deck: there is always an offer of three cards, and picking one spawns that
   assert.ok(w.choose(0));
   assert.strictEqual(w.orc.name, "Brute", "the picked room appears immediately");
   assert.strictEqual(w.roomCard, "brute");
-  assert.strictEqual(w.offer.length, 3, "the next offer is drawn the moment a room starts");
   assert.ok(w.orc.maxHp > CONFIG.orc.maxHp * 1.5, "a brute is much bulkier than an orc");
+  assert.strictEqual(w.offer, null, "all cards are hidden once one is picked");
+  w.knight.hp = w.knight.maxHp = 5000;
+  let sawFight = false;
+  for (let i = 0; i < 40 / DT && !w.offer; i++) {
+    w.step(DT);
+    if (w.phase === "fight") sawFight = true;
+    if (!w.offer) assert.ok(w.roomCard, "no cards while the room is in play");
+  }
+  assert.ok(sawFight, "the whole fight happened with the tray empty");
+  assert.strictEqual(w.roomCard, null, "cards come back only once the room is finished");
+  assert.strictEqual(w.offer.length, 3);
   assert.strictEqual(w.choose(7), false, "no such card");
 });
 
@@ -126,6 +136,8 @@ test("deck: a card picked while the knight is busy is queued and appears when he
   }
   assert.ok(spawned, "the queued room spawns once the first is cleared");
   assert.strictEqual(w.queued, null);
+  assert.strictEqual(w.offer, null, "cards stay hidden until the queued room is finished");
+  for (let i = 0; i < 20 / DT && !w.offer; i++) w.step(DT);
   assert.ok(w.offer && w.offer.length === 3, "and a fresh offer is drawn");
 });
 
@@ -145,7 +157,7 @@ test("deck: a busy hall never auto-picks (the clock only runs on an empty hall)"
   w.knight.hp = w.knight.maxHp = 5000;
   const evs = advance(w, 6);
   assert.strictEqual(evs.filter((e) => e.type === "choose").length, 0);
-  assert.ok(w.offer, "the offer is still waiting");
+  assert.strictEqual(w.offer, null, "no cards are dealt while the room is still in play");
 });
 
 test("deck: riskier rooms pay more and add cards to the deck; foes and points grow with depth", () => {

@@ -1221,10 +1221,11 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     ends up on the camera's side and the swing reads). Fading uses per-rig material `opacity`
     (`setRigAlpha`, `transparent` only while < 1).
   - **Deck mode (what the game now runs).** `new World({ deck: true })`; the player still never steers Sir
-    Cleave. The hallway is endless and there is **always an `offer` of three room cards**; `choose(i)` (tap a
-    card or press 1/2/3) spawns that room straight ahead of him, and a pick made while he is still busy is
-    **queued** (`world.queued`, shown as a "Next room" chip) and appears the moment he finishes, with the next
-    offer drawn as soon as a room starts, so you are always choosing one room ahead. If the hall is empty and
+    Cleave. The hallway is endless and an **`offer` of three room cards** is on the table only while the hall
+    is empty; `choose(i)` (tap a card or press 1/2/3) spawns that room straight ahead of him and **hides every
+    card for the whole room**: the next offer is dealt in `roomDone()`, once the foe is dead or the shrine/armory
+    used. (`world.queued` and its "Next room" chip still exist but real play can no longer reach them, since a
+    pick needs an offer and an offer needs an empty hall; tests force it.) If the hall is empty and
     the offer sits for `run.pickTime` (7s) the hall picks for you (the timer bar under the cards; it only runs
     on an empty hall). `CARDS` are `orc`, `frenzied` (fast), `brute`, `warchief` (danger 5, can end the run on
     the spot), `shrine` (heal 30%) and `armory` (+3 damage, permanent); a foe card multiplies the base orc and

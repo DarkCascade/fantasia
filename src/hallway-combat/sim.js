@@ -293,7 +293,8 @@
         this.feature = { id: id, x: this.knight.x + this.cfg.spawnGap, alpha: 0, used: false, t: 0 };
         this.emit({ type: "featurespawn", card: id });
       }
-      this.offerNext();
+      // No new offer until this room is finished: the tray stays empty for the whole
+      // room and the next three cards are dealt in roomDone().
     }
 
     useFeature() {
@@ -350,7 +351,10 @@
         const q = this.queued;
         this.queued = null;
         this.startRoom(q);
-      } else this.offerAge = 0;
+      } else {
+        this.offerAge = 0;
+        this.offerNext(); // the room is over: deal the next three cards
+      }
     }
 
     knightDie() {
