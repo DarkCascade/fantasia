@@ -256,16 +256,29 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
   built for thumbs). Drag anywhere to fly (relative drag, 1.3x; WASD/arrows too), the ship
   fires itself. Defeated enemies spill **XP orbs** that drift off the bottom (92 px/s) unless
   you fly into them (tight magnet: `magnetR` 56 + level, capped +100). **Weapon level = beams per
-  volley**: level 1 fires one laser, level 2 two, level 60 sixty (`volley(level)`: a symmetric fan
+  volley, plus homing missile batteries** (`loadout(level)` -> `{beams, missiles}`): levels 1-4 are 1-4 beams;
+  at each level in `MISSILE.levels` (5, 10) a battery is added and the beams **restart at 1**, then gain one per
+  level again (5 = 1 beam + 1 missile, 6-9 = 2-5 beams + 1 missile, 10 = 1 beam + 2 missiles, 11 = 2 beams...,
+  level 60 = 51 beams + 2 missiles). Add a level to that array for another battery. (`volley(level)`: a symmetric fan
   topping out at +-40 degrees from a ~120 px muzzle line; `fireInterval` speeds up to a 0.1 s floor;
   `boltDamage` is `1 + floor(level/30)`; max level 120). The point of the game is that a skilled run
   *overwhelms the screen*. The counterweight is the **hit penalty**: a hit costs 1 hull (start 3, max 5,
   +1 per boss), a fifth of your levels (`levelAfterHit`, at least 1, never below level 1) and your XP bar,
   and half of what you lost spills as recoverable orbs. So a big weapon is earned and defended.
+  - **Missiles** (`stepMissiles`, `MISSILE` in sim.js, exported and read live so every knob can be changed at
+    runtime or by the bot): `interval` (cadence, seconds per battery; batteries are phased by `stagger`),
+    `launchSpeed`/`accel`/`topSpeed`, `turnRate` (rad/s, the "nimbleness"), `kick` (outward launch angle),
+    `lockDelay`, `life`, `damage` (x `boltDamage`), `splash`/`splashMul`, `spread` (per-claim distance penalty
+    so a salvo fans out over targets), `maxLive`. Batteries mount on alternating wings. A missile steers toward
+    the nearest live non-immune enemy (re-picked if it dies), eases to straight-up with no target, and a hit
+    emits `mhit` (view: `missileBurst`). View art is procedural (`ab-missile` body, `ab-mflame`, glow-sprite
+    trail from a per-missile position history), pooled like the beams. Loadout text is `loadoutText(level)`.
+    The title showcase never steps missiles (it only calls `stepPlayer`/`stepPlayerBolts`). Note the weapon
+    dips at 5 and 10 by design (beams drop to 1); retune `damage`/`interval` rather than the table if it feels weak.
   - **Split for testing/tuning.** `sim.js` is pure, seeded logic (UMD: `window.AuroraBarrageSim` /
     `module.exports`): `World.step(dt)` at a fixed 1/60, `setTarget(x, y)` for the ship, `drainEvents()`
     for the view. The Phaser file only reads the world (pooled sprites per kind) and feeds it a target.
-    **Light tests**: `test/aurora-barrage.test.js` (5 tests: beam count == level, XP curve and orb
+    **Light tests**: `test/aurora-barrage.test.js` (6 tests: loadout track + missiles, XP curve and orb
     splitting, hit penalty, idle determinism, stage flow). **Balance bot**:
     `node experiments/aurora-barrage-balance/bot.js [seeds] [idle|dodge|good|great|all] [maxMin]` plays the
     real sim with a danger-field controller and prints survival, level by minute, boss fight times and what

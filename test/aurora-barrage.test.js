@@ -5,17 +5,43 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const S = require("../src/aurora-barrage/sim.js");
 
-test("weapon level is beam count: one volley fires exactly `level` symmetric beams", () => {
-  for (const n of [1, 2, 3, 10, 57, S.MAX_LEVEL]) {
+test("level track: 1-4 beams, then a missile battery joins at 5 and 10 and the beams restart", () => {
+  const L = (n) => { const o = S.loadout(n); return [o.beams, o.missiles]; };
+  assert.deepEqual([1, 2, 3, 4].map(L), [[1, 0], [2, 0], [3, 0], [4, 0]]);
+  assert.deepEqual(L(5), [1, 1]);
+  assert.deepEqual([6, 7, 8, 9].map(L), [[2, 1], [3, 1], [4, 1], [5, 1]]);
+  assert.deepEqual(L(10), [1, 2]);
+  assert.deepEqual(L(11), [2, 2]);
+  for (const n of [1, 2, 4, 5, 9, 10, 57, S.MAX_LEVEL]) {
     const v = S.volley(n);
-    assert.equal(v.length, n);
+    assert.equal(v.length, S.loadout(n).beams);
     for (const b of v) assert.ok(Math.abs(b.ang) <= (41 * Math.PI) / 180 && Math.abs(b.dx) <= 61, `beam out of range at n=${n}`);
     assert.ok(Math.abs(v.reduce((a, b) => a + b.ang, 0)) < 1e-9, "fan is centred");
   }
-  const w = new S.World({ seed: 3, level: 5 });
+  const w = new S.World({ seed: 3, level: 9 });
   w.pbolts.length = 0;
   w.fireVolley();
   assert.equal(w.pbolts.length, 5);
+});
+
+test("missile batteries launch on their cadence and the missiles home in on a target", () => {
+  const w = new S.World({ seed: 5, level: 10 });
+  w.player.inv = 999; w.spawnT = 999;
+  w.stepDirector = () => {}; w.stepEnemies = () => {}; w.stepPlayerBolts = () => {};
+  const e = w.make("gunship", 440, 260);
+  e.hp = e.maxHp = 1e6; // a punching bag far off the ship's centreline
+  let fired = 0, hits = 0;
+  for (let i = 0; i < 60 * 6; i++) {
+    w.step(S.STEP);
+    for (const ev of w.drainEvents()) { if (ev.t === "missile") fired++; if (ev.t === "mhit") hits++; }
+  }
+  assert.ok(Math.abs(fired - (6 / S.MISSILE.interval) * 2) <= 3, "two batteries on one interval each, fired " + fired);
+  assert.ok(hits >= fired - 3, `homing missiles reach an off-axis target (${hits}/${fired})`);
+  assert.ok(e.hp < 1e6);
+  // the knobs are live: no batteries below level 5
+  const lo = new S.World({ seed: 5, level: 4 });
+  for (let i = 0; i < 180; i++) lo.step(S.STEP);
+  assert.equal(lo.missiles.length, 0);
 });
 
 test("xp curve is monotonic and orbs split without losing xp", () => {

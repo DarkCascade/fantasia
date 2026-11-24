@@ -4,7 +4,8 @@
  * Drag anywhere to fly; the ship fires itself. Every enemy you shoot down spills
  * experience orbs that drift off the bottom of the screen unless you fly into
  * them. Enough experience levels your weapon up, and a weapon level is a BEAM
- * COUNT: level 1 fires one laser, level 2 fires two, level 60 fires sixty. Get
+ * COUNT: level 1 fires one laser, level 4 fires four; at level 5 and 10 a homing
+ * missile battery is added and the beam count restarts at one. Get
  * hit and you lose hull and a fifth of your levels, so a big weapon is something
  * you have to earn and defend. Play well and the whole screen fills with light.
  *
@@ -14,7 +15,7 @@
  *   src/aurora-barrage/*.webp   the Meshy-generated art (player, 3 enemies, boss, nebula)
  *
  * Everything that is not one of those six pictures is drawn in code at boot:
- * lasers, enemy bullets, XP orbs, engine flame, rings, sparks, star layers, HUD.
+ * lasers, homing missiles, enemy bullets, XP orbs, engine flame, rings, sparks, star layers, HUD.
  * The Phaser game is created on demand via window.launchAuroraBarrage().
  */
 (function () {
@@ -44,6 +45,13 @@
 
   const hex = (n) => [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   const rgba = (n, a) => { const c = hex(n); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; };
+
+  /** HUD / summary text for the weapon at `level`, e.g. "5 BEAMS + 1 MISSILE". */
+  function loadoutText(level) {
+    const o = SIM.loadout(level);
+    const b = o.beams + (o.beams === 1 ? " BEAM" : " BEAMS");
+    return o.missiles ? b + " + " + o.missiles + (o.missiles === 1 ? " MISSILE" : " MISSILES") : b;
+  }
 
   function readBest() {
     try { const b = JSON.parse(localStorage.getItem(BEST_KEY)); if (b && typeof b.score === "number") return b; } catch (e) {}
@@ -109,6 +117,7 @@
       s.start(t, Math.random() * 0.4); s.stop(t + dur + 0.02);
     }
     shot(tier, level) { if (this.ok("shot", 85)) this.tone(780 + tier * 140, 0.07, "triangle", 0.012 + Math.min(0.03, level * 0.0004), 300); }
+    missile() { if (this.ok("missile", 70)) { this.noise(0.22, 0.05, 3400); this.tone(260, 0.16, "sawtooth", 0.022, 120); } }
     pick(v) {
       if (!this.ok("pick", 28)) return;
       const now = performance.now();
@@ -218,6 +227,28 @@
           c.beginPath(); c.roundRect(w / 2 - 1.5, 3, 3, h - 6, 1.5); c.fill();
         });
       }
+      // homing missile: silver body, red nose band + fins, hot nozzle (drawn pointing up; shown at ~0.55x)
+      this.tex("ab-missile", 24, 60, (c, w, h) => {
+        const body = c.createLinearGradient(0, 0, w, 0);
+        body.addColorStop(0, "#7c869e"); body.addColorStop(0.35, "#f2f6ff"); body.addColorStop(0.7, "#aeb8d0"); body.addColorStop(1, "#5a6482");
+        c.fillStyle = "#ff5a3c"; // swept fins
+        c.beginPath(); c.moveTo(w / 2 - 3, 36); c.lineTo(1, 56); c.lineTo(1, 46); c.lineTo(w / 2 - 3, 28); c.closePath(); c.fill();
+        c.beginPath(); c.moveTo(w / 2 + 3, 36); c.lineTo(w - 1, 56); c.lineTo(w - 1, 46); c.lineTo(w / 2 + 3, 28); c.closePath(); c.fill();
+        c.fillStyle = body; // fuselage with an ogive nose
+        c.beginPath(); c.moveTo(w / 2, 1); c.quadraticCurveTo(w - 4, 14, w - 6, 24); c.lineTo(w - 6, 52); c.lineTo(6, 52); c.lineTo(6, 24); c.quadraticCurveTo(4, 14, w / 2, 1); c.fill();
+        c.fillStyle = "#ff3c46"; c.fillRect(6, 20, w - 12, 5); // nose band
+        c.fillStyle = "rgba(20,30,60,.55)"; c.fillRect(6, 40, w - 12, 2); // seam
+        const n = c.createLinearGradient(0, 50, 0, 60);
+        n.addColorStop(0, "#ffffff"); n.addColorStop(1, "rgba(255,160,60,0)");
+        c.fillStyle = n; c.fillRect(8, 50, w - 16, 10);
+      });
+      this.tex("ab-mflame", 20, 64, (c, w, h) => {
+        const g = c.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, "rgba(255,255,255,.95)"); g.addColorStop(0.18, "rgba(255,226,140,.9)");
+        g.addColorStop(0.55, "rgba(255,110,40,.4)"); g.addColorStop(1, "rgba(255,60,20,0)");
+        c.fillStyle = g;
+        c.beginPath(); c.moveTo(w * 0.12, 0); c.lineTo(w * 0.88, 0); c.quadraticCurveTo(w * 0.78, h * 0.5, w / 2, h); c.quadraticCurveTo(w * 0.22, h * 0.5, w * 0.12, 0); c.fill();
+      });
       EB_COL.forEach((col, k) => this.tex("ab-eb-" + k, 34, 34, (c, w, h) => {
         const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
         g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.28, "rgba(255,255,255,.95)");
@@ -299,6 +330,10 @@
       this.boltPools = [0, 1, 2, 3, 4, 5].map((t) => new Pool(this, "ab-bolt-" + t, 30, true, 0.1));
       this.ebPools = [0, 1, 2, 3].map((k) => new Pool(this, "ab-eb-" + k, 40, true));
       this.orbPools = { 1: new Pool(this, "ab-orb-1", 35, true), 5: new Pool(this, "ab-orb-5", 35, true), 25: new Pool(this, "ab-orb-25", 35, true), 125: new Pool(this, "ab-orb-125", 35, true) };
+      this.missilePool = new Pool(this, "ab-missile", 32, false, 0.5);
+      this.mflamePool = new Pool(this, "ab-mflame", 31, true, 0);
+      this.mpuffPool = new Pool(this, "ab-glow", 29, true);
+      this.mTrail = new Map(); // missile id -> recent positions, for the curved exhaust trail
       this.hpGfx = this.add.graphics().setDepth(45);
     }
 
@@ -400,7 +435,7 @@
       if (p.level !== this.shownLevel) {
         this.shownLevel = p.level;
         this.lvTxt.setText(p.level >= SIM.MAX_LEVEL ? "LV MAX" : "LV " + p.level).setColor(css);
-        this.beamTxt.setText(p.level + (p.level === 1 ? " BEAM" : " BEAMS"));
+        this.beamTxt.setText(loadoutText(p.level));
       }
       for (let i = 0; i < this.hullIcons.length; i++) this.hullIcons[i].setAlpha(i < p.hull ? 1 : 0.18);
       const g = this.hudGfx;
@@ -504,6 +539,7 @@
 
     clearWorldSprites() {
       for (const p of this.boltPools) p.hideAll();
+      this.missilePool.hideAll(); this.mflamePool.hideAll(); this.mpuffPool.hideAll(); this.mTrail.clear();
       for (const p of this.ebPools) p.hideAll();
       for (const k in this.orbPools) this.orbPools[k].hideAll();
       if (this.enemySprites) for (const [, s] of this.enemySprites) { s.setVisible(false); this.enemyPool[s.kind].push(s); }
@@ -536,6 +572,7 @@
       this.mode = "dying";
       this.dragging = false;
       this.world.pbolts.length = 0; // no lasers frozen in mid-air behind the wreck
+      this.world.missiles.length = 0;
       this.dyingT = 0;
       const p = this.world.player;
       this.pShip.setVisible(false); this.pFlame.setVisible(false); this.pDot.setVisible(false); this.pShield.setVisible(false);
@@ -559,7 +596,7 @@
       o.push(this.text(W / 2, 200, "SHIP LOST", 56, "#ff8a9a").setDepth(141));
       o.push(this.text(W / 2, 276, w.score.toLocaleString("en-US"), 52, "#ffffff").setDepth(141));
       o.push(this.text(W / 2, 322, isBest ? "★ NEW BEST ★" : "BEST " + this.best.score.toLocaleString("en-US"), 20, isBest ? "#ffe45c" : "#9fb4ff").setDepth(141));
-      const rows = [["PEAK WEAPON", `LV ${w.maxLevel}  (${w.maxLevel} beams)`], ["STAGE REACHED", String(w.stage)], ["BOSSES DOWN", String(w.bossesDown)], ["ENEMIES DESTROYED", String(w.kills)], ["TIME", `${Math.floor(w.t / 60)}:${String(Math.floor(w.t % 60)).padStart(2, "0")}`]];
+      const rows = [["PEAK WEAPON", `LV ${w.maxLevel}  (${loadoutText(w.maxLevel).toLowerCase()})`], ["STAGE REACHED", String(w.stage)], ["BOSSES DOWN", String(w.bossesDown)], ["ENEMIES DESTROYED", String(w.kills)], ["TIME", `${Math.floor(w.t / 60)}:${String(Math.floor(w.t % 60)).padStart(2, "0")}`]];
       rows.forEach((r, i) => {
         o.push(this.text(90, 392 + i * 36, r[0], 17, "#9fb4ff", 0, 0.5).setDepth(141));
         o.push(this.text(W - 90, 392 + i * 36, r[1], 20, "#ffffff", 1, 0.5).setDepth(141));
@@ -630,6 +667,8 @@
       for (const e of ev) {
         switch (e.t) {
           case "shot": this.sfx.shot(SIM.tierOf(p.level), p.level); break;
+          case "missile": this.sfx.missile(); break;
+          case "mhit": this.missileBurst(e.x, e.y, e.r); break;
           case "boom": if (boomsThisFrame++ < 12 || e.s > 1) this.explode(e.x, e.y, e.s, e.kind === "boss"); break;
           case "pick":
             this.sfx.pick(e.v);
@@ -657,8 +696,14 @@
       const col = TIER_COL[SIM.tierOf(level)];
       this.fx("ab-ring", p.x, p.y, 0.6, 4, 0.5, col, 0.95, 58);
       this.fx("ab-ring", p.x, p.y, 0.4, 2.4, 0.38, 0xffffff, 0.8, 58);
-      if (level % 10 === 0 || level === 5 || level === 25) {
-        this.showBanner(level + " BEAMS", "weapon level " + level, "#" + col.toString(16).padStart(6, "0"), 900);
+      const css = "#" + col.toString(16).padStart(6, "0");
+      if (SIM.MISSILE.levels.includes(level)) {
+        const n = SIM.loadout(level).missiles;
+        this.showBanner(n === 1 ? "MISSILE BATTERY" : "MISSILE BATTERY x" + n, "homing rockets online — beams reset to 1", "#ffb070", 1300);
+        this.cameras.main.flash(220, 255, 170, 90, true);
+        this.fx("ab-ring", p.x, p.y, 0.5, 5.5, 0.55, 0xffb070, 0.9, 58);
+      } else if (level % 10 === 0 || level === 25) {
+        this.showBanner(SIM.loadout(level).beams + " BEAMS", "weapon level " + level, css, 900);
         this.cameras.main.flash(180, 120, 200, 255, true);
       }
     }
@@ -700,6 +745,15 @@
       if (size >= 2 && !big) this.cameras.main.shake(180, 0.006);
     }
 
+    /** Small impact for a missile: a flash, a ring sized to the splash, a few sparks. Cheaper than explode(). */
+    missileBurst(x, y, r) {
+      const k = (r || 34) / 40;
+      this.fx("ab-glow", x, y, 0.22, 0.7 * k + 0.2, 0.2, 0xffb060, 0.95, 56);
+      this.fx("ab-ring", x, y, 0.2, 0.9 * k + 0.2, 0.24, 0xfff0c0, 0.85, 57);
+      this.sparkFire.explode(this.thin ? 3 : 6, x, y);
+      this.sfx.boom(0);
+    }
+
     // ----- draw the sim world -----
     drawWorld(dt) {
       const w = this.world, p = w.player, t = this.time.now / 1000;
@@ -726,6 +780,27 @@
         s.setPosition(b.x, b.y).setRotation(b.ang).setScale(bsx, 1).setAlpha(bal);
       }
       for (const pl of this.boltPools) pl.end();
+
+      // homing missiles: body + flame, plus a glowing trail that follows the path they actually flew
+      this.missilePool.begin(); this.mflamePool.begin(); this.mpuffPool.begin();
+      const ms = w.missiles, seen = this.mTrail;
+      for (let i = 0; i < ms.length; i++) {
+        const m = ms[i];
+        let tr = seen.get(m.id);
+        if (!tr) { tr = []; seen.set(m.id, tr); }
+        tr.seen = this.frame;
+        if (!tr.length || (m.x - tr[0].x) ** 2 + (m.y - tr[0].y) ** 2 > 49) { tr.unshift({ x: m.x, y: m.y }); if (tr.length > 7) tr.pop(); }
+        const sn = Math.sin(m.ang), cs = Math.cos(m.ang);
+        this.missilePool.next().setPosition(m.x, m.y).setRotation(m.ang).setScale(0.55);
+        const fl = 0.8 + 0.35 * Math.sin(t * 60 + m.id * 1.7);
+        this.mflamePool.next().setPosition(m.x - sn * 12, m.y + cs * 12).setRotation(m.ang).setScale(0.7, fl * Math.min(1, 0.4 + m.spd / 700));
+        for (let j = 1; j < tr.length; j++) {
+          const k = 1 - j / tr.length;
+          this.mpuffPool.next().setPosition(tr[j].x, tr[j].y).setScale(0.05 + 0.1 * k).setAlpha(0.15 + 0.5 * k).setTint(j < 3 ? 0xffc070 : 0xff7040);
+        }
+      }
+      this.missilePool.end(); this.mflamePool.end(); this.mpuffPool.end();
+      if (seen.size > ms.length) for (const [id, tr] of seen) if (tr.seen !== this.frame) seen.delete(id);
 
       // enemy bullets
       for (const pl of this.ebPools) pl.begin();

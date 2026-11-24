@@ -7,7 +7,9 @@
  * reads this world and feeds it a target position for the ship.
  *
  * The one big idea: WEAPON LEVEL = BEAMS PER VOLLEY. Level 1 fires one laser,
- * level 2 fires two, level 60 fires sixty in a fan. Experience orbs dropped by
+ * level 2 fires two, level 4 fires four. At the levels in MISSILE.levels (5, 10)
+ * the ship also gains a homing-missile battery and the beam count restarts at
+ * one (see `loadout`), then climbs a beam per level again. Experience orbs dropped by
  * dead enemies must be *flown into* (they drift off the bottom if you ignore
  * them), and getting hit costs hull AND weapon levels, so a high level is
  * something you earn and have to defend. Play well and the screen fills with
@@ -42,6 +44,30 @@
     boss: { hp: 950, r: 105, xp: 420, score: 8000 },
   };
 
+  /**
+   * HOMING MISSILES — every knob lives here and is read live (never copied), so it can be
+   * tweaked at runtime: `AuroraBarrageSim.MISSILE.interval = 0.6` in the console, or by the
+   * balance bot. Units: px, seconds, radians.
+   */
+  const MISSILE = {
+    levels: [5, 10],      // weapon levels that add one battery; the beam count restarts at 1 on each
+    interval: 0.85,       // seconds between launches, PER BATTERY (cadence; lower = more missiles)
+    stagger: true,        // spread batteries' launch timers across one interval instead of salvoing
+    damage: 4,            // direct hit (x boltDamage(level), same tiers as beams)
+    splash: 34,           // blast radius that also hurts neighbours (0 = none)
+    splashMul: 0.5,       // fraction of the hit damage dealt to those neighbours
+    launchSpeed: 300,     // px/s as it leaves the rail
+    accel: 1500,          // px/s^2 along its heading
+    topSpeed: 820,        // px/s cap
+    turnRate: 7.5,        // rad/s the heading may swing toward its target (turning speed)
+    kick: 0.5,            // launch angle outward from straight up (radians), per mount side
+    lockDelay: 0.07,      // seconds after launch before it starts steering
+    life: 2.6,            // seconds of fuel
+    hitR: 7,              // missile's own radius added to the enemy's when testing a hit
+    spread: 120,          // px of "already claimed" penalty per missile on a target (spreads salvos)
+    maxLive: 90,          // hard cap on missiles in flight
+  };
+
   // ---------- pure helpers (exported, unit-tested) ----------
 
   function mulberry32(a) {
@@ -58,9 +84,21 @@
     return Math.round(5 + 2.4 * level + 0.04 * level * level);
   }
 
-  /** One volley = `level` beams: [{dx, ang}] (offset px, angle from straight up, radians). */
-  function volley(level) {
+  /**
+   * What the ship carries at `level`: {beams, missiles}. Levels 1-4 are 1-4 beams; at each level in
+   * MISSILE.levels a battery is added and the beams restart at one, then gain one per level again
+   * (5 -> 1 beam + 1 missile, 6-9 -> 2..5 beams + 1 missile, 10 -> 1 beam + 2 missiles, 11 -> 2 beams...).
+   */
+  function loadout(level) {
     const n = Math.max(1, Math.min(MAX_LEVEL, level | 0));
+    let missiles = 0, base = 1;
+    for (const l of MISSILE.levels) if (n >= l) { missiles++; base = l; }
+    return { beams: missiles ? n - base + 1 : n, missiles };
+  }
+
+  /** One volley of beams: [{dx, ang}] (offset px, angle from straight up, radians). */
+  function volley(level) {
+    const n = loadout(level).beams;
     if (n === 1) return [{ dx: 0, ang: 0 }];
     const spacing = (Math.min(1.6, 40 / ((n - 1) / 2)) * Math.PI) / 180; // fan tops out at +-40deg
     const dxStep = Math.min(12, 120 / (n - 1)); // and the muzzle line at ~120px wide
@@ -137,6 +175,8 @@
       };
       this.maxLevel = this.player.level;
       this.pbolts = [];
+      this.missiles = [];
+      this.mT = []; // per-battery launch timers
       this.ebullets = [];
       this.enemies = [];
       this.orbs = [];
@@ -169,6 +209,7 @@
       this.stepDirector(dt);
       this.stepEnemies(dt);
       this.stepPlayerBolts(dt);
+      this.stepMissiles(dt);
       this.stepEnemyBullets(dt);
       this.stepOrbs(dt);
       this.stepContacts();
@@ -228,6 +269,94 @@
         if (!hit) bs[w++] = b;
       }
       bs.length = w;
+    }
+
+    // ----- homing missiles -----
+    /** Launch timers follow the battery count; new batteries are phased so they don't fire as one salvo. */
+    stepBatteries(dt) {
+      const p = this.player, n = loadout(p.level).missiles, M = MISSILE;
+      while (this.mT.length < n) this.mT.push(M.stagger ? (this.mT.length * M.interval) / Math.max(2, n) : 0);
+      this.mT.length = n;
+      for (let i = 0; i < n; i++) {
+        this.mT[i] -= dt;
+        if (this.mT[i] <= 0) { this.launchMissile(i); this.mT[i] += M.interval; if (this.mT[i] < 0) this.mT[i] = 0; }
+      }
+    }
+
+    /** Battery i sits on alternating wings: 0 left, 1 right, 2 further out left... */
+    launchMissile(i) {
+      if (this.missiles.length >= MISSILE.maxLive) return;
+      const p = this.player, M = MISSILE;
+      const side = i % 2 ? 1 : -1, ang = side * M.kick;
+      const mount = 22 + 12 * (i >> 1);
+      this.missiles.push({
+        id: ++this.nid, x: p.x + side * mount, y: p.y - 8, ang,
+        vx: Math.sin(ang) * M.launchSpeed, vy: -Math.cos(ang) * M.launchSpeed,
+        spd: M.launchSpeed, t: 0, tgt: 0, dmg: M.damage * boltDamage(p.level),
+      });
+      this.events.push({ t: "missile" });
+    }
+
+    /** Nearest live target, with a penalty per missile already chasing it so a salvo fans out. */
+    pickTarget(m) {
+      const claims = new Map();
+      for (const o of this.missiles) if (o !== m && o.tgt) claims.set(o.tgt, (claims.get(o.tgt) || 0) + 1);
+      let best = null, bd = Infinity;
+      for (const e of this.enemies) {
+        if (e.dead || e.immune || e.y < -30) continue;
+        const d = Math.hypot(e.x - m.x, e.y - m.y) + MISSILE.spread * (claims.get(e.id) || 0);
+        if (d < bd) { bd = d; best = e; }
+      }
+      return best;
+    }
+
+    stepMissiles(dt) {
+      this.stepBatteries(dt);
+      const ms = this.missiles, M = MISSILE;
+      let w = 0;
+      for (let i = 0; i < ms.length; i++) {
+        const m = ms[i];
+        m.t += dt;
+        if (m.t > M.life) continue;
+        let tgt = null;
+        if (m.t >= M.lockDelay) {
+          if (m.tgt) tgt = this.enemies.find((e) => e.id === m.tgt && !e.dead && !e.immune) || null;
+          if (!tgt) { tgt = this.pickTarget(m); m.tgt = tgt ? tgt.id : 0; }
+        }
+        // steer: swing the heading toward the target at no more than turnRate; with no target ease back to straight up
+        const want = tgt ? Math.atan2(tgt.x - m.x, -(tgt.y - m.y)) : 0;
+        let d = want - m.ang;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        const turn = M.turnRate * dt * (tgt ? 1 : 0.35);
+        m.ang += Math.max(-turn, Math.min(turn, d));
+        m.spd = Math.min(M.topSpeed, m.spd + M.accel * dt);
+        m.vx = Math.sin(m.ang) * m.spd; m.vy = -Math.cos(m.ang) * m.spd;
+        m.x += m.vx * dt; m.y += m.vy * dt;
+        if (m.y < -50 || m.y > H + 50 || m.x < -50 || m.x > W + 50) continue;
+        let hit = null;
+        for (const e of this.enemies) {
+          if (e.dead || e.immune) continue;
+          const rr = e.r + M.hitR, dx = m.x - e.x, dy = m.y - e.y;
+          if (dx * dx + dy * dy < rr * rr) { hit = e; break; }
+        }
+        if (hit) { this.missileHit(m, hit); continue; }
+        ms[w++] = m;
+      }
+      ms.length = w;
+    }
+
+    missileHit(m, e) {
+      const M = MISSILE;
+      this.events.push({ t: "mhit", x: m.x, y: m.y, r: M.splash });
+      e.hp -= m.dmg; e.flash = 0.07;
+      if (e.hp <= 0) this.kill(e);
+      if (M.splash > 0 && M.splashMul > 0) {
+        for (const o of this.enemies) {
+          if (o === e || o.dead || o.immune) continue;
+          const rr = o.r + M.splash, dx = m.x - o.x, dy = m.y - o.y;
+          if (dx * dx + dy * dy < rr * rr) { o.hp -= m.dmg * M.splashMul; o.flash = 0.07; if (o.hp <= 0) this.kill(o); }
+        }
+      }
     }
 
     // ----- enemies -----
@@ -590,7 +719,7 @@
   }
 
   return {
-    W, H, STEP, MAX_LEVEL, START_HULL, MAX_HULL, DEFS, World,
-    xpNeed, volley, fireInterval, boltDamage, tierOf, splitXp, stageDuration, bossHp, levelAfterHit, mulberry32,
+    W, H, STEP, MAX_LEVEL, START_HULL, MAX_HULL, DEFS, MISSILE, World,
+    xpNeed, loadout, volley, fireInterval, boltDamage, tierOf, splitXp, stageDuration, bossHp, levelAfterHit, mulberry32,
   };
 });
