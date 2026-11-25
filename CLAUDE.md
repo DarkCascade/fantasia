@@ -307,6 +307,24 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     `window.auroraBarrageGame` is a Phaser game (`destroy(true)`); headless handle:
     `game.scene.getScene("AuroraScene")` with `.world` (the sim) and `.startRun()`; step the world yourself
     in `page.evaluate` since SwiftShader renders at a few fps.
+- **Cease & Desist** (`src/cease-desist.js`) — a game-jam build (theme: "whack-a-mole but
+  you're a game publisher protecting your IP against copyright abuse and piracy"), tile in the
+  Arcade shelf. A 3x3 board of nine named studios; pirates (1 hit), knockoff clones (2 hits) and
+  copyright trolls pop out of the desks. **Tapping a legit release is a wrongful takedown**
+  (-12 IP Integrity, -$200, combo gone); a release left alone *sells* (+$60, +15%/quarter) and
+  heals 1 brand. Escapes cost brand + cash and reset the combo; an escaped troll also **locks its
+  studio for 5s**. IP Integrity (100) is the life bar; revenue is the score; every quarter
+  (30 s) survived heals 6 and unlocks harder mixes (clones from Q2, trolls from Q3). Whacks charge
+  the **Legal Fund**; full = one CLASS ACTION that clears every threat (never releases). Combo
+  multiplier is `1 + 0.5 * floor(combo/5)`, capped x4. Difficulty ramps over `DIFF_SECS` (210 s)
+  then a slower `LATE_SECS` squeeze so no run lasts forever. `Shift` is the pure model (optional
+  seeded rng, `step(dt)`, `whack(i)`, `classAction()`, `drainEvents()`; exported under Node) and
+  `CeaseDesist` is the DOM view (`#cd-root`, `<style id="cd-style">`, WebAudio synth, mute chip;
+  keys Q W E / A S D / Z X C and Space). `window.ceaseDesistGame.destroy()` takes no arguments;
+  `.model` is the live Shift. Best revenue in `localStorage` `cease-desist-best`. Tests:
+  `test/cease-desist.test.js`. Balance was checked with a throwaway bot (one tap per 0.27 s,
+  0.25-0.8 s reaction): it lasts ~3.5-8 min, so rerun something similar after touching the ramp.
+  No external assets; the menu tile art is a cropped play screenshot.
 - **Bark Quest** (`src/bark-quest.js`) — a Puzzle-Quest-style match-3 battler on
   menu page 1. Miles, a red doberman, faces an endless line of
   foes on a repeating three-foe rotation (`FOE_ORDER`): fox, squirrel, wolf,
@@ -1396,6 +1414,7 @@ src/slopeman/          Decimated snowman .glb (art not drawn at runtime)
 src/nova-merge/nova-merge.js  Nova Merge physics merge game; window.launchNovaMerge()
 src/planetary-tycoon.js  Planetary Manufacturing Tycoon incremental factory game; window.launchPlanetaryTycoon()
 src/greenlit.js        Greenlit Reigns-style game-dev card game (DOM overlay); window.launchGreenlit()
+src/cease-desist.js    Cease & Desist whack-a-mole for a publisher (DOM overlay, pure Shift model); window.launchCeaseDesist()
 src/the-button.js      The Button — all-juice button pusher (DOM + 2 canvases, WebAudio); window.launchTheButton()
 src/chibi-crawl.js     Chibi Crawl isometric chibi party auto-battler (three.js, DOM HUD); window.launchChibiCrawl()
 src/tiny-haulers.js    Tiny Haulers logistics sim view/HUD/title/saves (three.js); window.launchTinyHaulers()
@@ -1577,7 +1596,7 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchAuroraBarrage`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
   `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`,
-  `launchTinyHaulers`, `launchHollowMoon`, `launchHallwayCombat`);
+  `launchTinyHaulers`, `launchHollowMoon`, `launchHallwayCombat`, `launchCeaseDesist`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
@@ -1585,12 +1604,12 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `auroraBarrageGame` / `barkQuestGame` / `indieGrindGame` /
   `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame` /
-  `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame` / `hallwayCombatGame`) and
+  `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame` / `hallwayCombatGame` / `ceaseDesistGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
   see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
   `indieGrindGame`, `slopemanGame`, `greenlitGame`, `theButtonGame`,
-  `chibiCrawlGame`, `tinyHaulersGame`, `hollowMoonGame` and `hallwayCombatGame`, whose handles take a plain `destroy()`.
+  `chibiCrawlGame`, `tinyHaulersGame`, `hollowMoonGame`, `hallwayCombatGame` and `ceaseDesistGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
@@ -1628,6 +1647,6 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 
 - `node --check src/game.js` (syntax) and, for workflow edits,
   validate the YAML.
-- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon, Aurora Barrage's sim and Hall of Blows' sim; the bare `node --test test/` form fails on Node 22).
+- `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon, Aurora Barrage's sim, Hall of Blows' sim and Cease & Desist's model; the bare `node --test test/` form fails on Node 22).
 - Prefer a quick headless render to confirm no runtime errors when you touch
   `src/game.js`.
