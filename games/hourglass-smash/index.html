@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Hourglass Smash</title>
+  <style>
+    html, body {
+      margin: 0; height: 100%; overflow: hidden;
+      background: #0e0b1e;
+      touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none;
+      overscroll-behavior: none;
+    }
+    canvas { display: block; outline: none; }
+    #status {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      color: #ffe0c4; font: 600 18px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      text-align: center; padding: 24px; pointer-events: none;
+    }
+    #status small { font-weight: 400; opacity: .7; font-size: 14px; }
+    #status.err { color: #ff9c8a; pointer-events: auto; }
+  </style>
+</head>
+<body>
+  <div id="status">Loading Hourglass Smash&hellip;<small>about 5 MB the first time</small></div>
+  <script src="wasm_exec.js"></script>
+  <script>
+    (function () {
+      var status = document.getElementById("status");
+      function fail(msg) {
+        status.className = "err";
+        status.textContent = "Couldn't start Hourglass Smash. " + msg;
+        console.error(msg);
+      }
+      // Hide the loading note as soon as Ebitengine adds its canvas.
+      new MutationObserver(function (_, obs) {
+        if (document.querySelector("canvas")) { status.style.display = "none"; obs.disconnect(); }
+      }).observe(document.body, { childList: true });
+
+      if (!window.WebAssembly) { fail("This browser has no WebAssembly support."); return; }
+      var go = new Go();
+      function start(result) {
+        go.run(result.instance).then(function () {
+          // main() returned or the runtime exited: nothing more to do.
+        }, function (e) { fail(String(e)); });
+      }
+      var url = "main.wasm";
+      var load = WebAssembly.instantiateStreaming
+        ? WebAssembly.instantiateStreaming(fetch(url), go.importObject).catch(function () {
+            // Wrong MIME type or a streaming hiccup: fall back to an ArrayBuffer.
+            return fetch(url).then(function (r) { return r.arrayBuffer(); })
+              .then(function (b) { return WebAssembly.instantiate(b, go.importObject); });
+          })
+        : fetch(url).then(function (r) { return r.arrayBuffer(); })
+            .then(function (b) { return WebAssembly.instantiate(b, go.importObject); });
+      load.then(start, function (e) { fail(String(e)); });
+    })();
+  </script>
+</body>
+</html>

@@ -42,6 +42,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        # Go games (Ebitengine compiled to WebAssembly) live in games/<name>/.
+        # go.mod there says which Go version is needed; 1.25 satisfies it.
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: games/*/go.sum
+
+      - name: Build Go games
+        # Every games/<name>/ with a go.mod is compiled to main.wasm and gets
+        # Go's wasm_exec.js loader shim beside it. Both are build output (git
+        # ignores them); index.html in that folder is the committed loader page.
+        run: |
+          for dir in games/*/; do
+            [ -f "${dir}go.mod" ] || continue
+            echo "Building ${dir}"
+            ( cd "$dir" \
+              && GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o main.wasm . \
+              && cp -f "$(go env GOROOT)/lib/wasm/wasm_exec.js" . )
+          done
+
       - name: Assemble site
         # Copy only the files the game needs into the publish directory.
         run: |
@@ -55,6 +76,12 @@ jobs:
           cp -r museum _site/
           cp -r ossimite _site/
           cp -r bowgeois-trader _site/
+          # Go games: ship only what the browser needs, not the Go source.
+          for dir in games/*/; do
+            name="$(basename "$dir")"
+            mkdir -p "_site/games/${name}"
+            cp "${dir}index.html" "${dir}main.wasm" "${dir}wasm_exec.js" "_site/games/${name}/"
+          done
 
       - name: Stamp deploy version
         # Write a tiny version.json into the site so you can confirm the live
@@ -92,6 +119,11 @@ jobs:
           test -f _site/manifest.webmanifest
           test -f _site/sw.js
           test -f _site/icons/icon-512.png
+          # Hourglass Smash is Go compiled to wasm; a missing build would only
+          # show up as a game that never loads.
+          test -f _site/games/hourglass-smash/index.html
+          test -f _site/games/hourglass-smash/main.wasm
+          test -f _site/games/hourglass-smash/wasm_exec.js
           echo "Site assembled:"
           find _site -type f | sort
 

@@ -10,3 +10,9 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# Go games (games/<name>/): main.wasm and wasm_exec.js are build output; CI makes
+# them (see "Build Go games" in deploy.yml) and locally you rebuild with the
+# recipe in CLAUDE.md.
+games/*/main.wasm
+games/*/wasm_exec.js

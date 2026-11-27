@@ -691,6 +691,10 @@
               Nova Merge
               <small>Drop and fuse planets</small>
             </button>
+            <button id="btn-hourglasssmash" class="tile tile--art" type="button" style="--img:url(src/menu-art/hourglasssmash.webp);--a:#e0894a;--b:#5a2a46">
+              Hourglass Smash
+              <small>Fling a cube, topple the neck</small>
+            </button>
           </div>
         </section>
         <section class="shelf">
@@ -760,6 +764,7 @@
   <script src="src/paper-airplane/levels.js"></script>
   <script src="src/paper-airplane/doodle.js"></script>
   <script src="src/paper-airplane.js"></script>
+  <script src="src/hourglass-smash.js"></script>
   <script>
     // Wire up the Fantasia selector. Each game's Phaser instance is created on
     // demand when its button is pressed, so the menu is always shown first.
@@ -875,6 +880,11 @@
       }
       document.getElementById("btn-featured").addEventListener("click", playPaperAirplane);
 
+      document.getElementById("btn-hourglasssmash").addEventListener("click", function () {
+        hideMenu();
+        if (typeof window.launchHourglassSmash === "function") window.launchHourglassSmash();
+      });
+
       document.getElementById("btn-hollowmoon").addEventListener("click", function () {
         hideMenu();
         if (typeof window.launchHollowMoon === "function") window.launchHollowMoon();
@@ -911,6 +921,8 @@
           if (window.tinyHaulersGame) { try { window.tinyHaulersGame.destroy(); } catch (e) {} window.tinyHaulersGame = null; }
           if (window.hallwayCombatGame) { try { window.hallwayCombatGame.destroy(); } catch (e) {} window.hallwayCombatGame = null; }
           if (window.hollowMoonGame) { try { window.hollowMoonGame.destroy(); } catch (e) {} window.hollowMoonGame = null; }
+          // Hourglass Smash is a Go/WebAssembly game in an iframe; destroy() removes it.
+          if (window.hourglassSmashGame) { try { window.hourglassSmashGame.destroy(); } catch (e) {} window.hourglassSmashGame = null; }
           if (window.paperAirplaneGame) { try { window.paperAirplaneGame.destroy(true); } catch (e) {} window.paperAirplaneGame = null; }
         }, 0);
       };

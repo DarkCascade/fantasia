@@ -1254,6 +1254,56 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     `window.hallwayCombatGame` is a handle whose `destroy()` takes no arguments; `.game` is the live `Hall`
     (`.world` is the sim). Headless: replace `g.frame` with a no-op and step `world.step(1/60)` then
     `handleEvents()/syncScenery()/syncFighters()/renderer.render()` yourself (SwiftShader is a few fps).
+- **Hourglass Smash** (`games/hourglass-smash/`, launcher `src/hourglass-smash.js`) — drag back, let go, and
+  fling a heavy red cube at a stack of cubes built as an **hourglass**; the coral two-cube **neck** is the
+  keystone, and knocking it out drops the whole top bulb onto the bottom half. Score = hourglass cubes
+  knocked more than 0.6 of a cube from where they started (of 68), five throws a round, best in
+  `localStorage` `hourglass-smash-best`. Puzzle & Physics shelf (art tile `src/menu-art/hourglasssmash.webp`).
+  **It is the first non-JavaScript game here: Go compiled to WebAssembly with Ebitengine v2.10 and the
+  `jakecoffman/cp` physics engine (a Go port of Chipmunk2D).** Written as a trial of "what tech can the
+  branch -> PR -> Pages workflow carry?": anything that compiles to static files can, if the build runs in CI.
+  - **Layout.** `sim/` is the pure physics + rules (`package sim`: no Ebitengine import, so plain
+    `go test` works natively); `main.go` / `gfx.go` are input, drawing and effects; `host_js.go` (build tag
+    `js`: `parent.returnToMenu()`, `localStorage`, and a `window.hourglassSmash` debug API) with a no-op
+    `host_other.go`; `index.html` is the committed loader page; `go.mod` pins Go 1.25.
+    **`main.wasm` and `wasm_exec.js` are build output and git-ignored** (see Deployment).
+  - **Run it locally**: `cd games/hourglass-smash && GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o
+    main.wasm . && cp -f "$(go env GOROOT)/lib/wasm/wasm_exec.js" .` (~20 s; the Go proxy works from the
+    sandbox, `go.dev`/`github.com` do not, and a Go older than 1.25 fetches the 1.25 toolchain itself), then
+    serve the repo root and open the menu tile, or `games/hourglass-smash/index.html` directly.
+    (A native `go run .` is untested here; the sandbox has no display.) **`go get` x/image at `@latest` raised the
+    `go` line to 1.26; keep it pinned at v0.45.0, which is what Ebitengine requires.**
+  - **Embedding.** The game runs in an **iframe** inside `#game-container` (`window.hourglassSmashGame =
+    {frame, destroy()}`, a plain `destroy()`), because a Go wasm instance can't be unloaded: navigating the
+    iframe away discards it. The in-game MENU chip is drawn by Go and calls `window.parent.returnToMenu()`.
+    The `.wasm` is ~19.7 MB raw, ~4.6 MB gzipped. A bare Ebitengine hello-world was ~14.5 MB before
+    `-ldflags="-s -w"`, so the engine is most of it; the text/v2 shaper is the likeliest thing to trim
+    (unmeasured) if load time ever matters.
+  - **The hourglass can't stand as loose cubes.** An inverted pyramid of grid-aligned cubes overhangs half a
+    cube per row, so each end cube's weight sits exactly on its support's edge and the whole top collapses
+    in about a second (measured: 434 px of drift; an upright pyramid is rock solid). So the six rows of the
+    top bulb are **glued into planks**: neighbouring cubes get a `PivotJoint` + `GearJoint` weld (`glue`),
+    and a weld **snaps** when its joint impulse passes `BreakImpulse` (300; the same joints carry at most
+    ~77 at rest), so the bulb stands, then bursts into loose cubes (with sparks) when it hits something. Rows
+    below the neck are unglued. **Test every tuning change on a settled stack** (`run(w, 2)` first): an
+    awake stack at t=0 behaves very differently from a sleeping one and the first sweeps lied.
+  - **Feel and numbers.** The launch cube weighs `ShotMass` 7 against 1 per sand cube (at 2.2 it just
+    bounced off 68 cubes of friction); speed = drag length x `PullGain` (max 150 px -> 1350 px/s); physics is
+    `Substeps` 2 x 1/60 s with 40 solver iterations and sleeping. Taking out the neck needs roughly 85-100%
+    power and a nearly flat shot: ~9% of the sweep grid does it, toppling ~31 cubes on average versus ~7 for
+    any other aim (`TestAimSweep` asserts the ratio). The aim preview (`Preview`) integrates like the real step
+    (position, then velocity) and matches the flight to ~2 px (`TestPreviewMatchesFlight`). Press anywhere,
+    drag, release; the cube flies opposite the drag, like Paper Airplane.
+  - **Rendering.** `LayoutF` returns the *device-pixel* size and `Game.vs/vox/voy` map the 540x960 world into
+    it, so text and vectors stay crisp on retina screens (a fixed 540x960 logical size is upscaled and blurry);
+    every draw goes through `canvas`, which applies that transform. The cube is one baked white sprite tinted per
+    cube. Go fonts (`gofont`) via `text/v2`. The backdrop is baked once at 2x.
+  - **Tests**: `cd games/hourglass-smash && go test ./sim` (~10 s; `-short` skips the aim sweep). Headless
+    browser: serve the repo root, open the page with the SwiftShader flags, then use
+    `window.hourglassSmash.{state,launch,advance,reset,layout}` (`advance(n)` runs n sim ticks without waiting
+    for software-rendered frames; settle with `advance(150)` before a launch). A neck shot that works on a
+    settled stack: `launch(1300, 0)` (toppled 41). Touch was verified by CDP `Input.dispatchTouchEvent`.
+  - **Not done**: sound (Ebitengine `audio` would do it), more levels/shapes, a smaller wasm.
 - **Ashen Spire museum** (`museum/`) — a separate **Godot/WebAssembly** export
   (entry `too-much-for-web.html`), NOT a Phaser game and NOT in the menu. It
   deploys as a subdirectory and is reached directly at `/museum/`. Unlike the
@@ -1442,6 +1492,8 @@ experiments/paper-airplane/  check-levels.js / check-preview.js / explore-level.
 src/hollow-moon/        Meshy hero + boss GLBs and per-clip animation GLBs
 src/hallway-combat.js   Hall of Blows diorama hallway combat, view/HUD (three.js); window.launchHallwayCombat()
 src/hallway-combat/sim.js  Hall of Blows combat simulation (pure, also require()-able from Node)
+src/hourglass-smash.js  Hourglass Smash launcher (iframes games/hourglass-smash/); window.launchHourglassSmash()
+games/hourglass-smash/  Hourglass Smash: Go + Ebitengine -> WebAssembly (sim/ physics+tests, main.go view, index.html loader; main.wasm built in CI)
 test/                  Node unit tests (node --test test/); not deployed
 museum/                Ashen Spire (Godot/WASM export); served at /museum/
 vendor/phaser.min.js   Phaser 4.1.0 (vendored)
@@ -1466,8 +1518,13 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 - **`main` is the sole deploy branch.** `.github/workflows/deploy.yml` triggers
   only on `push` to `main` (plus manual `workflow_dispatch`). Feature branches
   do **not** auto-publish — merge their PR into `main` to ship.
-- The "build" just assembles `index.html`, `src/`, `vendor/`, and `museum/` into
-  `_site/`; no bundler/compiler. If you add a new top-level asset the site needs,
+- The "build" assembles `index.html`, `src/`, `vendor/`, `museum/` (and a few other
+  top-level folders, see the workflow) into `_site/`; there is no bundler for the JS
+  games. **The one compiled thing is `games/<name>/`**: the "Build Go games" step runs
+  `go build` for every folder there that has a `go.mod` (`GOOS=js GOARCH=wasm`), copies
+  Go's `wasm_exec.js` beside the `main.wasm`, and "Assemble site" ships only
+  `index.html` + those two files per game (not the Go source). A new Go game is a new
+  `games/<name>/` plus its "Verify required files" lines. If you add a new top-level asset the site needs,
   add it to the "Assemble site" copy step (e.g. the museum ships via
   `cp -r museum _site/`) **and**, for core files, the "Verify required files"
   check.
@@ -1597,8 +1654,8 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   grass/GTAO, so use those low flags and 90s screenshot timeouts),
   cropped so the subject sits in the top half and colour-boosted. The tile
   overlays a bottom-up dark + `--b` fade so the title and tagline stay readable
-  and keeps the `--a/--b` gradient as the fallback. Puzzle & Physics and Management & Idle are still
-  plain colour cards; to art-ify one, add the WebP and the `tile--art`/`--img`.
+  and keeps the `--a/--b` gradient as the fallback. Management & Idle and most of Puzzle & Physics are still
+  plain colour cards (Hourglass Smash is the one art tile in Puzzle & Physics); to art-ify one, add the WebP and the `tile--art`/`--img`.
   Bark Quest's `#btn-barkquest` rule still overrides the tile background with
   its drifting bones. The old paged carousel (`--cur`/`data-page`/arrows) is
   gone, so "menu page N" in the game entries above is historical.
@@ -1609,7 +1666,8 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `launchArrowRush`, `launchCosmicDash`, `launchIndieGrind`, `launchGloomHollow`,
   `launchGloomHollow3D`, `launchAuroraBarrage`, `launchBarkQuest`, `launchSlopeman`, `launchNovaMerge`,
   `launchPlanetaryTycoon`, `launchGreenlit`, `launchTheButton`, `launchChibiCrawl`,
-  `launchTinyHaulers`, `launchHollowMoon`, `launchHallwayCombat`, `launchCeaseDesist`);
+  `launchTinyHaulers`, `launchHollowMoon`, `launchHallwayCombat`, `launchCeaseDesist`,
+  `launchHourglassSmash`);
   the menu buttons
   call these to
   create the chosen game (once) into `#game-container`, and
@@ -1617,12 +1675,12 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
   `aviansGame` / `starCatcherGame` / `arrowGame` / `cosmicDashGame` /
   `gloomGame` / `gloom3DGame` / `auroraBarrageGame` / `barkQuestGame` / `indieGrindGame` /
   `slopemanGame` / `novaMergeGame` / `tycoonGame` / `greenlitGame` / `theButtonGame` /
-  `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame` / `hallwayCombatGame` / `ceaseDesistGame`) and
+  `chibiCrawlGame` / `tinyHaulersGame` / `hollowMoonGame` / `hallwayCombatGame` / `ceaseDesistGame` / `hourglassSmashGame`) and
   re-shows the menu. (Gloom Hollow 3D opens on its own mode picker first;
   see its entry above.) All of those are Phaser
   instances torn down with `destroy(true)` except `gloom3DGame`,
   `indieGrindGame`, `slopemanGame`, `greenlitGame`, `theButtonGame`,
-  `chibiCrawlGame`, `tinyHaulersGame`, `hollowMoonGame`, `hallwayCombatGame` and `ceaseDesistGame`, whose handles take a plain `destroy()`.
+  `chibiCrawlGame`, `tinyHaulersGame`, `hollowMoonGame`, `hallwayCombatGame`, `ceaseDesistGame` and `hourglassSmashGame`, whose handles take a plain `destroy()`.
 - **Adding a game** = a new `src/<game>.js` that exposes `window.launch<Game>()`
   and stores its instance on a `window.*Game` global, a menu button + click
   handler in `index.html`, and a matching teardown line in `returnToMenu()`. The
@@ -1661,5 +1719,6 @@ experiments/orb-cascade/  Orb Cascade: single-file three.js prototype of a glowi
 - `node --check src/game.js` (syntax) and, for workflow edits,
   validate the YAML.
 - `node --test test/*.test.js` (unit tests; currently Tiny Haulers' simulation, Daily Dungeon, Aurora Barrage's sim, Hall of Blows' sim and Cease & Desist's model; the bare `node --test test/` form fails on Node 22).
+- If you touched `games/hourglass-smash/`: `cd games/hourglass-smash && go vet ./sim && go test ./sim` (and rebuild the wasm per its entry to check it still compiles for `js/wasm`).
 - Prefer a quick headless render to confirm no runtime errors when you touch
   `src/game.js`.
