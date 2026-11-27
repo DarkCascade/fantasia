@@ -309,22 +309,35 @@ in `index.html`, styled after a 1970s Disney title card); picking a game boots i
     in `page.evaluate` since SwiftShader renders at a few fps.
 - **Cease & Desist** (`src/cease-desist.js`) — a game-jam build (theme: "whack-a-mole but
   you're a game publisher protecting your IP against copyright abuse and piracy"), tile in the
-  Arcade shelf. A 3x3 board of nine named studios; pirates (1 hit), knockoff clones (2 hits) and
-  copyright trolls pop out of the desks. **Tapping a legit release is a wrongful takedown**
-  (-12 IP Integrity, -$200, combo gone); a release left alone *sells* (+$60, +15%/quarter) and
-  heals 1 brand. Escapes cost brand + cash and reset the combo; an escaped troll also **locks its
-  studio for 5s**. IP Integrity (100) is the life bar; revenue is the score; every quarter
-  (30 s) survived heals 6 and unlocks harder mixes (clones from Q2, trolls from Q3). Whacks charge
-  the **Legal Fund**; full = one CLASS ACTION that clears every threat (never releases). Combo
-  multiplier is `1 + 0.5 * floor(combo/5)`, capped x4. Difficulty ramps over `DIFF_SECS` (210 s)
-  then a slower `LATE_SECS` squeeze so no run lasts forever. `Shift` is the pure model (optional
-  seeded rng, `step(dt)`, `whack(i)`, `classAction()`, `drainEvents()`; exported under Node) and
-  `CeaseDesist` is the DOM view (`#cd-root`, `<style id="cd-style">`, WebAudio synth, mute chip;
-  keys Q W E / A S D / Z X C and Space). `window.ceaseDesistGame.destroy()` takes no arguments;
-  `.model` is the live Shift. Best revenue in `localStorage` `cease-desist-best`. Tests:
-  `test/cease-desist.test.js`. Balance was checked with a throwaway bot (one tap per 0.27 s,
-  0.25-0.8 s reaction): it lasts ~3.5-8 min, so rerun something similar after touching the ramp.
-  No external assets; the menu tile art is a cropped play screenshot.
+  Arcade shelf, now a **two-level campaign**. Each level has a **revenue goal** (`LEVELS[].target`)
+  that ends it as a win (`checkWin` -> `won`, a `win` event, no `over`); IP Integrity (100) is the
+  life bar and the run is lost at 0. Both levels share the threats (pirate 1 hit, knockoff clone 2,
+  copyright troll 1), the combo (`1 + 0.5 * floor(combo/5)`, cap x4), the Legal Fund (full = one CLASS
+  ACTION that clears every threat, never fans/releases), a +6 brand bonus per 30 s quarter, and the
+  rule that hitting something legitimate is a **wrongful takedown** (-12 brand, -$200, combo gone).
+  - **Level 1 "Whack Row"** (`Shift`): the original whack-a-mole over nine studio desks; goal **$4,000**.
+    A release left alone sells (+$60, +15%/quarter, +1 brand). Escapes cost brand + cash and reset the
+    combo; an escaped troll locks its studio 5 s. Clones from Q2, trolls from Q3. Difficulty ramps over
+    `DIFF_SECS` (210 s) then a `LATE_SECS` squeeze. **The goal was set so a human clears it in under a
+    minute**: bots (one tap per 0.25-0.5 s, 0.3-0.75 s reaction, 1-8% mistakes) reach $4,000 in 23-40 s.
+  - **Level 2 "Bar Rush"** (`BarShift`, Root Beer Tapper): each of the nine studios is a **bartop**.
+    Customers walk from the door (x=0) to the counter (x=1); the tap handle at the right of a bartop
+    (`serve(row)`, `ROW_CD` 0.35 s) slides a mug left at `MUG_SPEED`, which stops at the *first* customer
+    it meets. Fan: pays (`FAN_PAY` 70, x combo); pirate/knockoff: "pirated" it (the same leak cost as an
+    escape); troll: locks the bartop 4 s. Tapping a customer (`whackCust`) bounces a threat or is a
+    wrongful takedown on a fan. Reaching the counter: unserved fan -5 brand, threats leak. Goal **$8,000**
+    (bots take 30-65 s). Unlocked when level 1 is cleared (`launchCeaseDesist({level})` skips the gate).
+  - **Model/view split.** `Core` (shared state, `checkWin`/`checkOver`, events), `Shift`, `BarShift` are
+    pure and exported under Node (optional seeded rng, `opts.target`; no target = never wins).
+    `CeaseDesist` is the DOM view (`#cd-root`, `<style id="cd-style">`, WebAudio synth, mute chip): a title
+    with level cards, a per-level briefing (legend + goal), the board (`buildBoard` rebuilds it per
+    level; level 2 pools customer/mug elements by id), a goal bar, clear / bankrupt panels. Keys: Q W E /
+    A S D / Z X C (level 2: serves, Shift = bounce the front customer), Space = class action.
+    `window.ceaseDesistGame.destroy()` takes no arguments; `.model` is the live model (a getter, it changes
+    per level). Progress `{cleared, best}` (best clear *time*, not score) is in `localStorage`
+    `cease-desist-progress`. Tests: `test/cease-desist.test.js`. Retune goals with a throwaway bot (see the
+    numbers above) after touching a ramp or a payout. No external assets; the menu tile art is a cropped
+    play screenshot.
 - **Bark Quest** (`src/bark-quest.js`) — a Puzzle-Quest-style match-3 battler on
   menu page 1. Miles, a red doberman, faces an endless line of
   foes on a repeating three-foe rotation (`FOE_ORDER`): fox, squirrel, wolf,
@@ -1414,7 +1427,7 @@ src/slopeman/          Decimated snowman .glb (art not drawn at runtime)
 src/nova-merge/nova-merge.js  Nova Merge physics merge game; window.launchNovaMerge()
 src/planetary-tycoon.js  Planetary Manufacturing Tycoon incremental factory game; window.launchPlanetaryTycoon()
 src/greenlit.js        Greenlit Reigns-style game-dev card game (DOM overlay); window.launchGreenlit()
-src/cease-desist.js    Cease & Desist whack-a-mole for a publisher (DOM overlay, pure Shift model); window.launchCeaseDesist()
+src/cease-desist.js    Cease & Desist two-level IP-defence game (DOM overlay, pure Shift/BarShift models); window.launchCeaseDesist({level?})
 src/the-button.js      The Button — all-juice button pusher (DOM + 2 canvases, WebAudio); window.launchTheButton()
 src/chibi-crawl.js     Chibi Crawl isometric chibi party auto-battler (three.js, DOM HUD); window.launchChibiCrawl()
 src/tiny-haulers.js    Tiny Haulers logistics sim view/HUD/title/saves (three.js); window.launchTinyHaulers()
